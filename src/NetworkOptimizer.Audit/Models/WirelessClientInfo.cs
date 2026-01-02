@@ -65,9 +65,9 @@ public class WirelessClientInfo
             {
                 return Client.Radio.ToLowerInvariant() switch
                 {
-                    "na" => "5GHz",
-                    "ng" => "2.4GHz",
-                    "6e" or "ax-6e" => "6GHz",
+                    "na" => "5 GHz",
+                    "ng" => "2.4 GHz",
+                    "6e" or "ax-6e" => "6 GHz",
                     _ => null
                 };
             }
@@ -77,11 +77,11 @@ public class WirelessClientInfo
             {
                 var channel = Client.Channel.Value;
                 if (channel >= 1 && channel <= 14)
-                    return "2.4GHz";
+                    return "2.4 GHz";
                 if (channel >= 36 && channel <= 177)
-                    return "5GHz";
+                    return "5 GHz";
                 if (channel >= 1 && channel <= 233) // 6GHz UNII bands use different channel numbers
-                    return "6GHz";
+                    return "6 GHz";
             }
 
             return null;

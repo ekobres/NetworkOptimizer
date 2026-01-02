@@ -2,11 +2,12 @@
 
 ## LAN Speed Test
 
-### Retransmit Analysis
-- Flag high retransmit counts as a separate insight
-- Example: "High packet loss detected on return path" when retransmits are asymmetric
-- Observation: Front Yard AP test showed 3181 retransmits "to device" but 0 "from device"
-- This asymmetry on wireless mesh links makes sense (mesh uplink contention)
+### ~~Retransmit Analysis~~ (FIXED)
+- ~~Flag high retransmit counts as a separate insight~~
+- ~~Example: "High packet loss detected on return path" when retransmits are asymmetric~~
+- ~~Observation: Front Yard AP test showed 3181 retransmits "to device" but 0 "from device"~~
+- ~~This asymmetry on wireless mesh links makes sense (mesh uplink contention)~~
+- FIXED: PathAnalysisResult.AnalyzeRetransmits() detects high/asymmetric retransmits and generates insights
 
 ### Path Analysis Enhancements
 - Direction-aware bottleneck calculation (separate from/to max speeds)
@@ -22,10 +23,11 @@
 - ~~Fix: Scoring calculation should skip any checks for features that are disabled~~
 - FIXED: Score now recalculated based only on enabled features in AuditService.CalculateFilteredScore()
 
-### Wireless Client Band Info
-- Show WiFi band (2.4GHz/5GHz/6GHz) in the Port column for wireless issues
-- Example: "on [AP] Tiny Home (5GHz)" instead of just "on [AP] Tiny Home"
-- Data source: UniFi client response has radio/channel info
+### ~~Wireless Client Band Info~~ (FIXED)
+- ~~Show WiFi band (2.4 GHz/5 GHz/6 GHz) in the Port column for wireless issues~~
+- ~~Example: "on [AP] Tiny Home (5 GHz)" instead of just "on [AP] Tiny Home"~~
+- ~~Data source: UniFi client response has radio/channel info~~
+- FIXED: WirelessClientInfo.WifiBand computed from radio type, displayed in GetPortDisplay()
 
 ### Port Audit - Down Ports with MAC Restriction
 - Support VLAN placement analysis for ports that are currently down

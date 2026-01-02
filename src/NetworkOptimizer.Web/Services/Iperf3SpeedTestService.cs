@@ -662,7 +662,12 @@ public class Iperf3SpeedTestService
             _logger.LogDebug("Analyzing network path to {Host} from {SourceIp}", targetHost, result.LocalIp ?? "auto");
 
             var path = await _pathAnalyzer.CalculatePathAsync(targetHost, result.LocalIp);
-            var analysis = _pathAnalyzer.AnalyzeSpeedTest(path, result.DownloadMbps, result.UploadMbps);
+            var analysis = _pathAnalyzer.AnalyzeSpeedTest(
+                path,
+                result.DownloadMbps,
+                result.UploadMbps,
+                result.DownloadRetransmits,
+                result.UploadRetransmits);
 
             result.PathAnalysis = analysis;
 

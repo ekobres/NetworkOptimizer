@@ -500,7 +500,13 @@ public class GatewaySpeedTestService
             _lastResult = result;
 
             // Analyze network path before saving (use LocalIp parsed from iperf3 output)
-            var pathAnalysis = await AnalyzePathAsync(settings.Host, result.DownloadMbps, result.UploadMbps, result.LocalIp);
+            var pathAnalysis = await AnalyzePathAsync(
+                settings.Host,
+                result.DownloadMbps,
+                result.UploadMbps,
+                result.DownloadRetransmits,
+                result.UploadRetransmits,
+                result.LocalIp);
 
             // Save to history database
             await SaveResultToHistoryAsync(result, pathAnalysis);
@@ -665,14 +671,24 @@ public class GatewaySpeedTestService
     /// Analyze the network path to the gateway and calculate efficiency grades
     /// </summary>
     private async Task<PathAnalysisResult?> AnalyzePathAsync(
-        string targetHost, double downloadMbps, double uploadMbps, string? localIp = null)
+        string targetHost,
+        double downloadMbps,
+        double uploadMbps,
+        int downloadRetransmits = 0,
+        int uploadRetransmits = 0,
+        string? localIp = null)
     {
         try
         {
             _logger.LogDebug("Analyzing network path to gateway {Host}", targetHost);
 
             var path = await _pathAnalyzer.CalculatePathAsync(targetHost, localIp);
-            var analysis = _pathAnalyzer.AnalyzeSpeedTest(path, downloadMbps, uploadMbps);
+            var analysis = _pathAnalyzer.AnalyzeSpeedTest(
+                path,
+                downloadMbps,
+                uploadMbps,
+                downloadRetransmits,
+                uploadRetransmits);
 
             if (analysis.Path.IsValid)
             {

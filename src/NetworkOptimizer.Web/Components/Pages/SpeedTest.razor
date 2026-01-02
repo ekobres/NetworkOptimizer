@@ -1124,7 +1124,12 @@
                     try
                     {
                         var path = await PathAnalyzer.CalculatePathAsync(currentResult.DeviceHost, currentResult.LocalIp);
-                        currentResult.PathAnalysis = PathAnalyzer.AnalyzeSpeedTest(path, currentResult.DownloadMbps, currentResult.UploadMbps);
+                        currentResult.PathAnalysis = PathAnalyzer.AnalyzeSpeedTest(
+                            path,
+                            currentResult.DownloadMbps,
+                            currentResult.UploadMbps,
+                            currentResult.DownloadRetransmits,
+                            currentResult.UploadRetransmits);
                     }
                     catch
                     {
@@ -1352,7 +1357,12 @@
         try
         {
             var path = await PathAnalyzer.CalculatePathAsync(result.DeviceHost, result.LocalIp);
-            var analysis = PathAnalyzer.AnalyzeSpeedTest(path, result.DownloadMbps, result.UploadMbps);
+            var analysis = PathAnalyzer.AnalyzeSpeedTest(
+                path,
+                result.DownloadMbps,
+                result.UploadMbps,
+                result.DownloadRetransmits,
+                result.UploadRetransmits);
             historyPathAnalysis[result.Id] = analysis;
         }
         catch

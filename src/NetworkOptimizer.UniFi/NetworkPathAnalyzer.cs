@@ -355,13 +355,25 @@ public class NetworkPathAnalyzer
     /// <summary>
     /// Analyzes a speed test result against the calculated network path.
     /// </summary>
-    public PathAnalysisResult AnalyzeSpeedTest(NetworkPath path, double fromDeviceMbps, double toDeviceMbps)
+    /// <param name="path">The network path to the target device</param>
+    /// <param name="fromDeviceMbps">Measured upload speed (device to server) in Mbps</param>
+    /// <param name="toDeviceMbps">Measured download speed (server to device) in Mbps</param>
+    /// <param name="fromDeviceRetransmits">TCP retransmits in upload direction (optional)</param>
+    /// <param name="toDeviceRetransmits">TCP retransmits in download direction (optional)</param>
+    public PathAnalysisResult AnalyzeSpeedTest(
+        NetworkPath path,
+        double fromDeviceMbps,
+        double toDeviceMbps,
+        int fromDeviceRetransmits = 0,
+        int toDeviceRetransmits = 0)
     {
         var result = new PathAnalysisResult
         {
             Path = path,
             MeasuredFromDeviceMbps = fromDeviceMbps,
-            MeasuredToDeviceMbps = toDeviceMbps
+            MeasuredToDeviceMbps = toDeviceMbps,
+            FromDeviceRetransmits = fromDeviceRetransmits,
+            ToDeviceRetransmits = toDeviceRetransmits
         };
 
         if (path.IsValid && path.RealisticMaxMbps > 0)

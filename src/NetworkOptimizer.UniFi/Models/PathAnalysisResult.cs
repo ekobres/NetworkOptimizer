@@ -15,6 +15,12 @@ public class PathAnalysisResult
     /// <summary>Measured throughput to device from server (Mbps)</summary>
     public double MeasuredToDeviceMbps { get; set; }
 
+    /// <summary>TCP retransmits from device to server (upload direction)</summary>
+    public int FromDeviceRetransmits { get; set; }
+
+    /// <summary>TCP retransmits to device from server (download direction)</summary>
+    public int ToDeviceRetransmits { get; set; }
+
     /// <summary>Efficiency of from-device transfer vs theoretical max (%)</summary>
     public double FromDeviceEfficiencyPercent { get; set; }
 
@@ -116,6 +122,62 @@ public class PathAnalysisResult
         else if (Path.TheoreticalMaxMbps == 1000 && avgEfficiency >= 90)
         {
             Recommendations.Add("Maxing out 1 GbE - consider 2.5G or 10G upgrade for higher speeds");
+        }
+
+        // Retransmit analysis
+        AnalyzeRetransmits();
+    }
+
+    /// <summary>
+    /// Analyze TCP retransmits and generate insights about packet loss
+    /// </summary>
+    private void AnalyzeRetransmits()
+    {
+        var totalRetransmits = FromDeviceRetransmits + ToDeviceRetransmits;
+
+        // Skip if no retransmits
+        if (totalRetransmits == 0)
+            return;
+
+        // Threshold for "high" retransmits - based on test duration and speed
+        // For a 10-second test at 1 Gbps, thousands of retransmits is concerning
+        const int HighRetransmitThreshold = 100;
+        const int VeryHighRetransmitThreshold = 1000;
+
+        // Check for asymmetric retransmits (significant difference between directions)
+        var hasFromRetransmits = FromDeviceRetransmits > 0;
+        var hasToRetransmits = ToDeviceRetransmits > 0;
+
+        if (hasFromRetransmits != hasToRetransmits && totalRetransmits >= HighRetransmitThreshold)
+        {
+            // One direction has retransmits, the other doesn't
+            if (hasToRetransmits && !hasFromRetransmits)
+            {
+                Insights.Add($"High packet loss on download path ({ToDeviceRetransmits:N0} retransmits)");
+                if (Path.HasWirelessConnection)
+                {
+                    Recommendations.Add("Download retransmits on wireless - check for interference or weak signal");
+                }
+            }
+            else if (hasFromRetransmits && !hasToRetransmits)
+            {
+                Insights.Add($"High packet loss on upload path ({FromDeviceRetransmits:N0} retransmits)");
+                if (Path.HasWirelessConnection)
+                {
+                    Recommendations.Add("Upload retransmits on wireless - may indicate mesh uplink contention");
+                }
+            }
+        }
+        else if (totalRetransmits >= VeryHighRetransmitThreshold)
+        {
+            // Both directions have significant retransmits
+            Insights.Add($"High packet loss detected ({totalRetransmits:N0} total retransmits)");
+            Recommendations.Add("Check for network congestion, interference, or faulty cables");
+        }
+        else if (totalRetransmits >= HighRetransmitThreshold)
+        {
+            // Moderate retransmits
+            Insights.Add($"Moderate packet loss ({totalRetransmits:N0} retransmits)");
         }
     }
 }
