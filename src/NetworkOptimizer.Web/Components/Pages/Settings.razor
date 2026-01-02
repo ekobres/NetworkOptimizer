@@ -2,7 +2,10 @@
 @rendermode InteractiveServer
 @using NetworkOptimizer.Web.Services
 @using NetworkOptimizer.Storage.Models
+@using NetworkOptimizer.Storage.Interfaces
 @inject UniFiConnectionService ConnectionService
+@inject IAuditRepository AuditRepository
+@inject ISpeedTestRepository SpeedTestRepository
 @inject SqmService SqmService
 @inject CellularModemService ModemService
 @inject UniFiSshService SshService
@@ -976,8 +979,12 @@
 
                 <div class="action-item">
                     <h4>Clear Cache</h4>
-                    <p>Clear cached data and temporary files</p>
+                    <p>Clear audit history, dismissed issues, and speed test results</p>
                     <button class="btn btn-warning" @onclick="ClearCache">Clear Cache</button>
+                    @if (!string.IsNullOrEmpty(cacheMessage))
+                    {
+                        <div class="status-message @cacheMessageType" style="margin-top: 0.5rem;">@cacheMessage</div>
+                    }
                 </div>
 
                 <div class="action-item danger-zone">
@@ -1924,10 +1931,29 @@
         await Task.CompletedTask;
     }
 
+    private string? cacheMessage;
+    private string? cacheMessageType;
+
     private async Task ClearCache()
     {
-        // TODO: Implement cache clear
-        await Task.CompletedTask;
+        try
+        {
+            // Clear audit data (results and dismissed issues)
+            await AuditRepository.ClearAllAuditsAsync();
+            await AuditRepository.ClearAllDismissedIssuesAsync();
+
+            // Clear speed test history
+            await SpeedTestRepository.ClearIperf3HistoryAsync();
+
+            cacheMessage = "Cache cleared successfully";
+            cacheMessageType = "success";
+        }
+        catch (Exception ex)
+        {
+            cacheMessage = $"Error clearing cache: {ex.Message}";
+            cacheMessageType = "error";
+        }
+        StateHasChanged();
     }
 
     private async Task ResetSettings()

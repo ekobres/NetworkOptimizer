@@ -120,6 +120,25 @@ public class AuditRepository : IAuditRepository
         }
     }
 
+    public async Task ClearAllAuditsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var allAudits = await _context.AuditResults.ToListAsync(cancellationToken);
+            if (allAudits.Count > 0)
+            {
+                _context.AuditResults.RemoveRange(allAudits);
+                await _context.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Cleared {Count} audit results", allAudits.Count);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to clear all audits");
+            throw;
+        }
+    }
+
     #endregion
 
     #region Dismissed Issues
