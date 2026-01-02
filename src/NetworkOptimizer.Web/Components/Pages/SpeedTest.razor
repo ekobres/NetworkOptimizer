@@ -1129,7 +1129,9 @@
                             currentResult.DownloadMbps,
                             currentResult.UploadMbps,
                             currentResult.DownloadRetransmits,
-                            currentResult.UploadRetransmits);
+                            currentResult.UploadRetransmits,
+                            currentResult.DownloadBytes,
+                            currentResult.UploadBytes);
                     }
                     catch
                     {
@@ -1362,7 +1364,9 @@
                 result.DownloadMbps,
                 result.UploadMbps,
                 result.DownloadRetransmits,
-                result.UploadRetransmits);
+                result.UploadRetransmits,
+                result.DownloadBytes,
+                result.UploadBytes);
             historyPathAnalysis[result.Id] = analysis;
         }
         catch

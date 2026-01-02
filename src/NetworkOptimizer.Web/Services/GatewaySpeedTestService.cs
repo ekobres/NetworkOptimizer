@@ -506,6 +506,8 @@ public class GatewaySpeedTestService
                 result.UploadMbps,
                 result.DownloadRetransmits,
                 result.UploadRetransmits,
+                result.DownloadBytes,
+                result.UploadBytes,
                 result.LocalIp);
 
             // Save to history database
@@ -676,6 +678,8 @@ public class GatewaySpeedTestService
         double uploadMbps,
         int downloadRetransmits = 0,
         int uploadRetransmits = 0,
+        long downloadBytes = 0,
+        long uploadBytes = 0,
         string? localIp = null)
     {
         try
@@ -688,7 +692,9 @@ public class GatewaySpeedTestService
                 downloadMbps,
                 uploadMbps,
                 downloadRetransmits,
-                uploadRetransmits);
+                uploadRetransmits,
+                downloadBytes,
+                uploadBytes);
 
             if (analysis.Path.IsValid)
             {

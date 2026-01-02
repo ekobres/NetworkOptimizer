@@ -15,11 +15,17 @@ public class PathAnalysisResult
     /// <summary>Measured throughput to device from server (Mbps)</summary>
     public double MeasuredToDeviceMbps { get; set; }
 
-    /// <summary>TCP retransmits from device to server (upload direction)</summary>
+    /// <summary>TCP retransmits from device to server</summary>
     public int FromDeviceRetransmits { get; set; }
 
-    /// <summary>TCP retransmits to device from server (download direction)</summary>
+    /// <summary>TCP retransmits to device from server</summary>
     public int ToDeviceRetransmits { get; set; }
+
+    /// <summary>Bytes transferred from device to server</summary>
+    public long FromDeviceBytes { get; set; }
+
+    /// <summary>Bytes transferred to device from server</summary>
+    public long ToDeviceBytes { get; set; }
 
     /// <summary>Efficiency of from-device transfer vs theoretical max (%)</summary>
     public double FromDeviceEfficiencyPercent { get; set; }
@@ -129,55 +135,79 @@ public class PathAnalysisResult
     }
 
     /// <summary>
-    /// Analyze TCP retransmits and generate insights about packet loss
+    /// Analyze TCP retransmits and generate insights about packet loss.
+    /// Uses percentage-based thresholds: 0.1% is concerning, with higher thresholds for UniFi devices.
     /// </summary>
     private void AnalyzeRetransmits()
     {
-        var totalRetransmits = FromDeviceRetransmits + ToDeviceRetransmits;
-
         // Skip if no retransmits
-        if (totalRetransmits == 0)
+        if (FromDeviceRetransmits == 0 && ToDeviceRetransmits == 0)
             return;
 
-        // Threshold for "high" retransmits - based on test duration and speed
-        // For a 10-second test at 1 Gbps, thousands of retransmits is concerning
-        const int HighRetransmitThreshold = 100;
-        const int VeryHighRetransmitThreshold = 1000;
+        // Calculate retransmit percentages based on estimated packet counts
+        // TCP MSS is typically ~1460 bytes, but we use 1500 for simplicity
+        const int EstimatedPacketSize = 1500;
 
-        // Check for asymmetric retransmits (significant difference between directions)
-        var hasFromRetransmits = FromDeviceRetransmits > 0;
-        var hasToRetransmits = ToDeviceRetransmits > 0;
+        var fromDevicePackets = FromDeviceBytes > 0 ? FromDeviceBytes / EstimatedPacketSize : 0;
+        var toDevicePackets = ToDeviceBytes > 0 ? ToDeviceBytes / EstimatedPacketSize : 0;
 
-        if (hasFromRetransmits != hasToRetransmits && totalRetransmits >= HighRetransmitThreshold)
+        var fromDeviceRetransmitPercent = fromDevicePackets > 0
+            ? (FromDeviceRetransmits * 100.0 / fromDevicePackets)
+            : 0;
+        var toDeviceRetransmitPercent = toDevicePackets > 0
+            ? (ToDeviceRetransmits * 100.0 / toDevicePackets)
+            : 0;
+
+        // UniFi devices (APs, gateways) are CPU-bound and may show higher retransmits
+        // Use higher thresholds for UniFi devices: 1% elevated, 2% high
+        // Regular clients: 0.5% elevated, 1% high
+        var isUniFiDevice = Path.TargetIsAccessPoint || Path.TargetIsGateway;
+        var highThresholdPercent = isUniFiDevice ? 1.0 : 0.5;
+        var veryHighThresholdPercent = isUniFiDevice ? 2.0 : 1.0;
+
+        // Determine if this is a wireless client (not an AP but has wireless connection)
+        var isWirelessClient = Path.HasWirelessConnection && !Path.TargetIsAccessPoint;
+        var isMeshedAp = Path.TargetIsAccessPoint && Path.HasWirelessConnection;
+
+        // Analyze to-device direction (data flowing to the test device)
+        if (ToDeviceRetransmits > 0 && toDeviceRetransmitPercent >= highThresholdPercent)
         {
-            // One direction has retransmits, the other doesn't
-            if (hasToRetransmits && !hasFromRetransmits)
+            var severity = toDeviceRetransmitPercent >= veryHighThresholdPercent ? "High" : "Elevated";
+            Insights.Add($"{severity} packet loss to device ({ToDeviceRetransmits:N0} retransmits, {toDeviceRetransmitPercent:F2}%)");
+
+            if (isWirelessClient)
             {
-                Insights.Add($"High packet loss on download path ({ToDeviceRetransmits:N0} retransmits)");
-                if (Path.HasWirelessConnection)
-                {
-                    Recommendations.Add("Download retransmits on wireless - check for interference or weak signal");
-                }
+                Recommendations.Add("Retransmits to device on Wi-Fi - check signal strength and interference");
             }
-            else if (hasFromRetransmits && !hasToRetransmits)
+            else if (isMeshedAp)
             {
-                Insights.Add($"High packet loss on upload path ({FromDeviceRetransmits:N0} retransmits)");
-                if (Path.HasWirelessConnection)
-                {
-                    Recommendations.Add("Upload retransmits on wireless - may indicate mesh uplink contention");
-                }
+                Recommendations.Add("Retransmits to device on wireless mesh - check mesh backhaul signal quality");
             }
         }
-        else if (totalRetransmits >= VeryHighRetransmitThreshold)
+
+        // Analyze from-device direction (data flowing from the test device)
+        if (FromDeviceRetransmits > 0 && fromDeviceRetransmitPercent >= highThresholdPercent)
         {
-            // Both directions have significant retransmits
-            Insights.Add($"High packet loss detected ({totalRetransmits:N0} total retransmits)");
-            Recommendations.Add("Check for network congestion, interference, or faulty cables");
+            var severity = fromDeviceRetransmitPercent >= veryHighThresholdPercent ? "High" : "Elevated";
+            Insights.Add($"{severity} packet loss from device ({FromDeviceRetransmits:N0} retransmits, {fromDeviceRetransmitPercent:F2}%)");
+
+            if (isWirelessClient)
+            {
+                Recommendations.Add("Retransmits from device on Wi-Fi - client may have weak signal or interference");
+            }
+            else if (isMeshedAp)
+            {
+                Recommendations.Add("Retransmits from device on wireless mesh - may indicate mesh uplink contention");
+            }
         }
-        else if (totalRetransmits >= HighRetransmitThreshold)
+
+        // If both directions have issues, add general recommendation
+        if (fromDeviceRetransmitPercent >= highThresholdPercent && toDeviceRetransmitPercent >= highThresholdPercent)
         {
-            // Moderate retransmits
-            Insights.Add($"Moderate packet loss ({totalRetransmits:N0} retransmits)");
+            if (!Path.HasWirelessConnection)
+            {
+                Recommendations.Add("Bidirectional packet loss - check for network congestion or faulty cables");
+            }
         }
     }
 }

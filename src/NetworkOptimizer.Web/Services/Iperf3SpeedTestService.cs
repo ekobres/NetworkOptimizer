@@ -667,7 +667,9 @@ public class Iperf3SpeedTestService
                 result.DownloadMbps,
                 result.UploadMbps,
                 result.DownloadRetransmits,
-                result.UploadRetransmits);
+                result.UploadRetransmits,
+                result.DownloadBytes,
+                result.UploadBytes);
 
             result.PathAnalysis = analysis;
 
