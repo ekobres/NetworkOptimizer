@@ -5,6 +5,7 @@
     let mappings = [];
     let isEnabled = false;
     let observer = null;
+    let formFieldInterval = null;
 
     // Load mappings from backend
     async function loadMappings() {
@@ -43,6 +44,7 @@
 
     // Check if element should be skipped
     function shouldSkipElement(element) {
+        if (!element) return true;
         // Skip script and style elements
         if (element.tagName === 'SCRIPT' || element.tagName === 'STYLE') return true;
         // Skip elements with data-no-mask attribute
@@ -60,31 +62,44 @@
         }
     }
 
+    // Check if value needs masking
+    function needsMasking(value) {
+        if (!value) return false;
+        for (const mapping of mappings) {
+            const regex = new RegExp(escapeRegExp(mapping.from), 'gi');
+            if (regex.test(value)) return true;
+        }
+        return false;
+    }
+
     // Mask form field values
     function maskFormField(element) {
         if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-            // Store original value for form submission
-            if (element.value && !element.dataset.originalValue) {
-                const masked = maskString(element.value);
-                if (masked !== element.value) {
-                    element.dataset.originalValue = element.value;
-                    element.value = masked;
+            const currentValue = element.value;
 
-                    // Restore original on focus, mask on blur
-                    if (!element.dataset.maskListenersAdded) {
-                        element.addEventListener('focus', function() {
-                            if (this.dataset.originalValue) {
-                                this.value = this.dataset.originalValue;
-                            }
-                        });
-                        element.addEventListener('blur', function() {
-                            if (this.value) {
-                                this.dataset.originalValue = this.value;
-                                this.value = maskString(this.value);
-                            }
-                        });
-                        element.dataset.maskListenersAdded = 'true';
-                    }
+            // Skip if no value or already focused (user is editing)
+            if (!currentValue || document.activeElement === element) return;
+
+            // Check if this value needs masking
+            if (needsMasking(currentValue)) {
+                // Store original for restoration
+                element.dataset.originalValue = currentValue;
+                element.value = maskString(currentValue);
+
+                // Add focus/blur listeners if not already added
+                if (!element.dataset.maskListenersAdded) {
+                    element.addEventListener('focus', function() {
+                        if (this.dataset.originalValue) {
+                            this.value = this.dataset.originalValue;
+                        }
+                    });
+                    element.addEventListener('blur', function() {
+                        if (this.value && needsMasking(this.value)) {
+                            this.dataset.originalValue = this.value;
+                            this.value = maskString(this.value);
+                        }
+                    });
+                    element.dataset.maskListenersAdded = 'true';
                 }
             }
         } else if (element.tagName === 'SELECT') {
@@ -95,6 +110,15 @@
                     option.textContent = masked;
                 }
             }
+        }
+    }
+
+    // Mask all form fields on the page
+    function maskAllFormFields() {
+        if (!isEnabled) return;
+        const formFields = document.querySelectorAll('input, textarea, select');
+        for (const field of formFields) {
+            maskFormField(field);
         }
     }
 
@@ -145,14 +169,6 @@
                         }
                     }
                 }
-                // Handle attribute changes (for form values)
-                else if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
-                    if (mutation.target.tagName === 'INPUT' || mutation.target.tagName === 'TEXTAREA') {
-                        if (!mutation.target.dataset.originalValue) {
-                            maskFormField(mutation.target);
-                        }
-                    }
-                }
                 // Handle text content changes
                 else if (mutation.type === 'characterData') {
                     maskTextNode(mutation.target);
@@ -163,10 +179,15 @@
         observer.observe(document.body, {
             childList: true,
             subtree: true,
-            characterData: true,
-            attributes: true,
-            attributeFilter: ['value']
+            characterData: true
         });
+    }
+
+    // Start periodic form field checking (for Blazor-set values)
+    function startFormFieldPolling() {
+        if (formFieldInterval) return;
+        // Check form fields every 500ms for new values
+        formFieldInterval = setInterval(maskAllFormFields, 500);
     }
 
     // Initialize demo masking
@@ -177,6 +198,8 @@
             maskElement(document.body);
             // Watch for dynamic changes
             setupObserver();
+            // Poll for form field value changes (Blazor sets these programmatically)
+            startFormFieldPolling();
             console.log('Demo mode active');
         }
     }
@@ -188,16 +211,21 @@
         init();
     }
 
-    // Also re-run after Blazor renders
-    window.addEventListener('load', () => {
-        if (isEnabled) {
-            setTimeout(() => maskElement(document.body), 100);
-        }
-    });
+    // Also re-run after Blazor enhanced navigation
+    if (typeof Blazor !== 'undefined') {
+        Blazor.addEventListener('enhancedload', function() {
+            if (isEnabled) {
+                setTimeout(() => maskElement(document.body), 100);
+            }
+        });
+    }
 
     // Expose for manual re-masking if needed
     window.DemoMask = {
-        refresh: () => maskElement(document.body),
+        refresh: () => {
+            maskElement(document.body);
+            maskAllFormFields();
+        },
         isEnabled: () => isEnabled
     };
 })();
