@@ -789,58 +789,66 @@ public class AuditService
         _ => true
     };
 
+    /// <summary>
+    /// Check if an issue should be downgraded to Info based on device settings.
+    /// Used for both display severity and score calculation.
+    /// </summary>
+    private static bool ShouldDowngradeToInfo(
+        AuditModels.AuditSeverity severity,
+        Dictionary<string, object>? metadata,
+        AuditOptions options)
+    {
+        // Only downgrade Recommended (Warning) severity issues
+        if (severity != AuditModels.AuditSeverity.Recommended || metadata == null)
+            return false;
+
+        var category = metadata.TryGetValue("device_category", out var categoryObj)
+            ? categoryObj?.ToString() ?? ""
+            : "";
+
+        var vendor = metadata.TryGetValue("vendor", out var vendorObj)
+            ? vendorObj?.ToString() ?? ""
+            : "";
+
+        // Streaming device settings
+        if (category == "StreamingDevice")
+        {
+            // Allow all streaming devices setting takes precedence
+            if (options.AllowAllStreamingOnMainNetwork)
+                return true;
+
+            // Apple-specific setting (check for "Apple" in vendor name)
+            if (options.AllowAppleStreamingOnMainNetwork &&
+                vendor.Contains("Apple", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        // Smart TV settings
+        if (category == "SmartTV")
+        {
+            // Allow all Smart TVs setting takes precedence
+            if (options.AllowAllTVsOnMainNetwork)
+                return true;
+
+            // Name-brand TVs setting (LG, Samsung, Sony)
+            if (options.AllowNameBrandTVsOnMainNetwork &&
+                (vendor.Contains("LG", StringComparison.OrdinalIgnoreCase) ||
+                 vendor.Contains("Samsung", StringComparison.OrdinalIgnoreCase) ||
+                 vendor.Contains("Sony", StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
+    }
+
     private static string ConvertSeverity(
         AuditModels.AuditSeverity severity,
         Dictionary<string, object>? metadata,
         AuditOptions options)
     {
-        // Check if this is a streaming device or Smart TV that should be allowed on main network
-        if (severity == AuditModels.AuditSeverity.Recommended && metadata != null)
-        {
-            var category = metadata.TryGetValue("device_category", out var categoryObj)
-                ? categoryObj?.ToString() ?? ""
-                : "";
-
-            var vendor = metadata.TryGetValue("vendor", out var vendorObj)
-                ? vendorObj?.ToString() ?? ""
-                : "";
-
-            // Streaming device settings
-            if (category == "StreamingDevice")
-            {
-                // Allow all streaming devices setting takes precedence
-                if (options.AllowAllStreamingOnMainNetwork)
-                {
-                    return "Info";
-                }
-
-                // Apple-specific setting (check for "Apple" in vendor name)
-                if (options.AllowAppleStreamingOnMainNetwork &&
-                    vendor.Contains("Apple", StringComparison.OrdinalIgnoreCase))
-                {
-                    return "Info";
-                }
-            }
-
-            // Smart TV settings
-            if (category == "SmartTV")
-            {
-                // Allow all Smart TVs setting takes precedence
-                if (options.AllowAllTVsOnMainNetwork)
-                {
-                    return "Info";
-                }
-
-                // Name-brand TVs setting (LG, Samsung, Sony)
-                if (options.AllowNameBrandTVsOnMainNetwork &&
-                    (vendor.Contains("LG", StringComparison.OrdinalIgnoreCase) ||
-                     vendor.Contains("Samsung", StringComparison.OrdinalIgnoreCase) ||
-                     vendor.Contains("Sony", StringComparison.OrdinalIgnoreCase)))
-                {
-                    return "Info";
-                }
-            }
-        }
+        // Check if this issue should be downgraded to Info
+        if (ShouldDowngradeToInfo(severity, metadata, options))
+            return "Info";
 
         return severity switch
         {
@@ -896,16 +904,20 @@ public class AuditService
             .ToList();
 
         // Calculate deductions from filtered issues only
+        // Issues that should be downgraded to Info (allowed streaming/TV devices) are not counted as Recommended
         var criticalDeduction = Math.Min(
             filteredIssues.Where(i => i.Severity == AuditModels.AuditSeverity.Critical).Sum(i => i.ScoreImpact),
             Audit.Scoring.ScoreConstants.MaxCriticalDeduction);
 
         var recommendedDeduction = Math.Min(
-            filteredIssues.Where(i => i.Severity == AuditModels.AuditSeverity.Recommended).Sum(i => i.ScoreImpact),
+            filteredIssues.Where(i => i.Severity == AuditModels.AuditSeverity.Recommended &&
+                                      !ShouldDowngradeToInfo(i.Severity, i.Metadata, options)).Sum(i => i.ScoreImpact),
             Audit.Scoring.ScoreConstants.MaxRecommendedDeduction);
 
+        // Include downgraded issues in informational count
         var informationalDeduction = Math.Min(
-            filteredIssues.Where(i => i.Severity == AuditModels.AuditSeverity.Informational).Sum(i => i.ScoreImpact),
+            filteredIssues.Where(i => i.Severity == AuditModels.AuditSeverity.Informational ||
+                                      ShouldDowngradeToInfo(i.Severity, i.Metadata, options)).Sum(i => i.ScoreImpact),
             Audit.Scoring.ScoreConstants.MaxInformationalDeduction);
 
         // Calculate hardening bonus (same as original - not filtered)
