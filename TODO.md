@@ -50,4 +50,12 @@
 
 ## General
 
-- (Add future enhancements here)
+### Unify Device Type System
+- Multiple competing device type systems need consolidation:
+  - `DeviceType` enum in `UniFiDiscovery.cs` (Gateway, Switch, AccessPoint, CellularModem)
+  - `DeviceTypes` static class in `Core/Enums/DeviceTypes.cs` (string constants)
+  - `DetermineDeviceType()` uses API short codes (uap, usw, udm, ucg, umbb)
+  - Device icon index in `UniFiProductDatabase.cs` has full model numbers
+- Should have single source of truth for device classification
+- Reference the device icon index for complete UniFi model coverage
+- Ensure prefix matching works for all device families

@@ -249,23 +249,15 @@ public class UniFiDiscovery
 
     private DeviceType DetermineDeviceType(string typeString)
     {
-        var type = typeString.ToLowerInvariant();
-
-        // Use prefix matching - UniFi types often have suffixes (e.g., "udm-pro", "usw-24-poe")
-        if (type.StartsWith("ugw") || type.StartsWith("usg") || type.StartsWith("udm") ||
-            type.StartsWith("uxg") || type.StartsWith("ucg"))
-            return DeviceType.Gateway;
-
-        if (type.StartsWith("usw") || type == "switch")
-            return DeviceType.Switch;
-
-        if (type.StartsWith("uap") || type.StartsWith("u6") || type.StartsWith("u7") || type == "ap")
-            return DeviceType.AccessPoint;
-
-        if (type.StartsWith("umbb"))
-            return DeviceType.CellularModem;
-
-        return DeviceType.Unknown;
+        // API returns exact short codes: "uap", "usw", "udm", "ucg", "umbb", etc.
+        return typeString.ToLowerInvariant() switch
+        {
+            "ugw" or "usg" or "udm" or "uxg" or "ucg" => DeviceType.Gateway,
+            "usw" => DeviceType.Switch,
+            "uap" => DeviceType.AccessPoint,
+            "umbb" => DeviceType.CellularModem,
+            _ => DeviceType.Unknown
+        };
     }
 
     private string DetermineConnectionType(UniFiClientResponse client)
