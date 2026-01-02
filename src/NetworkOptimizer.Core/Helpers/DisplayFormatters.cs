@@ -1,4 +1,4 @@
-namespace NetworkOptimizer.Reports;
+namespace NetworkOptimizer.Core.Helpers;
 
 /// <summary>
 /// Shared display formatting utilities used by both web UI and PDF reports.

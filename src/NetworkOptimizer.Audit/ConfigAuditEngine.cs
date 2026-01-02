@@ -8,7 +8,7 @@ using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.Core.Helpers;
 using NetworkOptimizer.UniFi.Models;
 
-using static NetworkOptimizer.Reports.DisplayFormatters;
+using static NetworkOptimizer.Core.Helpers.DisplayFormatters;
 
 namespace NetworkOptimizer.Audit;
 
