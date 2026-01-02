@@ -148,7 +148,6 @@
         overlay.style.paddingTop = inputStyle.paddingTop;
         overlay.style.paddingBottom = inputStyle.paddingBottom;
         overlay.style.background = 'transparent';
-        overlay.style.color = inputStyle.color;
         overlay.style.fontFamily = inputStyle.fontFamily;
         overlay.style.fontSize = inputStyle.fontSize;
         overlay.style.fontWeight = inputStyle.fontWeight;
