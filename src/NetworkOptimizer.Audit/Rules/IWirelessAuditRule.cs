@@ -106,6 +106,7 @@ public abstract class WirelessAuditRuleBase : IWirelessAuditRule
             ClientMac = client.Mac,
             ClientName = client.DisplayName,
             AccessPoint = client.AccessPointName,
+            WifiBand = client.WifiBand,
             IsWireless = true,
             Metadata = metadata,
             RuleId = RuleId,

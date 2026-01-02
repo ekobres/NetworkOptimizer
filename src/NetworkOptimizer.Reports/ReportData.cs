@@ -339,6 +339,7 @@ public class AuditIssue
     public string? ClientName { get; set; }
     public string? ClientMac { get; set; }
     public string? AccessPoint { get; set; }
+    public string? WifiBand { get; set; }
 
     /// <summary>
     /// Get display text for Device column (the actual device/client name)
@@ -374,8 +375,11 @@ public class AuditIssue
     {
         if (IsWireless)
         {
-            // Show AP name
-            return $"on {AccessPoint ?? "Unknown AP"}";
+            // Show AP name with WiFi band if available
+            var apName = AccessPoint ?? "Unknown AP";
+            return !string.IsNullOrEmpty(WifiBand)
+                ? $"on {apName} ({WifiBand})"
+                : $"on {apName}";
         }
 
         // For non-integer port IDs (e.g., "WAN1"), show PortId with PortName

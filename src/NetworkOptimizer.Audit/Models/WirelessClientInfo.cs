@@ -51,4 +51,40 @@ public class WirelessClientInfo
     /// MAC address of the client
     /// </summary>
     public string? Mac => Client.Mac;
+
+    /// <summary>
+    /// WiFi band (2.4GHz, 5GHz, 6GHz) derived from radio type or channel
+    /// </summary>
+    public string? WifiBand
+    {
+        get
+        {
+            // Try to determine from radio type first
+            // UniFi uses "na" for 5GHz (802.11a/n/ac) and "ng" for 2.4GHz (802.11b/g/n)
+            if (!string.IsNullOrEmpty(Client.Radio))
+            {
+                return Client.Radio.ToLowerInvariant() switch
+                {
+                    "na" => "5GHz",
+                    "ng" => "2.4GHz",
+                    "6e" or "ax-6e" => "6GHz",
+                    _ => null
+                };
+            }
+
+            // Fallback to channel-based detection
+            if (Client.Channel.HasValue)
+            {
+                var channel = Client.Channel.Value;
+                if (channel >= 1 && channel <= 14)
+                    return "2.4GHz";
+                if (channel >= 36 && channel <= 177)
+                    return "5GHz";
+                if (channel >= 1 && channel <= 233) // 6GHz UNII bands use different channel numbers
+                    return "6GHz";
+            }
+
+            return null;
+        }
+    }
 }

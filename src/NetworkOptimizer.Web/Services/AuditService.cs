@@ -581,7 +581,8 @@ public class AuditService
                 IsWireless = issue.IsWireless,
                 ClientName = issue.ClientName,
                 ClientMac = issue.ClientMac,
-                AccessPoint = issue.AccessPoint
+                AccessPoint = issue.AccessPoint,
+                WifiBand = issue.WifiBand
             });
         }
 
@@ -1031,6 +1032,7 @@ public class AuditIssue
     public string? ClientName { get; set; }
     public string? ClientMac { get; set; }
     public string? AccessPoint { get; set; }
+    public string? WifiBand { get; set; }
 }
 
 public class AuditSummary

@@ -91,6 +91,11 @@ public class AuditIssue
     public string? AccessPoint { get; init; }
 
     /// <summary>
+    /// WiFi band (2.4GHz, 5GHz, 6GHz) for wireless issues
+    /// </summary>
+    public string? WifiBand { get; init; }
+
+    /// <summary>
     /// Whether this issue is for a wireless client
     /// </summary>
     public bool IsWireless { get; init; }
