@@ -328,6 +328,7 @@ public class NetworkPathAnalyzer
             // Mark target device type (affects insight generation)
             path.TargetIsGateway = targetDevice?.Type == DeviceType.Gateway;
             path.TargetIsAccessPoint = targetDevice?.Type == DeviceType.AccessPoint;
+            path.TargetIsCellularModem = targetDevice?.Type == DeviceType.CellularModem;
 
             // Get raw devices for port speed lookup
             var rawDevices = await GetRawDevicesAsync(cancellationToken);

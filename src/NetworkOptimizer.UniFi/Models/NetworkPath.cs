@@ -122,4 +122,10 @@ public class NetworkPath
     /// AP tests are CPU-limited; speeds above ~4.5 Gbps are considered good.
     /// </summary>
     public bool TargetIsAccessPoint { get; set; }
+
+    /// <summary>
+    /// Whether the target is a cellular modem (e.g., U-LTE, U-LTE-Pro).
+    /// These devices are CPU-bound similar to APs.
+    /// </summary>
+    public bool TargetIsCellularModem { get; set; }
 }

@@ -254,6 +254,7 @@ public class UniFiDiscovery
             "ugw" or "ugw3" or "ugw4" or "usg" or "udm" or "udmpro" or "uxg" or "uxgpro" => DeviceType.Gateway,
             "usw" or "switch" => DeviceType.Switch,
             "uap" or "ap" or "u6" or "u7" or "uap-nanohd" or "uap-ac-lite" or "uap-ac-pro" => DeviceType.AccessPoint,
+            "umbb" => DeviceType.CellularModem,
             _ => DeviceType.Unknown
         };
     }
@@ -422,7 +423,8 @@ public enum DeviceType
     Unknown,
     Gateway,
     Switch,
-    AccessPoint
+    AccessPoint,
+    CellularModem
 }
 
 #endregion
