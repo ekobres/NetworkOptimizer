@@ -6,6 +6,7 @@
 @inject UniFiConnectionService ConnectionService
 @inject IAuditRepository AuditRepository
 @inject ISpeedTestRepository SpeedTestRepository
+@inject AuditService AuditService
 @inject SqmService SqmService
 @inject CellularModemService ModemService
 @inject UniFiSshService SshService
@@ -1938,9 +1939,12 @@
     {
         try
         {
-            // Clear audit data (results and dismissed issues)
+            // Clear audit data (results and dismissed issues) from database
             await AuditRepository.ClearAllAuditsAsync();
             await AuditRepository.ClearAllDismissedIssuesAsync();
+
+            // Clear in-memory audit cache
+            AuditService.ClearCache();
 
             // Clear speed test history
             await SpeedTestRepository.ClearIperf3HistoryAsync();

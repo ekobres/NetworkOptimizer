@@ -48,6 +48,19 @@ public class AuditService
     }
 
     /// <summary>
+    /// Clears all in-memory cached audit data.
+    /// Call this after clearing audit data from the database.
+    /// </summary>
+    public void ClearCache()
+    {
+        _lastAuditResult = null;
+        _lastAuditTime = null;
+        _dismissedIssues.Clear();
+        _dismissedIssuesLoaded = false;
+        _logger.LogInformation("Audit cache cleared");
+    }
+
+    /// <summary>
     /// Ensure dismissed issues are loaded from database
     /// </summary>
     private async Task EnsureDismissedIssuesLoadedAsync()
