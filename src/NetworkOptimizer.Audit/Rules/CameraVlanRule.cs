@@ -19,12 +19,32 @@ public class CameraVlanRule : AuditRuleBase
 
     public override AuditIssue? Evaluate(PortInfo port, List<NetworkInfo> networks)
     {
-        // Only check active access ports
-        if (!port.IsUp || port.ForwardMode != "native" || port.IsUplink || port.IsWan)
+        // Skip uplinks, WAN ports, and non-access ports
+        if (port.ForwardMode != "native" || port.IsUplink || port.IsWan)
             return null;
 
-        // Use enhanced detection
-        var detection = DetectDeviceType(port);
+        DeviceDetectionResult detection;
+        bool isDownPort = false;
+
+        if (port.IsUp)
+        {
+            // Active port: use full detection with connected client
+            detection = DetectDeviceType(port);
+        }
+        else if (IsDownPortWithMacRestrictions(port))
+        {
+            // Down port with MAC restrictions: detect from allowed MACs
+            var macDetection = DetectDeviceTypeFromMacRestrictions(port);
+            if (macDetection == null)
+                return null;
+            detection = macDetection;
+            isDownPort = true;
+        }
+        else
+        {
+            // Down port without MAC restrictions: skip
+            return null;
+        }
 
         // Check if this is a surveillance/security device
         if (!detection.Category.IsSurveillance())
@@ -41,17 +61,33 @@ public class CameraVlanRule : AuditRuleBase
         if (placement.IsCorrectlyPlaced)
             return null;
 
-        // Use connected client name if available, otherwise port name - include switch context
-        var clientName = port.ConnectedClient?.Name ?? port.ConnectedClient?.Hostname ?? port.Name;
-        var deviceName = clientName != null && clientName != port.Name
-            ? $"{clientName} on {port.Switch.Name}"
-            : $"{port.Name ?? $"Port {port.PortIndex}"} on {port.Switch.Name}";
+        // Build device name based on port state
+        string deviceName;
+        if (isDownPort)
+        {
+            // Down port: use port name or port number with switch context
+            deviceName = !string.IsNullOrEmpty(port.Name)
+                ? $"{port.Name} on {port.Switch.Name}"
+                : $"Port {port.PortIndex} on {port.Switch.Name}";
+        }
+        else
+        {
+            // Active port: use connected client name if available
+            var clientName = port.ConnectedClient?.Name ?? port.ConnectedClient?.Hostname ?? port.Name;
+            deviceName = clientName != null && clientName != port.Name
+                ? $"{clientName} on {port.Switch.Name}"
+                : $"{port.Name ?? $"Port {port.PortIndex}"} on {port.Switch.Name}";
+        }
+
+        // Adjust message for down ports
+        var statusNote = isDownPort ? " (port down, MAC restricted)" : "";
+        var message = $"{detection.CategoryName} on {network.Name} VLAN{statusNote} - should be on security VLAN";
 
         return new AuditIssue
         {
             Type = RuleId,
             Severity = placement.Severity,
-            Message = $"{detection.CategoryName} on {network.Name} VLAN - should be on security VLAN",
+            Message = message,
             DeviceName = deviceName,
             Port = port.PortIndex.ToString(),
             PortName = port.Name,

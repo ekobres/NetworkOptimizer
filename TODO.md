@@ -29,11 +29,12 @@
 - ~~Data source: UniFi client response has radio/channel info~~
 - FIXED: WirelessClientInfo.WifiBand computed from radio type, displayed in GetPortDisplay()
 
-### Port Audit - Down Ports with MAC Restriction
-- Support VLAN placement analysis for ports that are currently down
-- Use the MAC restriction setting to identify the normally connected device
-- This allows auditing device placement even when the device is offline/disconnected
-- Currently: Down ports may be skipped or show no connected MAC for analysis
+### ~~Port Audit - Down Ports with MAC Restriction~~ (FIXED)
+- ~~Support VLAN placement analysis for ports that are currently down~~
+- ~~Use the MAC restriction setting to identify the normally connected device~~
+- ~~This allows auditing device placement even when the device is offline/disconnected~~
+- ~~Currently: Down ports may be skipped or show no connected MAC for analysis~~
+- FIXED: IotVlanRule and CameraVlanRule now analyze down ports with MAC restrictions using MAC OUI detection
 
 ## SQM (Smart Queue Management)
 

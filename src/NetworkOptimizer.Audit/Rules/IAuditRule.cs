@@ -117,6 +117,64 @@ public abstract class AuditRuleBase : IAuditRule
     }
 
     /// <summary>
+    /// Detect device type from MAC restriction list on a port.
+    /// Used for down ports where no client is connected but MAC addresses are whitelisted.
+    /// Returns the highest confidence detection from all allowed MACs.
+    /// </summary>
+    protected DeviceDetectionResult? DetectDeviceTypeFromMacRestrictions(PortInfo port)
+    {
+        if (DetectionService == null)
+            return null;
+
+        var macs = port.AllowedMacAddresses;
+        if (macs == null || macs.Count == 0)
+            return null;
+
+        DeviceDetectionResult? bestResult = null;
+
+        foreach (var mac in macs)
+        {
+            var result = DetectionService.DetectFromMac(mac);
+            if (result.Category != ClientDeviceCategory.Unknown)
+            {
+                // Take the highest confidence detection
+                if (bestResult == null || result.ConfidenceScore > bestResult.ConfidenceScore)
+                {
+                    bestResult = result;
+                }
+            }
+        }
+
+        // Also check port name patterns if we have a port name
+        if (!string.IsNullOrEmpty(port.Name))
+        {
+            var nameResult = DetectionService.DetectFromPortName(port.Name);
+            if (nameResult.Category != ClientDeviceCategory.Unknown)
+            {
+                if (bestResult == null || nameResult.ConfidenceScore > bestResult.ConfidenceScore)
+                {
+                    bestResult = nameResult;
+                }
+            }
+        }
+
+        return bestResult;
+    }
+
+    /// <summary>
+    /// Check if a port is a down port with MAC restrictions that should be audited.
+    /// Returns true if the port is down, has MAC restrictions, and is an access port.
+    /// </summary>
+    protected bool IsDownPortWithMacRestrictions(PortInfo port)
+    {
+        return !port.IsUp
+            && port.ForwardMode == "native"
+            && !port.IsUplink
+            && !port.IsWan
+            && port.AllowedMacAddresses?.Count > 0;
+    }
+
+    /// <summary>
     /// Helper to get network info by ID
     /// </summary>
     protected NetworkInfo? GetNetwork(string? networkId, List<NetworkInfo> networks)

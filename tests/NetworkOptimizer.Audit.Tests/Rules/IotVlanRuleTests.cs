@@ -468,6 +468,150 @@ public class IotVlanRuleTests
 
     #endregion
 
+    #region Down Port with MAC Restriction Tests
+
+    [Fact]
+    public void Evaluate_DownPortWithoutMacRestriction_ReturnsNull()
+    {
+        // Arrange - Down port without any MAC restrictions
+        var port = CreatePort(
+            portName: "Smart Plug",
+            isUp: false,
+            networkId: "corp-net");
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Should skip down ports without MAC restrictions
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_DownPortWithIoTMacRestriction_OnCorporateVlan_ReturnsIssue()
+    {
+        // Arrange - Down port with MAC restriction for a Philips Hue device (IoT)
+        // Philips Hue MAC prefix: 00:17:88
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var port = CreatePort(
+            portName: "Hue Bridge Port",
+            isUp: false,
+            networkId: corpNetwork.Id,
+            allowedMacAddresses: new List<string> { "00:17:88:11:22:33" });
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Should detect IoT device from MAC OUI and flag VLAN issue
+        result.Should().NotBeNull();
+        result!.Message.Should().Contain("port down, MAC restricted");
+        result.CurrentNetwork.Should().Be("Corporate");
+    }
+
+    [Fact]
+    public void Evaluate_DownPortWithIoTMacRestriction_OnIoTVlan_ReturnsNull()
+    {
+        // Arrange - Down port with MAC restriction for IoT device, correctly on IoT VLAN
+        var iotNetwork = new NetworkInfo { Id = "iot-net", Name = "IoT", VlanId = 40, Purpose = NetworkPurpose.IoT };
+        var port = CreatePort(
+            portName: "Hue Bridge Port",
+            isUp: false,
+            networkId: iotNetwork.Id,
+            allowedMacAddresses: new List<string> { "00:17:88:11:22:33" });
+        var networks = CreateNetworkList(iotNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Correctly placed, no issue
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_DownPortWithNonIoTMacRestriction_ReturnsNull()
+    {
+        // Arrange - Down port with MAC restriction for non-IoT device (Apple)
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var port = CreatePort(
+            portName: "MacBook Port",
+            isUp: false,
+            networkId: corpNetwork.Id,
+            allowedMacAddresses: new List<string> { "00:03:93:11:22:33" }); // Apple MAC prefix
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Not an IoT device, should be ignored
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_DownPortWithIoTPortName_OnCorporateVlan_ReturnsIssue()
+    {
+        // Arrange - Down port with IoT-indicating port name and MAC restriction
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var port = CreatePort(
+            portName: "Smart Thermostat",
+            isUp: false,
+            networkId: corpNetwork.Id,
+            allowedMacAddresses: new List<string> { "aa:bb:cc:dd:ee:ff" }); // Unknown vendor
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Should detect from port name pattern
+        result.Should().NotBeNull();
+        result!.Message.Should().Contain("port down, MAC restricted");
+    }
+
+    [Fact]
+    public void Evaluate_DownPortWithMacRestriction_DeviceNameUsesPortName()
+    {
+        // Arrange
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var port = CreatePort(
+            portName: "Living Room Plug",
+            isUp: false,
+            networkId: corpNetwork.Id,
+            switchName: "Office Switch",
+            allowedMacAddresses: new List<string> { "00:17:88:11:22:33" });
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Device name should use port name since no connected client
+        result.Should().NotBeNull();
+        result!.DeviceName.Should().Be("Living Room Plug on Office Switch");
+    }
+
+    [Fact]
+    public void Evaluate_DownPortWithMacRestriction_NoPortName_UsesPortNumber()
+    {
+        // Arrange
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var port = CreatePort(
+            portIndex: 5,
+            portName: null,
+            isUp: false,
+            networkId: corpNetwork.Id,
+            switchName: "Office Switch",
+            allowedMacAddresses: new List<string> { "00:17:88:11:22:33" });
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Device name should use port number
+        result.Should().NotBeNull();
+        result!.DeviceName.Should().Be("Port 5 on Office Switch");
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static PortInfo CreatePort(
@@ -480,7 +624,8 @@ public class IotVlanRuleTests
         string? networkId = "default-net",
         string switchName = "Test Switch",
         ClientDeviceCategory deviceCategory = ClientDeviceCategory.Unknown,
-        string? connectedClientName = null)
+        string? connectedClientName = null,
+        List<string>? allowedMacAddresses = null)
     {
         var switchInfo = new SwitchInfo
         {
@@ -493,7 +638,7 @@ public class IotVlanRuleTests
         var clientName = connectedClientName ?? GetDetectableName(deviceCategory, portName);
 
         UniFiClientResponse? connectedClient = null;
-        if (deviceCategory != ClientDeviceCategory.Unknown || clientName != null)
+        if (isUp && (deviceCategory != ClientDeviceCategory.Unknown || clientName != null))
         {
             connectedClient = new UniFiClientResponse
             {
@@ -514,7 +659,8 @@ public class IotVlanRuleTests
             IsWan = isWan,
             NativeNetworkId = networkId,
             Switch = switchInfo,
-            ConnectedClient = connectedClient
+            ConnectedClient = connectedClient,
+            AllowedMacAddresses = allowedMacAddresses
         };
     }
 
