@@ -1,4 +1,5 @@
 // Demo Mode Masking - Masks sensitive strings for screen sharing/recording
+// Uses visual overlay for form fields to preserve actual values for API calls
 (function () {
     'use strict';
 
@@ -72,43 +73,96 @@
         return false;
     }
 
-    // Mask form field values
-    function maskFormField(element) {
-        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-            const currentValue = element.value;
+    // Create or update visual overlay for form field
+    function maskFormFieldVisual(element) {
+        if (element.tagName !== 'INPUT' && element.tagName !== 'TEXTAREA') return;
 
-            // Skip if no value or already focused (user is editing)
-            if (!currentValue || document.activeElement === element) return;
-
-            // Check if this value needs masking
-            if (needsMasking(currentValue)) {
-                // Store original for restoration
-                element.dataset.originalValue = currentValue;
-                element.value = maskString(currentValue);
-
-                // Add focus/blur listeners if not already added
-                if (!element.dataset.maskListenersAdded) {
-                    element.addEventListener('focus', function() {
-                        if (this.dataset.originalValue) {
-                            this.value = this.dataset.originalValue;
-                        }
-                    });
-                    element.addEventListener('blur', function() {
-                        if (this.value && needsMasking(this.value)) {
-                            this.dataset.originalValue = this.value;
-                            this.value = maskString(this.value);
-                        }
-                    });
-                    element.dataset.maskListenersAdded = 'true';
-                }
+        const currentValue = element.value;
+        if (!currentValue) {
+            // Remove overlay if value is empty
+            const existingOverlay = element.parentElement?.querySelector('.demo-mask-overlay');
+            if (existingOverlay) {
+                existingOverlay.textContent = '';
             }
-        } else if (element.tagName === 'SELECT') {
-            // Mask select option text
-            for (const option of element.options) {
-                const masked = maskString(option.textContent);
-                if (masked !== option.textContent) {
-                    option.textContent = masked;
+            return;
+        }
+
+        // Skip if focused (user is editing)
+        if (document.activeElement === element) return;
+
+        // Check if this value needs masking
+        if (!needsMasking(currentValue)) {
+            // Remove overlay styling if no longer needs masking
+            const existingOverlay = element.parentElement?.querySelector('.demo-mask-overlay');
+            if (existingOverlay) {
+                existingOverlay.textContent = '';
+            }
+            element.style.color = '';
+            return;
+        }
+
+        // Ensure parent is positioned
+        const parent = element.parentElement;
+        if (!parent) return;
+
+        const parentStyle = window.getComputedStyle(parent);
+        if (parentStyle.position === 'static') {
+            parent.style.position = 'relative';
+        }
+
+        // Create or get overlay
+        let overlay = parent.querySelector('.demo-mask-overlay');
+        if (!overlay) {
+            overlay = document.createElement('span');
+            overlay.className = 'demo-mask-overlay';
+            overlay.style.cssText = `
+                position: absolute;
+                left: 0;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                pointer-events: none;
+                display: flex;
+                align-items: center;
+                padding: inherit;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            `;
+            parent.appendChild(overlay);
+
+            // Hide/show overlay on focus/blur
+            element.addEventListener('focus', function() {
+                overlay.style.display = 'none';
+                this.style.color = '';
+            });
+            element.addEventListener('blur', function() {
+                if (needsMasking(this.value)) {
+                    overlay.style.display = 'flex';
+                    overlay.textContent = maskString(this.value);
+                    this.style.color = 'transparent';
                 }
+            });
+        }
+
+        // Update overlay text and hide input text
+        overlay.textContent = maskString(currentValue);
+        element.style.color = 'transparent';
+    }
+
+    // Mask select option text (these don't need overlay approach)
+    function maskSelectField(element) {
+        if (element.tagName !== 'SELECT') return;
+        for (const option of element.options) {
+            if (!option.dataset.originalText) {
+                option.dataset.originalText = option.textContent;
+            }
+            const masked = maskString(option.dataset.originalText);
+            if (masked !== option.textContent) {
+                option.textContent = masked;
             }
         }
     }
@@ -116,9 +170,13 @@
     // Mask all form fields on the page
     function maskAllFormFields() {
         if (!isEnabled) return;
-        const formFields = document.querySelectorAll('input, textarea, select');
-        for (const field of formFields) {
-            maskFormField(field);
+        const inputs = document.querySelectorAll('input, textarea');
+        for (const field of inputs) {
+            maskFormFieldVisual(field);
+        }
+        const selects = document.querySelectorAll('select');
+        for (const field of selects) {
+            maskSelectField(field);
         }
     }
 
@@ -146,10 +204,14 @@
             }
         }
 
-        // Mask form fields
-        const formFields = element.querySelectorAll('input, textarea, select');
-        for (const field of formFields) {
-            maskFormField(field);
+        // Mask form fields with visual overlay
+        const inputs = element.querySelectorAll('input, textarea');
+        for (const field of inputs) {
+            maskFormFieldVisual(field);
+        }
+        const selects = element.querySelectorAll('select');
+        for (const field of selects) {
+            maskSelectField(field);
         }
     }
 
@@ -163,6 +225,8 @@
                 if (mutation.type === 'childList') {
                     for (const node of mutation.addedNodes) {
                         if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Skip our own overlay elements
+                            if (node.classList && node.classList.contains('demo-mask-overlay')) continue;
                             maskElement(node);
                         } else if (node.nodeType === Node.TEXT_NODE) {
                             maskTextNode(node);
