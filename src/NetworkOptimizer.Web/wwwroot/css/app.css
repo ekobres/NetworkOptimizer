@@ -583,7 +583,7 @@ a.stat-card-link:active {
 
 /* Main dashboard cards - fixed height to prevent flash during load */
 .content-grid > .card:nth-child(-n+4) {
-    min-height: 50vh;
+    min-height: 36vh;
 }
 
 /* Dashboard Grid */
