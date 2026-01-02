@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Core.Helpers;
+using static NetworkOptimizer.Core.Enums.DeviceTypeExtensions;
 
 namespace NetworkOptimizer.Audit.Dns;
 
@@ -243,7 +244,7 @@ public class DnsSecurityAnalyzer
         {
             // Only check gateways/routers for WAN DNS
             var deviceType = device.GetStringOrNull("type");
-            if (deviceType == null || !UniFiDeviceTypes.IsGateway(deviceType))
+            if (deviceType == null || !FromUniFiApiType(deviceType).IsGateway())
                 continue;
 
             // Look in port_table for WAN ports (wan, wan2, etc.)
@@ -927,7 +928,7 @@ public class DnsSecurityAnalyzer
             var ip = device.GetStringOrNull("ip");
 
             // Skip gateways - they're not expected to point to themselves
-            if (UniFiDeviceTypes.IsGateway(deviceType))
+            if (FromUniFiApiType(deviceType).IsGateway())
                 continue;
 
             // Get DNS configuration from config_network

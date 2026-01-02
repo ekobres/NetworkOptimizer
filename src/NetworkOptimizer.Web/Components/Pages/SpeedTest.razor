@@ -6,7 +6,6 @@
 @using NetworkOptimizer.Core.Enums
 @using NetworkOptimizer.UniFi
 @using NetworkOptimizer.UniFi.Models
-@using NetworkOptimizer.Core.Helpers
 @inject Iperf3SpeedTestService SpeedTestService
 @inject UniFiSshService SshService
 @inject UniFiConnectionService ConnectionService
@@ -277,8 +276,8 @@
                                 <td class="icon-cell"><DeviceIcon Model="@device.FriendlyModelName" Size="md" /></td>
                                 <td>@device.Name</td>
                                 <td><code>@device.FriendlyModelName</code></td>
-                                <td><code>@device.Ip</code></td>
-                                <td>@GetDeviceTypeDisplay(device.Type)</td>
+                                <td><code>@device.IpAddress</code></td>
+                                <td>@device.Type.ToDisplayName()</td>
                                 <td>
                                     @if (isOnline)
                                     {
@@ -293,8 +292,8 @@
                                     <div class="action-buttons">
                                         <button class="btn btn-primary btn-sm test-button"
                                                 @onclick="() => RunSpeedTestOnDiscovered(device)"
-                                                disabled="@(isRunningTest || !isOnline || !sshConfigured || string.IsNullOrEmpty(device.Ip))">
-                                            @if (runningTestHost == device.Ip)
+                                                disabled="@(isRunningTest || !isOnline || !sshConfigured || string.IsNullOrEmpty(device.IpAddress))">
+                                            @if (runningTestHost == device.IpAddress)
                                             {
                                                 <div class="test-progress">
                                                     <div class="progress-bar" style="width: @(testProgressPercent)%"></div>
@@ -377,7 +376,7 @@
                             <tr>
                                 <td>@device.Name</td>
                                 <td><code>@device.Host</code></td>
-                                <td>@GetSavedDeviceTypeDisplay(device.DeviceType)</td>
+                                <td>@device.DeviceType.ToDisplayName()</td>
                                 <td>
                                     @if (device.Enabled)
                                     {
@@ -433,9 +432,9 @@
                         <div class="form-group" style="flex: 1;">
                             <label class="form-label">Type</label>
                             <select class="form-control" @bind="editingDevice.DeviceType">
-                                @foreach (var deviceType in DeviceTypes.All)
+                                @foreach (var deviceType in DeviceTypeExtensions.AllForSpeedTest)
                                 {
-                                    <option value="@deviceType">@DeviceTypes.GetDisplayName(deviceType)</option>
+                                    <option value="@deviceType">@deviceType.ToDisplayName()</option>
                                 }
                             </select>
                         </div>
@@ -898,7 +897,7 @@
     private bool recheckingIperf3 = false;
 
     private List<DeviceSshConfiguration> devices = new();
-    private DeviceSshConfiguration editingDevice = new() { DeviceType = DeviceTypes.Server, Enabled = true };
+    private DeviceSshConfiguration editingDevice = new() { DeviceType = DeviceType.Server, Enabled = true };
     private List<Iperf3Result> testHistory = new();
     private Iperf3Result? currentResult;
     private bool sshConfigured = false;
@@ -909,8 +908,8 @@
     private int historyTotalPages => (int)Math.Ceiling(testHistory.Count / (double)historyPageSize);
     private IEnumerable<Iperf3Result> pagedHistory => testHistory.Skip((historyPage - 1) * historyPageSize).Take(historyPageSize);
 
-    // Discovered devices from UniFi controller
-    private List<UniFiDeviceResponse> discoveredDevices = new();
+    // Discovered devices from UniFi controller (using unified discovery service)
+    private List<DiscoveredDevice> discoveredDevices = new();
     private bool loadingDiscovered = false;
 
     // Saved devices form state
@@ -1193,7 +1192,7 @@
     {
         editingDevice = new DeviceSshConfiguration
         {
-            DeviceType = DeviceTypes.Server,
+            DeviceType = DeviceType.Server,
             Enabled = true,
             StartIperf3Server = false
         };
@@ -1383,7 +1382,7 @@
 
     private async Task LoadDiscoveredDevices()
     {
-        if (!ConnectionService.IsConnected || ConnectionService.Client == null)
+        if (!ConnectionService.IsConnected)
             return;
 
         loadingDiscovered = true;
@@ -1391,11 +1390,12 @@
 
         try
         {
-            var allDevices = await ConnectionService.Client.GetDevicesAsync();
+            var allDevices = await ConnectionService.GetDiscoveredDevicesAsync();
 
-            // Filter out gateway devices (UDM, USG, etc.) and MIPS devices (can't run iperf3)
+            // Filter out gateway devices (have dedicated Gateway Speed Test section)
+            // and MIPS devices (can't run iperf3)
             discoveredDevices = allDevices
-                .Where(d => !IsGatewayDevice(d.Type) && !d.IsMipsArchitecture)
+                .Where(d => d.Type != DeviceType.Gateway && !d.IsMipsArchitecture)
                 .OrderBy(d => d.Name)
                 .ToList();
         }
@@ -1411,11 +1411,9 @@
         }
     }
 
-    private bool IsGatewayDevice(string? type) => UniFiDeviceTypes.IsGateway(type);
-
-    private async Task RunSpeedTestOnDiscovered(UniFiDeviceResponse device)
+    private async Task RunSpeedTestOnDiscovered(DiscoveredDevice device)
     {
-        if (string.IsNullOrEmpty(device.Ip))
+        if (string.IsNullOrEmpty(device.IpAddress))
         {
             unifiMessage = $"Device {device.Name} has no IP address";
             unifiMessageClass = "danger";
@@ -1423,7 +1421,7 @@
         }
 
         isRunningTest = true;
-        runningTestHost = device.Ip;
+        runningTestHost = device.IpAddress;
         unifiMessage = $"Running speed test to {device.Name}...";
         unifiMessageClass = "info";
         StartProgressTimer();
@@ -1436,8 +1434,8 @@
             var tempDevice = new DeviceSshConfiguration
             {
                 Name = device.Name ?? "Unknown Device",
-                Host = device.Ip,
-                DeviceType = device.DeviceType,
+                Host = device.IpAddress,
+                DeviceType = device.Type,
                 Enabled = true,
                 StartIperf3Server = true
             };
@@ -1470,30 +1468,6 @@
             StateHasChanged();
         }
     }
-
-    /// <summary>
-    /// Get display name for UniFi API device type code (for UI display in device list)
-    /// </summary>
-    private string GetDeviceTypeDisplay(string? type)
-    {
-        if (string.IsNullOrEmpty(type))
-            return "Unknown";
-
-        return type.ToLowerInvariant() switch
-        {
-            "uap" => "Access Point",
-            "usw" => "Switch",
-            "udm" => "Dream Machine",
-            "ugw" => "Gateway",
-            "uxg" => "Gateway",
-            "umbb" => "Cellular Modem",
-            "ubb" => "Building Bridge",
-            "uck" => "Cloud Key",
-            _ => type.ToUpperInvariant()
-        };
-    }
-
-    private string GetSavedDeviceTypeDisplay(string? type) => DeviceTypes.GetDisplayName(type);
 
     // Progress indicator helpers
     // Phases: 0-3s = Starting (13%), 3-13s = From device (43%), 13-23s = To device (100%)

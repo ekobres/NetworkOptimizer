@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.UniFi.Models;
 
 namespace NetworkOptimizer.UniFi;
@@ -247,18 +248,8 @@ public class UniFiDiscovery
         return controllerInfo;
     }
 
-    private DeviceType DetermineDeviceType(string typeString)
-    {
-        // API returns exact short codes: "uap", "usw", "udm", "ucg", "umbb", etc.
-        return typeString.ToLowerInvariant() switch
-        {
-            "ugw" or "usg" or "udm" or "uxg" or "ucg" => DeviceType.Gateway,
-            "usw" => DeviceType.Switch,
-            "uap" => DeviceType.AccessPoint,
-            "umbb" => DeviceType.CellularModem,
-            _ => DeviceType.Unknown
-        };
-    }
+    private static DeviceType DetermineDeviceType(string typeString) =>
+        DeviceTypeExtensions.FromUniFiApiType(typeString);
 
     private string DetermineConnectionType(UniFiClientResponse client)
     {
@@ -313,6 +304,12 @@ public class DiscoveredDevice
     /// </summary>
     public string FriendlyModelName =>
         UniFiProductDatabase.GetBestProductName(Model, Shortname, ModelDisplay);
+
+    /// <summary>
+    /// Whether this device uses MIPS architecture and cannot run iperf3
+    /// </summary>
+    public bool IsMipsArchitecture =>
+        UniFiProductDatabase.IsMipsArchitecture(FriendlyModelName);
 
     public string IpAddress { get; set; } = string.Empty;
     public string Firmware { get; set; } = string.Empty;
@@ -425,15 +422,6 @@ public class ControllerInfo
     public string? HardwareModel { get; set; }
     public bool IsCloudKeyRunning { get; set; }
     public bool IsUnifiGoEnabled { get; set; }
-}
-
-public enum DeviceType
-{
-    Unknown,
-    Gateway,
-    Switch,
-    AccessPoint,
-    CellularModem
 }
 
 #endregion

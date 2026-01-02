@@ -2,6 +2,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.UniFi.Models;
 
 namespace NetworkOptimizer.UniFi;

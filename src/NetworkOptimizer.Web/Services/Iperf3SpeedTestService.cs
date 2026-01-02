@@ -262,11 +262,11 @@ public class Iperf3SpeedTestService
     /// <summary>
     /// Determine the appropriate parallel streams setting based on device type
     /// </summary>
-    private static int GetParallelStreamsForDevice(string? deviceType, Iperf3Settings settings)
+    private static int GetParallelStreamsForDevice(DeviceType deviceType, Iperf3Settings settings)
     {
-        if (DeviceTypes.IsGateway(deviceType))
+        if (deviceType.IsGateway())
             return settings.GatewayParallelStreams;
-        if (DeviceTypes.IsUniFi(deviceType))
+        if (deviceType.UsesUniFiIperfStreams())
             return settings.UniFiParallelStreams;
         return settings.OtherParallelStreams;
     }
@@ -287,7 +287,7 @@ public class Iperf3SpeedTestService
                 {
                     DeviceHost = host,
                     DeviceName = device.Name,
-                    DeviceType = device.DeviceType,
+                    DeviceType = device.DeviceType.ToString(),
                     Success = false,
                     ErrorMessage = "A speed test is already running for this device"
                 };
@@ -299,7 +299,7 @@ public class Iperf3SpeedTestService
         {
             DeviceHost = host,
             DeviceName = device.Name,
-            DeviceType = device.DeviceType,
+            DeviceType = device.DeviceType.ToString(),
             TestTime = DateTime.UtcNow,
             DurationSeconds = durationSeconds,
             ParallelStreams = parallelStreams

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Core.Helpers;
+using static NetworkOptimizer.Core.Enums.DeviceTypeExtensions;
 
 namespace NetworkOptimizer.Audit.Analyzers;
 
@@ -39,7 +40,7 @@ public class VlanAnalyzer
             var deviceType = device.GetStringOrNull("type");
             if (deviceType == null)
                 continue;
-            var isGateway = UniFiDeviceTypes.IsGateway(deviceType);
+            var isGateway = FromUniFiApiType(deviceType).IsGateway();
 
             var networkTableItems = device.GetArrayOrEmpty("network_table").ToList();
             if (networkTableItems.Count == 0)

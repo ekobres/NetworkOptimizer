@@ -22,9 +22,8 @@ public class DeviceSshConfiguration
     [MaxLength(255)]
     public string Host { get; set; } = "";
 
-    /// <summary>Device type (Gateway, Switch, AccessPoint, Server, Desktop)</summary>
-    [MaxLength(50)]
-    public string DeviceType { get; set; } = DeviceTypes.AccessPoint;
+    /// <summary>Device type (Gateway, Switch, AccessPoint, Server, Desktop, etc.)</summary>
+    public DeviceType DeviceType { get; set; } = DeviceType.AccessPoint;
 
     /// <summary>Whether this device is enabled for operations</summary>
     public bool Enabled { get; set; } = true;

@@ -6,6 +6,7 @@ using NetworkOptimizer.Audit.Services;
 using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.Core.Helpers;
 using NetworkOptimizer.UniFi.Models;
+using static NetworkOptimizer.Core.Enums.DeviceTypeExtensions;
 
 namespace NetworkOptimizer.Audit.Analyzers;
 
@@ -170,7 +171,7 @@ public class PortSecurityAnalyzer
     private SwitchInfo? ParseSwitch(JsonElement device, List<NetworkInfo> networks, Dictionary<(string, int), UniFiClientResponse> clientsByPort)
     {
         var deviceType = device.GetStringOrNull("type");
-        var isGateway = UniFiDeviceTypes.IsGateway(deviceType);
+        var isGateway = FromUniFiApiType(deviceType).IsGateway();
         var name = device.GetStringFromAny("name", "mac") ?? "Unknown";
 
         var mac = device.GetStringOrNull("mac");

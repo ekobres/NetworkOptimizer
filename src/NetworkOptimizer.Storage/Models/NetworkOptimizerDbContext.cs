@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NetworkOptimizer.Core.Enums;
 
 namespace NetworkOptimizer.Storage.Models;
 
@@ -81,6 +82,10 @@ public class NetworkOptimizerDbContext : DbContext
             entity.ToTable("DeviceSshConfigurations");
             entity.HasIndex(e => e.Host);
             entity.HasIndex(e => e.Enabled);
+            // Store DeviceType enum as string for backwards compatibility
+            entity.Property(e => e.DeviceType)
+                .HasConversion<string>()
+                .HasMaxLength(50);
         });
 
         // Iperf3Result configuration

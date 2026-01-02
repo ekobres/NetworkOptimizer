@@ -23,9 +23,9 @@ public class UniFiDeviceResponse
     public string Type { get; set; } = string.Empty;
 
     /// <summary>
-    /// Normalized device type constant (Gateway, Switch, AccessPoint, etc.)
+    /// Normalized device type enum value
     /// </summary>
-    public string DeviceType => DeviceTypes.FromUniFiType(Type);
+    public DeviceType DeviceType => DeviceTypeExtensions.FromUniFiApiType(Type);
 
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
