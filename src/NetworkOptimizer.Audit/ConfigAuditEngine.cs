@@ -53,7 +53,9 @@ public class ConfigAuditEngine
     }
 
     /// <summary>
-    /// Create ConfigAuditEngine with dependency injection
+    /// Create ConfigAuditEngine with dependency injection.
+    /// Internal analyzers are composed here rather than injected individually -
+    /// they're implementation details, not swappable services.
     /// </summary>
     public ConfigAuditEngine(
         ILogger<ConfigAuditEngine> logger,
@@ -77,6 +79,8 @@ public class ConfigAuditEngine
             detectionService);
         var firewallParser = new FirewallRuleParser(loggerFactory.CreateLogger<FirewallRuleParser>());
         _firewallAnalyzer = new FirewallRuleAnalyzer(loggerFactory.CreateLogger<FirewallRuleAnalyzer>(), firewallParser);
+
+        // HttpClient here is fine - audits run infrequently (manual/daily), not per-request
         var thirdPartyDetector = new ThirdPartyDnsDetector(
             loggerFactory.CreateLogger<ThirdPartyDnsDetector>(),
             new HttpClient { Timeout = TimeSpan.FromSeconds(3) });
