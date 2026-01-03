@@ -34,9 +34,17 @@ Time-series metrics with historical trending and alerting. Cable modem stats (si
 
 ## Requirements
 
+**Basic (Security Audit only):**
 - UniFi controller: UCG-Ultra, UCG-Max, UDM, UDM Pro, UDM SE, or standalone controller
 - Network access to your UniFi controller API (HTTPS)
-- For SQM features: SSH access to your gateway
+
+**Full Functionality (Adaptive SQM, LAN Speed Testing):**
+- SSH access enabled on your UniFi gateway and devices (configured via web interface, not mobile app)
+- **Console SSH:** Settings > Control Plane > Console > SSH
+- **Device SSH:** UniFi Devices > Device Updates and Settings > Device SSH Settings
+- See [Deployment Guide](docker/DEPLOYMENT.md#unifi-ssh-configuration) for detailed instructions (UniFi Network 9.5+)
+
+Without SSH access, Security Audit works fully, but you cannot run gateway/device LAN speed tests or deploy Adaptive SQM configurations.
 
 ## Installation
 

@@ -178,6 +178,7 @@ See [Native Deployment Guide](NATIVE-DEPLOYMENT.md) for detailed instructions.
 - [ ] Firewall rules configured (if applicable)
 - [ ] `.env` file configured with secure passwords
 - [ ] SSL certificates ready (if using HTTPS)
+- [ ] SSH enabled on UniFi devices (required for SQM and LAN speed testing, see below)
 
 ## Installation Steps
 
@@ -442,255 +443,175 @@ Apply with:
 docker-compose up -d
 ```
 
-## High Availability Setup
-
-For mission-critical deployments:
-
-### Option 1: Active-Passive with Shared Storage
-
-1. Two servers with shared NFS storage
-2. Primary runs all services
-3. Standby monitors primary health
-4. Automatic failover on failure
-
-### Option 2: Load Balanced
-
-1. Multiple instances behind load balancer
-2. Shared InfluxDB cluster
-3. Session affinity for Blazor SignalR
-
 ## Upgrade Procedure
 
-### Minor Version Updates
+Currently, Network Optimizer is deployed by building from source. Pre-built images will be published in a future release.
 
 ```bash
-# 1. Backup current state
-./backup-network-optimizer.sh
+# Pull latest source
+cd /path/to/network-optimizer
+git pull
 
-# 2. Pull latest images
-docker-compose pull
+# Rebuild and restart
+cd docker
+docker compose build
+docker compose up -d
 
-# 3. Recreate containers
-docker-compose up -d
-
-# 4. Verify
-docker-compose ps
-docker-compose logs -f
+# Verify
+docker compose ps
+docker compose logs -f
 ```
 
-### Major Version Updates
+For significant updates (major version changes or Dockerfile modifications), use a full rebuild:
 
 ```bash
-# 1. Read release notes
-# 2. Backup everything
-# 3. Test in staging environment
-# 4. Schedule maintenance window
-# 5. Update production
-
-# Stop services
-docker-compose down
-
-# Pull new version
-docker-compose pull
-
-# Update configuration if needed
-# (check release notes for breaking changes)
-
-# Start services
-docker-compose up -d
-
-# Monitor logs
-docker-compose logs -f
-
-# Verify functionality
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ## Troubleshooting
 
-### Service Won't Start
+### Container Won't Start
 
 ```bash
-# Check logs
-docker-compose logs <service>
+# Check logs for errors
+docker compose logs network-optimizer
 
-# Check disk space
-df -h
-
-# Check permissions
-ls -la data/ logs/
-
-# Verify .env file
-cat .env
+# Common issues:
+# - Port 8042 already in use: stop conflicting service or change port
+# - Permission denied on data directory: check ownership of mounted volumes
+# - Out of disk space: df -h
 ```
 
-### High Memory Usage
+### Can't Connect to UniFi Controller
+
+1. Verify the controller URL is correct (include https:// and port if non-standard)
+2. Ensure you're using a **local admin account**, not Ubiquiti SSO
+3. Check network connectivity: `curl -k https://your-controller:443`
+4. For self-signed certificates, enable "Ignore SSL errors" in Settings
+
+### SSH Connection Failures
 
 ```bash
-# Check resource usage
-docker stats
+# Test SSH manually from the container
+docker exec -it network-optimizer ssh username@gateway-ip
 
-# Restart the service
-docker-compose restart network-optimizer
+# Common issues:
+# - SSH not enabled on device (see UniFi SSH Configuration section)
+# - Wrong credentials
+# - Firewall blocking port 22
+# - Host key verification (container may need to accept new host keys)
 ```
 
-### Network Issues
+### Blazor UI Not Loading / Disconnects
+
+Blazor Server uses WebSocket connections. If the UI shows "Reconnecting..." or won't load:
+
+1. Check that your reverse proxy supports WebSockets (see nginx/Caddy examples above)
+2. Ensure proxy timeouts are sufficient (60s+)
+3. Check browser console for connection errors
+
+### Database Issues
+
+The SQLite database is stored in the `data/` volume. If you encounter database errors:
 
 ```bash
-# Check network
-docker network ls
-docker network inspect network-optimizer_default
+# Check database file exists and has correct permissions
+docker exec network-optimizer ls -la /app/data/
 
-# Recreate network
-docker-compose down
-docker-compose up -d
+# View recent application logs
+docker compose logs --tail=100 network-optimizer
 ```
 
-### Data Corruption
+## Security Considerations
+
+### Protect Your Credentials
+
+The `.env` file and SQLite database contain sensitive information:
 
 ```bash
-# Stop services
-docker-compose down
-
-# Restore from backup
-tar xzf backup.tar.gz
-
-# Start services
-docker-compose up -d
-```
-
-## Security Hardening
-
-### 1. Non-Root User
-
-Run containers as non-root:
-```yaml
-services:
-  network-optimizer:
-    user: "1000:1000"
-```
-
-### 2. Read-Only Root Filesystem
-
-```yaml
-services:
-  network-optimizer:
-    read_only: true
-    tmpfs:
-      - /tmp
-```
-
-### 3. Drop Capabilities
-
-```yaml
-services:
-  network-optimizer:
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-```
-
-### 4. Security Scanning
-
-```bash
-# Scan images for vulnerabilities
-docker scan ozark-connect/network-optimizer:latest
-```
-
-### 5. Secrets Management
-
-Use Docker secrets or environment file:
-```bash
-# Store secrets securely
+# Restrict .env file permissions
 chmod 600 .env
+
+# Data directory contains the database with stored credentials
+chmod 700 data/
 ```
 
-## Performance Optimization
+### Network Access
 
-### 1. SSD Storage
+Network Optimizer stores UniFi controller credentials and SSH passwords. Limit access to the web UI:
 
-Use SSD storage for the data directory for best performance with SQLite database.
+- Use a reverse proxy with authentication if exposing beyond your local network
+- Consider firewall rules to restrict access to trusted IPs
+- Use HTTPS via reverse proxy (see examples above)
 
-### 2. Increase File Descriptors
+### UniFi Account
 
-```bash
-# /etc/sysctl.conf
-fs.file-max = 65535
+Create a dedicated local admin account on your UniFi controller for Network Optimizer rather than using your primary admin account. This allows you to revoke access without affecting other integrations.
 
-# Apply
-sudo sysctl -p
-```
+## Support
 
-### 3. Docker Daemon Optimization
-
-```json
-// /etc/docker/daemon.json
-{
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  },
-  "storage-driver": "overlay2"
-}
-```
-
-## Support and Maintenance
-
-### Getting Help
-
-- Documentation: See `docs/` folder in repository
 - GitHub Issues: https://github.com/Ozark-Connect/NetworkOptimizer/issues
 - Email: tj@ozarkconnect.net
 
-### Maintenance Windows
+## UniFi SSH Configuration
 
-Recommended schedule:
-- **Daily:** Automated backups
-- **Weekly:** Review logs and metrics
-- **Monthly:** Check for updates, security patches
-- **Quarterly:** Full system audit, restore test
+SSH access is **optional** for Security Audit but **required** for:
+- **Adaptive SQM:** Deploying bandwidth management scripts to your gateway
+- **LAN Speed Testing:** Running iperf3 tests between gateway and network devices
 
-### Logs to Monitor
+### Enabling SSH in UniFi
+
+**Important:** Both SSH settings must be configured via the UniFi Network web interface. These options are not available in the iOS or Android UniFi apps.
+
+#### Console SSH (UniFi Network 9.5+)
+
+Enables SSH access to the controller/console itself (UCG, UDM, etc.):
+
+1. Open **UniFi Network** in a web browser
+2. Go to **Settings** (gear icon)
+3. Navigate to **Control Plane** > **Console**
+4. Find **SSH** and enable it
+5. Set a password
+
+#### Device SSH (UniFi Network 9.5+)
+
+Enables SSH access to adopted devices (switches, access points):
+
+1. Open **UniFi Network** in a web browser
+2. Go to **UniFi Devices** in the left sidebar
+3. Scroll to the bottom of the left-hand menu and click **Device Updates and Settings**
+4. Select **Device SSH Settings**
+5. Check **Device SSH Authentication**
+6. Set username and password
+7. Optionally add SSH keys (recommended for better security)
+
+### Testing SSH Access
+
+After enabling SSH, verify connectivity:
 
 ```bash
-# Application logs
-docker-compose logs -f network-optimizer
+# Test gateway SSH
+ssh <username>@<gateway-ip>
 
-# System logs
-journalctl -u docker -f
-
-# Disk usage
-du -sh data/ logs/
+# You should get a shell prompt on the UniFi device
 ```
 
-## Compliance and Auditing
+### Credentials in Network Optimizer
 
-### Data Retention
+Once SSH is enabled in UniFi, enter the same credentials in Network Optimizer:
+1. Go to **Settings** in Network Optimizer
+2. Enter your SSH username and password
+3. Click **Test SSH** to verify connectivity
 
-Configure according to your requirements:
-- Application data: Stored in SQLite database in `data/` directory
-- Logs: Docker logging driver settings
-- Backups: Backup script retention period
-
-### Access Logging
-
-Enable detailed access logs:
-```yaml
-environment:
-  - Logging__LogLevel__Microsoft.AspNetCore=Information
-```
-
-### Audit Trail
-
-Network Optimizer logs all configuration changes and audits.
+For custom devices (non-UniFi equipment), you can configure per-device SSH credentials in the LAN Speed Testing section.
 
 ## Next Steps
 
 After deployment:
 1. Access web UI and complete initial setup
 2. Connect to UniFi Controller
-3. Configure SSH access for gateway and devices
+3. Configure SSH access for gateway and devices (see above)
 4. Run security audit
 5. Configure SQM settings (if applicable)
 
