@@ -289,18 +289,26 @@
     private List<Iperf3Result> _recentSpeedTests = new();
     private int _sqmPanelKey = 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
+    }
 
-        // Wait for UniFi controller connection (auto-connect happens in background on startup)
-        await ConnectionService.WaitForConnectionAsync();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Brief wait for controller connection, then load data
+            await ConnectionService.WaitForConnectionAsync();
 
-        // Load in parallel
-        await Task.WhenAll(
-            LoadDashboardData(),
-            LoadSpeedTestData()
-        );
+            // Load in parallel
+            await Task.WhenAll(
+                LoadDashboardData(),
+                LoadSpeedTestData()
+            );
+
+            StateHasChanged();
+        }
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
