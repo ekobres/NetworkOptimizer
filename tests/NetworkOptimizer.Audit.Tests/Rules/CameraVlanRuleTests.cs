@@ -596,7 +596,8 @@ public class CameraVlanRuleTests
         ClientDeviceCategory deviceCategory = ClientDeviceCategory.Unknown,
         string? connectedClientName = null,
         List<string>? allowedMacAddresses = null,
-        string? lastConnectionMac = null)
+        string? lastConnectionMac = null,
+        long? lastConnectionSeen = null)
     {
         var switchInfo = new SwitchInfo
         {
@@ -632,7 +633,8 @@ public class CameraVlanRuleTests
             Switch = switchInfo,
             ConnectedClient = connectedClient,
             AllowedMacAddresses = allowedMacAddresses,
-            LastConnectionMac = lastConnectionMac
+            LastConnectionMac = lastConnectionMac,
+            LastConnectionSeen = lastConnectionSeen
         };
     }
 
@@ -662,6 +664,75 @@ public class CameraVlanRuleTests
             };
         }
         return networks.ToList();
+    }
+
+    #endregion
+
+    #region Offline Device 2-Week Scoring Tests
+
+    [Fact]
+    public void Evaluate_OfflineCamera_RecentlyActive_ReturnsCritical()
+    {
+        // Arrange - offline camera last seen 1 week ago (within 2-week window)
+        var oneWeekAgo = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Security Camera",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.Camera,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: oneWeekAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - recently active offline camera should still be Critical
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Critical);
+        result.ScoreImpact.Should().Be(8); // CameraVlanRule uses ScoreImpact of 8
+    }
+
+    [Fact]
+    public void Evaluate_OfflineCamera_StaleOlderThan2Weeks_ReturnsInformational()
+    {
+        // Arrange - offline camera last seen 3 weeks ago (outside 2-week window)
+        var threeWeeksAgo = DateTimeOffset.UtcNow.AddDays(-21).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Security Camera",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.Camera,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: threeWeeksAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - stale offline camera should be Informational with no score impact
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Informational);
+        result.ScoreImpact.Should().Be(0);
+    }
+
+    [Fact]
+    public void Evaluate_OfflineCamera_NoLastConnectionSeen_ReturnsInformational()
+    {
+        // Arrange - offline camera with no timestamp (treated as stale)
+        var port = CreatePort(
+            portName: "Security Camera",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.Camera,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: null);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - no timestamp means stale, should be Informational
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Informational);
+        result.ScoreImpact.Should().Be(0);
     }
 
     #endregion

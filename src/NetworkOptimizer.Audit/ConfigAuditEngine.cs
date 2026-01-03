@@ -34,6 +34,7 @@ public class ConfigAuditEngine
     {
         public required JsonElement DeviceData { get; init; }
         public required List<UniFiClientResponse>? Clients { get; init; }
+        public required List<UniFiClientHistoryResponse>? ClientHistory { get; init; }
         public required JsonElement? SettingsData { get; init; }
         public required JsonElement? FirewallPoliciesData { get; init; }
         public required string? ClientName { get; init; }
@@ -44,6 +45,7 @@ public class ConfigAuditEngine
         public List<NetworkInfo> Networks { get; set; } = [];
         public List<SwitchInfo> Switches { get; set; } = [];
         public List<WirelessClientInfo> WirelessClients { get; set; } = [];
+        public List<OfflineClientInfo> OfflineClients { get; set; } = [];
         public List<AuditIssue> AllIssues { get; } = [];
         public List<string> HardeningMeasures { get; set; } = [];
         public DnsSecurityResult? DnsSecurityResult { get; set; }
@@ -131,8 +133,22 @@ public class ConfigAuditEngine
     /// <summary>
     /// Run a comprehensive audit on UniFi device data with all available data sources and device allowance settings
     /// </summary>
+    public Task<AuditResult> RunAuditAsync(
+        string deviceDataJson,
+        List<UniFiClientResponse>? clients,
+        UniFiFingerprintDatabase? fingerprintDb,
+        JsonElement? settingsData,
+        JsonElement? firewallPoliciesData,
+        DeviceAllowanceSettings? allowanceSettings,
+        string? clientName = null)
+        => RunAuditAsync(deviceDataJson, clients, clientHistory: null, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, clientName);
+
+    /// <summary>
+    /// Run a comprehensive audit on UniFi device data with client history for offline device detection
+    /// </summary>
     /// <param name="deviceDataJson">JSON string containing UniFi device data from /stat/device API</param>
     /// <param name="clients">Connected clients for device type detection (optional)</param>
+    /// <param name="clientHistory">Historical clients for offline device detection (optional)</param>
     /// <param name="fingerprintDb">UniFi fingerprint database for device name lookups (optional)</param>
     /// <param name="settingsData">Site settings data including DoH configuration (optional)</param>
     /// <param name="firewallPoliciesData">Firewall policies data for DNS leak prevention analysis (optional)</param>
@@ -142,6 +158,7 @@ public class ConfigAuditEngine
     public async Task<AuditResult> RunAuditAsync(
         string deviceDataJson,
         List<UniFiClientResponse>? clients,
+        List<UniFiClientHistoryResponse>? clientHistory,
         UniFiFingerprintDatabase? fingerprintDb,
         JsonElement? settingsData,
         JsonElement? firewallPoliciesData,
@@ -151,13 +168,14 @@ public class ConfigAuditEngine
         _logger.LogInformation("Starting network configuration audit for {Client}", clientName ?? "Unknown");
 
         // Initialize context with parsed data and security engine
-        var ctx = InitializeAuditContext(deviceDataJson, clients, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, clientName);
+        var ctx = InitializeAuditContext(deviceDataJson, clients, clientHistory, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, clientName);
 
         // Execute audit phases
         ExecutePhase1_ExtractNetworks(ctx);
         ExecutePhase2_ExtractSwitches(ctx);
         ExecutePhase3_AnalyzePortSecurity(ctx);
         ExecutePhase3b_AnalyzeWirelessClients(ctx);
+        ExecutePhase3c_AnalyzeOfflineClients(ctx);
         ExecutePhase4_AnalyzeNetworkConfiguration(ctx);
         ExecutePhase5_AnalyzeFirewallRules(ctx);
         await ExecutePhase5b_AnalyzeDnsSecurityAsync(ctx);
@@ -178,6 +196,7 @@ public class ConfigAuditEngine
     private AuditContext InitializeAuditContext(
         string deviceDataJson,
         List<UniFiClientResponse>? clients,
+        List<UniFiClientHistoryResponse>? clientHistory,
         UniFiFingerprintDatabase? fingerprintDb,
         JsonElement? settingsData,
         JsonElement? firewallPoliciesData,
@@ -186,21 +205,26 @@ public class ConfigAuditEngine
     {
         if (clients != null)
             _logger.LogInformation("Client data available for enhanced detection: {ClientCount} clients", clients.Count);
+        if (clientHistory != null)
+            _logger.LogInformation("Client history available for offline detection: {HistoryCount} historical clients", clientHistory.Count);
         if (fingerprintDb != null)
             _logger.LogInformation("Fingerprint database available: {DeviceCount} devices", fingerprintDb.DevIds.Count);
 
-        // Use a security engine with fingerprint database if available
-        var securityEngine = _securityEngine;
-        if (fingerprintDb != null)
+        // Create detection service with all available data sources
+        var detectionService = new DeviceTypeDetectionService(
+            _loggerFactory.CreateLogger<DeviceTypeDetectionService>(),
+            fingerprintDb,
+            _ieeeOuiDb);
+
+        // Set client history for enhanced offline device detection
+        if (clientHistory != null)
         {
-            var detectionService = new DeviceTypeDetectionService(
-                _loggerFactory.CreateLogger<DeviceTypeDetectionService>(),
-                fingerprintDb,
-                _ieeeOuiDb);
-            securityEngine = new PortSecurityAnalyzer(
-                _loggerFactory.CreateLogger<PortSecurityAnalyzer>(),
-                detectionService);
+            detectionService.SetClientHistory(clientHistory);
         }
+
+        var securityEngine = new PortSecurityAnalyzer(
+            _loggerFactory.CreateLogger<PortSecurityAnalyzer>(),
+            detectionService);
 
         // Parse JSON with error handling
         // Clone the RootElement to detach it from the JsonDocument, allowing proper disposal
@@ -224,6 +248,7 @@ public class ConfigAuditEngine
         {
             DeviceData = deviceData,
             Clients = clients,
+            ClientHistory = clientHistory,
             SettingsData = settingsData,
             FirewallPoliciesData = firewallPoliciesData,
             ClientName = clientName,
@@ -264,6 +289,160 @@ public class ConfigAuditEngine
         ctx.AllIssues.AddRange(wirelessIssues);
         _logger.LogInformation("Found {IssueCount} wireless client issues from {ClientCount} detected devices",
             wirelessIssues.Count, ctx.WirelessClients.Count);
+    }
+
+    private void ExecutePhase3c_AnalyzeOfflineClients(AuditContext ctx)
+    {
+        if (ctx.ClientHistory == null || ctx.ClientHistory.Count == 0)
+        {
+            _logger.LogDebug("Phase 3c: Skipping offline client analysis (no client history)");
+            return;
+        }
+
+        _logger.LogInformation("Phase 3c: Analyzing offline clients");
+
+        // Build set of online client MACs for filtering
+        var onlineClientMacs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (ctx.Clients != null)
+        {
+            foreach (var client in ctx.Clients.Where(c => !string.IsNullOrEmpty(c.Mac)))
+            {
+                onlineClientMacs.Add(client.Mac!);
+            }
+        }
+
+        // Get the detection service from the security engine
+        var detectionService = GetDetectionServiceFromAnalyzer(ctx.SecurityEngine);
+        if (detectionService == null)
+        {
+            _logger.LogWarning("No detection service available for offline client analysis");
+            return;
+        }
+
+        // Two weeks ago threshold for scoring
+        var twoWeeksAgo = DateTimeOffset.UtcNow.AddDays(-14).ToUnixTimeSeconds();
+
+        foreach (var historyClient in ctx.ClientHistory)
+        {
+            // Skip if currently online
+            if (!string.IsNullOrEmpty(historyClient.Mac) && onlineClientMacs.Contains(historyClient.Mac))
+                continue;
+
+            // Skip wired devices (handled by port security analysis via LastConnectionMac)
+            if (historyClient.IsWired)
+                continue;
+
+            // Run detection on this offline client
+            var detection = detectionService.DetectFromMac(historyClient.Mac ?? "");
+
+            // Also try name-based detection if MAC detection didn't work
+            if (detection.Category == ClientDeviceCategory.Unknown)
+            {
+                var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname;
+                if (!string.IsNullOrEmpty(displayName))
+                {
+                    detection = detectionService.DetectFromPortName(displayName);
+                }
+            }
+
+            // Skip if still unknown
+            if (detection.Category == ClientDeviceCategory.Unknown)
+                continue;
+
+            // Get the network this client was last connected to
+            var lastNetwork = ctx.Networks.FirstOrDefault(n =>
+                n.Id == historyClient.LastConnectionNetworkId);
+
+            if (lastNetwork == null)
+                continue;
+
+            // Add to offline clients list
+            ctx.OfflineClients.Add(new OfflineClientInfo
+            {
+                HistoryClient = historyClient,
+                LastNetwork = lastNetwork,
+                Detection = detection
+            });
+
+            // Check if IoT device on wrong VLAN
+            if (detection.Category.IsIoT() && lastNetwork.Purpose != NetworkPurpose.IoT)
+            {
+                var isRecent = historyClient.LastSeen >= twoWeeksAgo;
+                var severity = isRecent ? Models.AuditSeverity.Critical : Models.AuditSeverity.Informational;
+                var scoreImpact = isRecent ? 10 : 0;
+
+                var iotNetwork = ctx.Networks.FirstOrDefault(n => n.Purpose == NetworkPurpose.IoT);
+                var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
+
+                ctx.AllIssues.Add(new AuditIssue
+                {
+                    Type = "OFFLINE-IOT-VLAN",
+                    Severity = severity,
+                    Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be isolated",
+                    DeviceName = $"{displayName} (offline)",
+                    CurrentNetwork = lastNetwork.Name,
+                    CurrentVlan = lastNetwork.VlanId,
+                    RecommendedNetwork = iotNetwork?.Name,
+                    RecommendedVlan = iotNetwork?.VlanId,
+                    RecommendedAction = iotNetwork != null ? $"Move to {iotNetwork.Name}" : "Create IoT VLAN",
+                    RuleId = "OFFLINE-IOT-VLAN",
+                    ScoreImpact = scoreImpact,
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["category"] = detection.CategoryName,
+                        ["confidence"] = detection.ConfidenceScore,
+                        ["source"] = detection.Source.ToString(),
+                        ["lastSeen"] = historyClient.LastSeen,
+                        ["isRecent"] = isRecent
+                    }
+                });
+            }
+
+            // Check if camera/surveillance device on wrong VLAN
+            if (detection.Category.IsSurveillance() && lastNetwork.Purpose != NetworkPurpose.Security)
+            {
+                var isRecent = historyClient.LastSeen >= twoWeeksAgo;
+                var severity = isRecent ? Models.AuditSeverity.Critical : Models.AuditSeverity.Informational;
+                var scoreImpact = isRecent ? 8 : 0;
+
+                var securityNetwork = ctx.Networks.FirstOrDefault(n => n.Purpose == NetworkPurpose.Security);
+                var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
+
+                ctx.AllIssues.Add(new AuditIssue
+                {
+                    Type = "OFFLINE-CAMERA-VLAN",
+                    Severity = severity,
+                    Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be on security VLAN",
+                    DeviceName = $"{displayName} (offline)",
+                    CurrentNetwork = lastNetwork.Name,
+                    CurrentVlan = lastNetwork.VlanId,
+                    RecommendedNetwork = securityNetwork?.Name,
+                    RecommendedVlan = securityNetwork?.VlanId,
+                    RecommendedAction = securityNetwork != null ? $"Move to {securityNetwork.Name}" : "Create Security VLAN",
+                    RuleId = "OFFLINE-CAMERA-VLAN",
+                    ScoreImpact = scoreImpact,
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["category"] = detection.CategoryName,
+                        ["confidence"] = detection.ConfidenceScore,
+                        ["source"] = detection.Source.ToString(),
+                        ["lastSeen"] = historyClient.LastSeen,
+                        ["isRecent"] = isRecent
+                    }
+                });
+            }
+        }
+
+        _logger.LogInformation("Found {OfflineCount} offline clients with detection, {IssueCount} VLAN placement issues",
+            ctx.OfflineClients.Count, ctx.AllIssues.Count(i => i.Type?.StartsWith("OFFLINE-") == true));
+    }
+
+    private static DeviceTypeDetectionService? GetDetectionServiceFromAnalyzer(PortSecurityAnalyzer analyzer)
+    {
+        // Use reflection to get the detection service (it's private in the analyzer)
+        var field = typeof(PortSecurityAnalyzer).GetField("_detectionService",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return field?.GetValue(analyzer) as DeviceTypeDetectionService;
     }
 
     private void ExecutePhase4_AnalyzeNetworkConfiguration(AuditContext ctx)
@@ -389,6 +568,7 @@ public class ConfigAuditEngine
             Networks = ctx.Networks,
             Switches = ctx.Switches,
             WirelessClients = ctx.WirelessClients,
+            OfflineClients = ctx.OfflineClients,
             Issues = ctx.AllIssues,
             HardeningMeasures = ctx.HardeningMeasures,
             Statistics = ctx.Statistics,

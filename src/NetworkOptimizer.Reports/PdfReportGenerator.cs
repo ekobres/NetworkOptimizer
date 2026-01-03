@@ -186,6 +186,13 @@ public class PdfReportGenerator
                 column.Item().Element(c => ComposeAccessPointDetails(c, data));
             }
 
+            // Offline Clients (from history)
+            if (data.OfflineClients.Any())
+            {
+                column.Item().PageBreak();
+                column.Item().Element(c => ComposeOfflineClientsSection(c, data));
+            }
+
             // Port Security Summary
             column.Item().PageBreak();
             column.Item().Element(c => ComposePortSecuritySummary(c, data));
@@ -818,6 +825,113 @@ public class PdfReportGenerator
                         .Bold()
                         .FontColor(issueColor);
                 }
+
+                column.Item().PaddingBottom(12);
+            }
+        });
+    }
+
+    private void ComposeOfflineClientsSection(IContainer container, ReportData data)
+    {
+        var primaryColor = GetColor(_branding.Colors.Primary);
+        var lightGray = GetColor(_branding.Colors.LightGray);
+        var warningColor = GetColor(_branding.Colors.Warning);
+        var criticalColor = GetColor(_branding.Colors.Critical);
+
+        container.Column(column =>
+        {
+            column.Item()
+                .PaddingBottom(10)
+                .Text("Offline Wireless Clients (Last 30 Days)")
+                .FontSize(16)
+                .Bold()
+                .FontColor(primaryColor);
+
+            // Group by last uplink (AP name)
+            var groups = data.OfflineClients
+                .GroupBy(c => c.LastUplinkName ?? "Unknown")
+                .OrderBy(g => g.Key);
+
+            foreach (var group in groups)
+            {
+                var iotCount = group.Count(c => c.IsIoT);
+                var cameraCount = group.Count(c => c.IsCamera);
+                var issueCount = group.Count(c => c.HasIssue);
+
+                column.Item()
+                    .PaddingBottom(6)
+                    .Text($"{group.Key} ({group.Count()} clients)")
+                    .FontSize(12)
+                    .Bold()
+                    .FontColor(primaryColor);
+
+                // Client table
+                column.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(2.0f);  // Name
+                        columns.RelativeColumn(1.5f);  // Category
+                        columns.RelativeColumn(2.0f);  // Network
+                        columns.RelativeColumn(1.2f);  // Last Seen
+                        columns.RelativeColumn(1.5f);  // Status
+                    });
+
+                    // Header
+                    table.Header(header =>
+                    {
+                        void HeaderCell(string text)
+                        {
+                            header.Cell().Background(primaryColor).Padding(4)
+                                .Text(text).Bold().FontSize(7).FontColor(Colors.White);
+                        }
+
+                        HeaderCell("Client");
+                        HeaderCell("Type");
+                        HeaderCell("Network");
+                        HeaderCell("Last Seen");
+                        HeaderCell("Status");
+                    });
+
+                    // Rows
+                    var warningBg = Color.FromRGB(255, 248, 220);   // Light yellow
+                    var criticalBg = Color.FromRGB(255, 230, 230); // Light red
+                    int rowIndex = 0;
+                    foreach (var client in group.OrderBy(c => c.DisplayName))
+                    {
+                        var isCritical = client.HasIssue && client.IssueSeverity == "Critical";
+                        var rowBg = isCritical ? criticalBg
+                            : client.HasIssue ? warningBg
+                            : rowIndex % 2 == 0 ? lightGray
+                            : Colors.White;
+
+                        var status = client.HasIssue ? (client.IssueTitle ?? "Issue") : "OK";
+                        var networkDisplay = DisplayFormatters.FormatNetworkWithVlan(client.Network, client.VlanId);
+                        var lastSeenText = client.IsRecentlyActive
+                            ? client.LastSeenDisplay
+                            : $"{client.LastSeenDisplay} (stale)";
+
+                        void DataCell(string text)
+                        {
+                            table.Cell().Background(rowBg).Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(4)
+                                .AlignLeft().Text(text).FontSize(7);
+                        }
+
+                        DataCell(client.DisplayName);
+                        DataCell(client.DeviceCategory);
+                        DataCell(networkDisplay);
+                        DataCell(lastSeenText);
+
+                        // Status cell with conditional color
+                        var statusColor = isCritical ? criticalColor
+                            : client.HasIssue ? warningColor
+                            : Colors.Black;
+                        table.Cell().Background(rowBg).Border(0.5f).BorderColor(Colors.Grey.Lighten2).Padding(4)
+                            .AlignCenter().Text(status).FontSize(7).FontColor(statusColor);
+
+                        rowIndex++;
+                    }
+                });
 
                 column.Item().PaddingBottom(12);
             }

@@ -452,6 +452,40 @@ public class UniFiApiClient : IDisposable
         return new List<UniFiClientResponse>();
     }
 
+    /// <summary>
+    /// GET /proxy/network/v2/api/site/{site}/clients/history - Get client history (includes offline devices)
+    /// </summary>
+    /// <param name="withinHours">How far back to look (default 720 = 30 days)</param>
+    public async Task<List<UniFiClientHistoryResponse>> GetClientHistoryAsync(
+        int withinHours = 720,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching client history (within {Hours} hours) from site {Site}", withinHours, _site);
+
+        if (!await EnsureAuthenticatedAsync(cancellationToken))
+        {
+            return new List<UniFiClientHistoryResponse>();
+        }
+
+        return await _retryPolicy.ExecuteAsync(async () =>
+        {
+            var url = $"{_controllerUrl}/proxy/network/v2/api/site/{_site}/clients/history?withinHours={withinHours}";
+            var response = await _httpClient!.GetAsync(url, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var clients = await response.Content.ReadFromJsonAsync<List<UniFiClientHistoryResponse>>(
+                    cancellationToken: cancellationToken);
+
+                _logger.LogInformation("Retrieved {Count} historical clients", clients?.Count ?? 0);
+                return clients ?? new List<UniFiClientHistoryResponse>();
+            }
+
+            _logger.LogWarning("Failed to retrieve client history: {StatusCode}", response.StatusCode);
+            return new List<UniFiClientHistoryResponse>();
+        });
+    }
+
     #endregion
 
     #region Firewall Management APIs

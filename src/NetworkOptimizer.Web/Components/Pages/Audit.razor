@@ -1,4 +1,5 @@
 @page "/audit"
+@using NetworkOptimizer.Core.Enums
 @using NetworkOptimizer.Core.Helpers
 @using NetworkOptimizer.Reports
 @using NetworkOptimizer.Web.Components.Shared
@@ -492,6 +493,62 @@
             </div>
         }
 
+        <!-- Offline Clients (from history) -->
+        @if (includeVlanSecurity && lastResult?.OfflineClients.Any() == true)
+        {
+            var offlineGroups = lastResult.OfflineClients
+                .GroupBy(c => c.LastUplinkName ?? "Unknown")
+                .OrderBy(g => g.Key);
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Offline Wireless Clients (Last 30 Days)</h2>
+                </div>
+                <div class="card-body">
+                    @foreach (var group in offlineGroups)
+                    {
+                        <div class="ap-section">
+                            <h3 class="ap-title">
+                                @group.Key <span class="client-count">(@group.Count() clients)</span>
+                            </h3>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Client</th>
+                                        <th>Type</th>
+                                        <th>Network</th>
+                                        <th>Last Seen</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var client in group.OrderBy(c => c.DisplayName))
+                                    {
+                                        var clientIssue = issues.FirstOrDefault(i => i.IsWireless && i.ClientMac == client.Mac);
+                                        var hasIssue = clientIssue != null;
+                                        var statusClass = hasIssue
+                                            ? (clientIssue!.Severity == "Critical" ? "row-critical" :
+                                               clientIssue.Severity == "Informational" ? "" : "row-warning")
+                                            : "";
+                                        var statusText = hasIssue ? clientIssue!.Title : "OK";
+                                        var networkDisplay = DisplayFormatters.FormatNetworkWithVlan(
+                                            client.LastNetwork?.Name, client.LastNetwork?.VlanId);
+                                        var recentBadge = client.IsRecentlyActive ? "" : " (stale)";
+                                        <tr class="@statusClass">
+                                            <td>@client.DisplayName</td>
+                                            <td>@client.Detection.CategoryName</td>
+                                            <td>@networkDisplay</td>
+                                            <td>@client.LastSeenDisplay@recentBadge</td>
+                                            <td>@statusText</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         <!-- Port Security Summary -->
         @if (includePortSecurity && lastResult?.Switches.Any() == true)
         {
@@ -857,6 +914,29 @@
                         };
                     })
                     .OrderBy(ap => ap.Name)
+                    .ToList(),
+
+                // Offline clients from history API
+                OfflineClients = lastResult.OfflineClients
+                    .Select(oc => {
+                        var clientIssue = issues.FirstOrDefault(i => i.IsWireless && i.ClientMac == oc.Mac);
+                        return new NetworkOptimizer.Reports.OfflineClientDetail
+                        {
+                            DisplayName = oc.DisplayName,
+                            Mac = oc.Mac ?? "",
+                            Network = oc.LastNetwork?.Name,
+                            VlanId = oc.LastNetwork?.VlanId,
+                            DeviceCategory = oc.Detection.CategoryName,
+                            LastUplinkName = oc.LastUplinkName,
+                            LastSeenDisplay = oc.LastSeenDisplay,
+                            IsRecentlyActive = oc.IsRecentlyActive,
+                            IsIoT = oc.Detection.Category.IsIoT(),
+                            IsCamera = oc.Detection.Category.IsSurveillance(),
+                            HasIssue = clientIssue != null,
+                            IssueTitle = clientIssue?.Title,
+                            IssueSeverity = clientIssue?.Severity
+                        };
+                    })
                     .ToList()
             };
 

@@ -31,6 +31,11 @@ public class AuditResult
     public List<WirelessClientInfo> WirelessClients { get; init; } = new();
 
     /// <summary>
+    /// Offline clients with detection results (from history API)
+    /// </summary>
+    public List<OfflineClientInfo> OfflineClients { get; init; } = new();
+
+    /// <summary>
     /// All audit issues found
     /// </summary>
     public List<AuditIssue> Issues { get; init; } = new();

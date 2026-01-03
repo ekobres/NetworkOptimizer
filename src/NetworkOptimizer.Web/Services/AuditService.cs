@@ -313,6 +313,10 @@ public class AuditService
                     {
                         result.WirelessClients = JsonSerializer.Deserialize<List<WirelessClientReference>>(wirelessEl.GetRawText(), options) ?? new();
                     }
+                    if (root.TryGetProperty("OfflineClients", out var offlineEl) || root.TryGetProperty("offlineClients", out offlineEl))
+                    {
+                        result.OfflineClients = JsonSerializer.Deserialize<List<OfflineClientReference>>(offlineEl.GetRawText(), options) ?? new();
+                    }
                     if (root.TryGetProperty("DnsSecurity", out var dnsEl) || root.TryGetProperty("dnsSecurity", out dnsEl))
                     {
                         result.DnsSecurity = JsonSerializer.Deserialize<DnsSecurityReference>(dnsEl.GetRawText(), options);
@@ -398,6 +402,7 @@ public class AuditService
                 Networks = result.Networks,
                 Switches = result.Switches,
                 WirelessClients = result.WirelessClients,
+                OfflineClients = result.OfflineClients,
                 DnsSecurity = result.DnsSecurity
             };
             var reportDataJson = JsonSerializer.Serialize(reportData);
@@ -489,6 +494,18 @@ public class AuditService
             var clients = await _connectionService.Client.GetClientsAsync();
             _logger.LogInformation("Fetched {ClientCount} connected clients for device detection", clients?.Count ?? 0);
 
+            // Fetch client history for offline device detection (30 days)
+            List<NetworkOptimizer.UniFi.Models.UniFiClientHistoryResponse>? clientHistory = null;
+            try
+            {
+                clientHistory = await _connectionService.Client.GetClientHistoryAsync(withinHours: 720);
+                _logger.LogInformation("Fetched {HistoryCount} historical clients for offline device detection", clientHistory?.Count ?? 0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch client history for offline device detection");
+            }
+
             // Get fingerprint database for device name lookups
             var fingerprintDb = await _fingerprintService.GetDatabaseAsync();
 
@@ -536,7 +553,7 @@ public class AuditService
             };
 
             // Run the audit engine with all available data for comprehensive analysis
-            var auditResult = await _auditEngine.RunAuditAsync(deviceDataJson, clients, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, "Network Audit");
+            var auditResult = await _auditEngine.RunAuditAsync(deviceDataJson, clients, clientHistory, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, "Network Audit");
 
             // Convert audit result to web models
             var webResult = ConvertAuditResult(auditResult, options);
@@ -684,6 +701,23 @@ public class AuditService
             })
             .ToList();
 
+        // Convert offline clients from history
+        var offlineClients = engineResult.OfflineClients
+            .Select(oc => new OfflineClientReference
+            {
+                DisplayName = oc.DisplayName,
+                Mac = oc.Mac,
+                LastUplinkName = oc.LastUplinkName,
+                LastNetwork = oc.LastNetwork,
+                DeviceCategory = oc.Detection.CategoryName,
+                LastSeenDisplay = oc.LastSeenDisplay,
+                IsRecentlyActive = oc.IsRecentlyActive,
+                IsIoT = oc.Detection.Category.IsIoT(),
+                IsCamera = oc.Detection.Category.IsSurveillance(),
+                Detection = oc.Detection
+            })
+            .ToList();
+
         // Convert DNS security info
         DnsSecurityReference? dnsSecurity = null;
         if (engineResult.DnsSecurity != null)
@@ -739,6 +773,7 @@ public class AuditService
             Networks = networks,
             Switches = switches,
             WirelessClients = wirelessClients,
+            OfflineClients = offlineClients,
             DnsSecurity = dnsSecurity
         };
     }
@@ -975,6 +1010,7 @@ public class AuditResult
     public List<NetworkReference> Networks { get; set; } = new();
     public List<SwitchReference> Switches { get; set; } = new();
     public List<WirelessClientReference> WirelessClients { get; set; } = new();
+    public List<OfflineClientReference> OfflineClients { get; set; } = new();
     public DnsSecurityReference? DnsSecurity { get; set; }
 }
 
@@ -1107,4 +1143,18 @@ public class WirelessClientReference
     public int DetectionConfidence { get; set; }
     public bool IsIoT { get; set; }
     public bool IsCamera { get; set; }
+}
+
+public class OfflineClientReference
+{
+    public string DisplayName { get; set; } = "";
+    public string? Mac { get; set; }
+    public string? LastUplinkName { get; set; }
+    public NetworkOptimizer.Audit.Models.NetworkInfo? LastNetwork { get; set; }
+    public string DeviceCategory { get; set; } = "";
+    public string LastSeenDisplay { get; set; } = "";
+    public bool IsRecentlyActive { get; set; }
+    public bool IsIoT { get; set; }
+    public bool IsCamera { get; set; }
+    public NetworkOptimizer.Audit.Models.DeviceDetectionResult Detection { get; set; } = null!;
 }

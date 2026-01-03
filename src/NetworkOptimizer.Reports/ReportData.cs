@@ -14,6 +14,7 @@ public class ReportData
     public List<DeviceInfo> Devices { get; set; } = new();
     public List<SwitchDetail> Switches { get; set; } = new();
     public List<AccessPointDetail> AccessPoints { get; set; } = new();
+    public List<OfflineClientDetail> OfflineClients { get; set; } = new();
     public List<AuditIssue> CriticalIssues { get; set; } = new();
     public List<AuditIssue> RecommendedImprovements { get; set; } = new();
     public List<string> HardeningNotes { get; set; } = new();
@@ -207,6 +208,26 @@ public class WirelessClientDetail
     public bool HasIssue { get; set; }
     public string? IssueTitle { get; set; }
     public string? IssueMessage { get; set; }
+}
+
+/// <summary>
+/// Offline client from history API
+/// </summary>
+public class OfflineClientDetail
+{
+    public string DisplayName { get; set; } = string.Empty;
+    public string Mac { get; set; } = string.Empty;
+    public string? Network { get; set; }
+    public int? VlanId { get; set; }
+    public string DeviceCategory { get; set; } = string.Empty;
+    public string? LastUplinkName { get; set; }
+    public string LastSeenDisplay { get; set; } = string.Empty;
+    public bool IsRecentlyActive { get; set; }
+    public bool IsIoT { get; set; }
+    public bool IsCamera { get; set; }
+    public bool HasIssue { get; set; }
+    public string? IssueTitle { get; set; }
+    public string? IssueSeverity { get; set; }
 }
 
 /// <summary>

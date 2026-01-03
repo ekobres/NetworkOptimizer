@@ -805,7 +805,8 @@ public class IotVlanRuleTests
         ClientDeviceCategory deviceCategory = ClientDeviceCategory.Unknown,
         string? connectedClientName = null,
         List<string>? allowedMacAddresses = null,
-        string? lastConnectionMac = null)
+        string? lastConnectionMac = null,
+        long? lastConnectionSeen = null)
     {
         var switchInfo = new SwitchInfo
         {
@@ -841,7 +842,8 @@ public class IotVlanRuleTests
             Switch = switchInfo,
             ConnectedClient = connectedClient,
             AllowedMacAddresses = allowedMacAddresses,
-            LastConnectionMac = lastConnectionMac
+            LastConnectionMac = lastConnectionMac,
+            LastConnectionSeen = lastConnectionSeen
         };
     }
 
@@ -1013,6 +1015,161 @@ public class IotVlanRuleTests
         // Assert
         result.Should().NotBeNull();
         result!.Severity.Should().Be(AuditSeverity.Critical);
+    }
+
+    #endregion
+
+    #region Offline Device 2-Week Scoring Tests
+
+    [Fact]
+    public void Evaluate_OfflineDevice_HighRisk_RecentlyActive_ReturnsCritical()
+    {
+        // Arrange - high-risk offline device (SmartLock) last seen 1 week ago (within 2-week window)
+        var oneWeekAgo = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Smart Lock",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.SmartLock,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: oneWeekAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - recently active offline high-risk device should be Critical
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Critical);
+        result.ScoreImpact.Should().Be(10);
+    }
+
+    [Fact]
+    public void Evaluate_OfflineDevice_HighRisk_StaleOlderThan2Weeks_ReturnsInformational()
+    {
+        // Arrange - high-risk offline device last seen 3 weeks ago (outside 2-week window)
+        var threeWeeksAgo = DateTimeOffset.UtcNow.AddDays(-21).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Smart Lock",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.SmartLock,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: threeWeeksAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - stale offline device should be Informational with no score impact
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Informational);
+        result.ScoreImpact.Should().Be(0);
+    }
+
+    [Fact]
+    public void Evaluate_OfflineDevice_LowRisk_RecentlyActive_ReturnsRecommended()
+    {
+        // Arrange - low-risk offline device (SmartPlug) last seen 1 week ago
+        var oneWeekAgo = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Smart Plug",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.SmartPlug,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: oneWeekAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - low-risk IoT devices get Recommended severity (not Critical)
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Recommended);
+    }
+
+    [Fact]
+    public void Evaluate_OfflineDevice_LowRisk_StaleOlderThan2Weeks_ReturnsInformational()
+    {
+        // Arrange - low-risk offline device last seen 3 weeks ago (outside 2-week window)
+        var threeWeeksAgo = DateTimeOffset.UtcNow.AddDays(-21).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Smart Plug",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.SmartPlug,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: threeWeeksAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - stale offline device should be Informational with no score impact
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Informational);
+        result.ScoreImpact.Should().Be(0);
+    }
+
+    [Fact]
+    public void Evaluate_OfflineDevice_NoLastConnectionSeen_ReturnsInformational()
+    {
+        // Arrange - offline device with no timestamp (treated as stale)
+        var port = CreatePort(
+            portName: "Smart Lock",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.SmartLock,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: null);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - no timestamp means stale, should be Informational
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Informational);
+        result.ScoreImpact.Should().Be(0);
+    }
+
+    [Fact]
+    public void Evaluate_OfflineDevice_Exactly2WeeksAgo_ReturnsCritical()
+    {
+        // Arrange - high-risk offline device last seen exactly 2 weeks ago (edge case)
+        var exactlyTwoWeeksAgo = DateTimeOffset.UtcNow.AddDays(-14).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Smart Lock",
+            isUp: false,
+            deviceCategory: ClientDeviceCategory.SmartLock,
+            lastConnectionMac: "00:11:22:33:44:55",
+            lastConnectionSeen: exactlyTwoWeeksAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - exactly at the threshold should still be Critical
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Critical);
+        result.ScoreImpact.Should().Be(10);
+    }
+
+    [Fact]
+    public void Evaluate_OnlineDevice_DoesNotApply2WeekLogic()
+    {
+        // Arrange - online high-risk device (not offline, so 2-week logic doesn't apply)
+        var threeWeeksAgo = DateTimeOffset.UtcNow.AddDays(-21).ToUnixTimeSeconds();
+        var port = CreatePort(
+            portName: "Smart Lock",
+            isUp: true,
+            deviceCategory: ClientDeviceCategory.SmartLock,
+            lastConnectionSeen: threeWeeksAgo);
+        var networks = CreateNetworkList();
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - online device should be Critical regardless of lastConnectionSeen
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Critical);
+        result.ScoreImpact.Should().Be(10);
     }
 
     #endregion

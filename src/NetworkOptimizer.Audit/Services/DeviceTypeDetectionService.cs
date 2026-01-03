@@ -33,6 +33,9 @@ public class DeviceTypeDetectionService
     private readonly MacOuiDetector _macOuiDetector;
     private readonly NamePatternDetector _namePatternDetector;
 
+    // Client history lookup for enhanced offline device detection
+    private Dictionary<string, UniFiClientHistoryResponse>? _clientHistoryByMac;
+
     public DeviceTypeDetectionService(
         ILogger<DeviceTypeDetectionService>? logger = null,
         UniFiFingerprintDatabase? fingerprintDb = null,
@@ -42,6 +45,26 @@ public class DeviceTypeDetectionService
         _fingerprintDetector = new FingerprintDetector(fingerprintDb);
         _macOuiDetector = ieeeOuiDb != null ? new MacOuiDetector(ieeeOuiDb) : new MacOuiDetector();
         _namePatternDetector = new NamePatternDetector();
+    }
+
+    /// <summary>
+    /// Set client history for enhanced offline device detection.
+    /// When detecting devices by MAC, we'll first check if the MAC exists in client history
+    /// to get fingerprint data, then fall back to IEEE OUI lookup.
+    /// </summary>
+    public void SetClientHistory(List<UniFiClientHistoryResponse>? clientHistory)
+    {
+        if (clientHistory == null || clientHistory.Count == 0)
+        {
+            _clientHistoryByMac = null;
+            return;
+        }
+
+        _clientHistoryByMac = clientHistory
+            .Where(c => !string.IsNullOrEmpty(c.Mac))
+            .ToDictionary(c => c.Mac!.ToLowerInvariant(), c => c, StringComparer.OrdinalIgnoreCase);
+
+        _logger?.LogInformation("Loaded {Count} client history entries for offline device detection", _clientHistoryByMac.Count);
     }
 
     /// <summary>
@@ -476,10 +499,60 @@ public class DeviceTypeDetectionService
     }
 
     /// <summary>
-    /// Detect device type from just a MAC address
+    /// Detect device type from just a MAC address.
+    /// First checks client history for fingerprint data, then falls back to IEEE OUI lookup.
     /// </summary>
     public DeviceDetectionResult DetectFromMac(string macAddress)
     {
+        if (string.IsNullOrEmpty(macAddress))
+            return DeviceDetectionResult.Unknown;
+
+        // First, check if we have this MAC in client history (for fingerprint data)
+        if (_clientHistoryByMac != null &&
+            _clientHistoryByMac.TryGetValue(macAddress.ToLowerInvariant(), out var historyClient))
+        {
+            _logger?.LogDebug("[Detection] Found MAC {Mac} in client history: {Name}",
+                macAddress, historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname);
+
+            // Try fingerprint detection first
+            if (historyClient.Fingerprint != null)
+            {
+                // Create a pseudo-client with the fingerprint data to use the existing detector
+                var pseudoClient = new UniFiClientResponse
+                {
+                    Mac = historyClient.Mac,
+                    Name = historyClient.Name,
+                    Hostname = historyClient.Hostname,
+                    DevIdOverride = historyClient.Fingerprint.DevIdOverride,
+                    DevCat = historyClient.Fingerprint.DevCat,
+                    DevFamily = historyClient.Fingerprint.DevFamily,
+                    DevVendor = historyClient.Fingerprint.DevVendor
+                };
+
+                var fpResult = _fingerprintDetector.Detect(pseudoClient);
+                if (fpResult.Category != ClientDeviceCategory.Unknown)
+                {
+                    _logger?.LogDebug("[Detection] Client history fingerprint detected: {Category} ({Confidence}%)",
+                        fpResult.CategoryName, fpResult.ConfidenceScore);
+                    return fpResult;
+                }
+            }
+
+            // Try name-based detection from history
+            var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname;
+            if (!string.IsNullOrEmpty(displayName))
+            {
+                var nameResult = _namePatternDetector.Detect(displayName);
+                if (nameResult.Category != ClientDeviceCategory.Unknown)
+                {
+                    _logger?.LogDebug("[Detection] Client history name detected: {Category} ({Confidence}%)",
+                        nameResult.CategoryName, nameResult.ConfidenceScore);
+                    return nameResult;
+                }
+            }
+        }
+
+        // Fall back to MAC OUI detection (IEEE database + built-in patterns)
         return _macOuiDetector.Detect(macAddress);
     }
 

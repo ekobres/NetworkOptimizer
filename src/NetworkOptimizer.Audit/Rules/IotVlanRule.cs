@@ -73,6 +73,25 @@ public class IotVlanRule : AuditRuleBase
         if (placement.IsCorrectlyPlaced)
             return null;
 
+        // Determine severity and score based on recency for offline devices
+        // Online devices: full score impact
+        // Offline devices seen within 2 weeks: full score impact
+        // Offline devices older than 2 weeks: Informational only (no score impact)
+        var severity = placement.Severity;
+        var scoreImpact = placement.ScoreImpact;
+
+        if (isOfflineDevice)
+        {
+            var twoWeeksAgo = DateTimeOffset.UtcNow.AddDays(-14).ToUnixTimeSeconds();
+            var isRecentlyActive = port.LastConnectionSeen.HasValue && port.LastConnectionSeen.Value >= twoWeeksAgo;
+
+            if (!isRecentlyActive)
+            {
+                severity = AuditSeverity.Informational;
+                scoreImpact = 0;
+            }
+        }
+
         // Build device name based on port state
         string deviceName;
         if (isOfflineDevice)
@@ -96,7 +115,7 @@ public class IotVlanRule : AuditRuleBase
         return new AuditIssue
         {
             Type = RuleId,
-            Severity = placement.Severity,
+            Severity = severity,
             Message = message,
             DeviceName = deviceName,
             Port = port.PortIndex.ToString(),
@@ -108,7 +127,7 @@ public class IotVlanRule : AuditRuleBase
             RecommendedAction = $"Move to {placement.RecommendedNetworkLabel}",
             Metadata = VlanPlacementChecker.BuildMetadata(detection, network),
             RuleId = RuleId,
-            ScoreImpact = placement.ScoreImpact
+            ScoreImpact = scoreImpact
         };
     }
 }
