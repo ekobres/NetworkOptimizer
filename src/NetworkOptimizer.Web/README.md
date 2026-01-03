@@ -87,11 +87,9 @@ NetworkOptimizer.Web/
 
 ### 6. Settings
 - UniFi Controller connection configuration
-- InfluxDB integration setup
-- Grafana dashboard links
-- License management
+- SSH gateway configuration
+- Admin password management
 - Application preferences
-- Data import/export
 
 ## Technology Stack
 
@@ -114,20 +112,11 @@ NetworkOptimizer.Web/
     "Username": "",
     "Password": "",
     "IgnoreSSLErrors": true
-  },
-  "InfluxDB": {
-    "Url": "http://influxdb:8086",
-    "Organization": "network-optimizer",
-    "Bucket": "network_optimizer",
-    "Token": "",
-    "RetentionPeriod": "30d"
-  },
-  "Monitoring": {
-    "IntervalSeconds": 300,
-    "AlertRetentionDays": 30
   }
 }
 ```
+
+Note: Most configuration is stored in the SQLite database and managed via the Settings UI.
 
 ## Running the Application
 
@@ -141,9 +130,12 @@ Navigate to: `https://localhost:5001`
 
 ### Docker
 ```bash
-docker build -t network-optimizer-web .
-docker run -p 8080:8080 network-optimizer-web
+# From project root
+cd docker
+docker compose up -d
 ```
+
+Access at: http://localhost:8042
 
 ## API Endpoints
 
