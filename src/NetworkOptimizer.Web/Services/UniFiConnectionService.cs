@@ -242,7 +242,8 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
             }
             else
             {
-                _lastError = "Authentication failed. Check username and password.";
+                // Use detailed error from API client if available
+                _lastError = _client.LastLoginError ?? "Authentication failed. Check username and password.";
                 _logger.LogWarning("Failed to authenticate with UniFi controller");
                 _client.Dispose();
                 _client = null;
@@ -251,7 +252,7 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
         }
         catch (Exception ex)
         {
-            _lastError = ex.Message;
+            _lastError = ParseConnectionException(ex);
             _logger.LogError(ex, "Error connecting to UniFi controller");
             _client?.Dispose();
             _client = null;
@@ -322,7 +323,8 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
             }
             else
             {
-                _lastError = "Authentication failed";
+                // Use detailed error from API client if available
+                _lastError = _client.LastLoginError ?? "Authentication failed. Check username and password.";
                 _client.Dispose();
                 _client = null;
                 return false;
@@ -330,7 +332,7 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
         }
         catch (Exception ex)
         {
-            _lastError = ex.Message;
+            _lastError = ParseConnectionException(ex);
             _logger.LogError(ex, "Error connecting to UniFi controller");
             _client?.Dispose();
             _client = null;
@@ -441,12 +443,16 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
             }
             else
             {
-                return (false, "Authentication failed", null);
+                // Use detailed error from API client if available
+                var error = testClient.LastLoginError ?? "Authentication failed. Check username and password.";
+                return (false, error, null);
             }
         }
         catch (Exception ex)
         {
-            return (false, ex.Message, null);
+            // Parse common connection errors for user-friendly messages
+            var error = ParseConnectionException(ex);
+            return (false, error, null);
         }
         finally
         {
@@ -542,6 +548,53 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
         var discoveryLogger = _loggerFactory.CreateLogger<UniFiDiscovery>();
         var discovery = new UniFiDiscovery(_client, discoveryLogger);
         return await discovery.DiscoverDevicesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Parses connection exceptions for user-friendly error messages
+    /// </summary>
+    private string ParseConnectionException(Exception ex)
+    {
+        var message = ex.Message;
+        var innerMessage = ex.InnerException?.Message ?? "";
+
+        // SSL certificate errors
+        if (message.Contains("SSL", StringComparison.OrdinalIgnoreCase) ||
+            innerMessage.Contains("certificate", StringComparison.OrdinalIgnoreCase) ||
+            innerMessage.Contains("RemoteCertificate", StringComparison.OrdinalIgnoreCase))
+        {
+            if (innerMessage.Contains("RemoteCertificateNameMismatch"))
+            {
+                return "SSL certificate error: The certificate doesn't match the hostname. Enable 'Ignore SSL Errors' in settings, or use the correct hostname.";
+            }
+            if (innerMessage.Contains("RemoteCertificateChainErrors"))
+            {
+                return "SSL certificate error: Self-signed or untrusted certificate. Enable 'Ignore SSL Errors' in settings.";
+            }
+            return "SSL certificate error: Unable to establish secure connection. Enable 'Ignore SSL Errors' in settings.";
+        }
+
+        // Connection refused
+        if (message.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("actively refused", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Connection refused. Check if the controller is running and the URL is correct.";
+        }
+
+        // Host not found
+        if (message.Contains("No such host", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("host is known", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Host not found. Check the controller URL.";
+        }
+
+        // Timeout
+        if (message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Connection timed out. Check network connectivity and firewall settings.";
+        }
+
+        return message;
     }
 
     public void Dispose()

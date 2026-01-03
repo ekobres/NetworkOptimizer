@@ -40,6 +40,12 @@ public class UniFiApiClient : IDisposable
     private bool _isAuthenticated = false;
     private bool _isUniFiOs = false; // True for UDM/UCG, false for standalone controller
     private bool _pathDetected = false;
+    private string? _lastLoginError;
+
+    /// <summary>
+    /// Gets the last login error message (e.g., rate limiting, SSL errors)
+    /// </summary>
+    public string? LastLoginError => _lastLoginError;
 
     public UniFiApiClient(
         ILogger<UniFiApiClient> logger,
@@ -138,6 +144,9 @@ public class UniFiApiClient : IDisposable
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogError("Login failed with status {StatusCode}: {Error}",
                     response.StatusCode, errorBody);
+
+                // Parse error response for user-friendly message
+                _lastLoginError = ParseLoginError(response.StatusCode, errorBody);
                 return false;
             }
 
@@ -177,12 +186,117 @@ public class UniFiApiClient : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception during login");
+            _lastLoginError = ParseExceptionError(ex);
             return false;
         }
         finally
         {
             _authLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Parses login error response from the controller
+    /// </summary>
+    private string ParseLoginError(HttpStatusCode statusCode, string errorBody)
+    {
+        try
+        {
+            // Try to parse JSON error response
+            using var doc = JsonDocument.Parse(errorBody);
+            var root = doc.RootElement;
+
+            // Check for message field (UniFi error format)
+            if (root.TryGetProperty("message", out var messageElement))
+            {
+                var message = messageElement.GetString();
+                if (!string.IsNullOrEmpty(message))
+                {
+                    // Add context for rate limiting
+                    if (statusCode == HttpStatusCode.TooManyRequests ||
+                        message.Contains("limit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return $"Rate limited: {message}. Wait a few minutes before trying again.";
+                    }
+                    return message;
+                }
+            }
+
+            // Check for error field
+            if (root.TryGetProperty("error", out var errorElement))
+            {
+                var error = errorElement.GetString();
+                if (!string.IsNullOrEmpty(error))
+                    return error;
+            }
+        }
+        catch
+        {
+            // JSON parsing failed, use status code
+        }
+
+        // Fallback based on status code
+        return statusCode switch
+        {
+            HttpStatusCode.Unauthorized => "Invalid username or password",
+            HttpStatusCode.Forbidden => "Access denied. Check user permissions.",
+            HttpStatusCode.TooManyRequests => "Too many login attempts. Wait a few minutes before trying again.",
+            HttpStatusCode.ServiceUnavailable => "Controller is unavailable. Check if it's running.",
+            _ => $"Authentication failed (HTTP {(int)statusCode})"
+        };
+    }
+
+    /// <summary>
+    /// Parses exception for user-friendly error message
+    /// </summary>
+    private string ParseExceptionError(Exception ex)
+    {
+        // Check for SSL/TLS certificate errors
+        if (ex is HttpRequestException httpEx)
+        {
+            var message = ex.Message;
+            var innerMessage = ex.InnerException?.Message ?? "";
+
+            // SSL certificate validation failure
+            if (message.Contains("SSL", StringComparison.OrdinalIgnoreCase) ||
+                innerMessage.Contains("certificate", StringComparison.OrdinalIgnoreCase) ||
+                innerMessage.Contains("RemoteCertificate", StringComparison.OrdinalIgnoreCase))
+            {
+                // Provide specific guidance based on certificate error type
+                if (innerMessage.Contains("RemoteCertificateNameMismatch"))
+                {
+                    return "SSL certificate error: The certificate doesn't match the hostname. Enable 'Ignore SSL Errors' in settings, or use the correct hostname.";
+                }
+                if (innerMessage.Contains("RemoteCertificateChainErrors"))
+                {
+                    return "SSL certificate error: Self-signed or untrusted certificate. Enable 'Ignore SSL Errors' in settings.";
+                }
+                return "SSL certificate error: Unable to establish secure connection. Enable 'Ignore SSL Errors' in settings.";
+            }
+
+            // Connection refused
+            if (message.Contains("Connection refused", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("actively refused", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Connection refused. Check if the controller is running and the URL is correct.";
+            }
+
+            // Host not found
+            if (message.Contains("No such host", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("host is known", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Host not found. Check the controller URL.";
+            }
+
+            // Timeout
+            if (message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Connection timed out. Check network connectivity and firewall settings.";
+            }
+        }
+
+        // Generic fallback
+        return ex.Message;
     }
 
     /// <summary>
