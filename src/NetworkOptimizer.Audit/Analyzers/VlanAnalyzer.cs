@@ -248,10 +248,10 @@ public class VlanAnalyzer
                 // Network named like Home/Corporate but has no internet - suspicious
                 if (networkIsolationEnabled == true)
                 {
-                    // VLAN 1 is special - it's the enterprise native/management VLAN
+                    // VLAN 1 is special - it's UniFi's default/native VLAN used for device adoption
                     if (vlanId == 1)
                     {
-                        _logger.LogDebug("Network '{NetworkName}' on VLAN 1 has unusual flags but respecting enterprise convention - classifying as Management",
+                        _logger.LogDebug("Network '{NetworkName}' on VLAN 1 has unusual flags - classifying as Management (UniFi default VLAN)",
                             networkName);
                         return NetworkPurpose.Management;
                     }

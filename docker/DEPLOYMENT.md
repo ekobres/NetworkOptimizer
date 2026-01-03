@@ -209,7 +209,7 @@ TZ=America/Chicago
 docker-compose up -d
 ```
 
-### 5. Verify Deployment
+### 4. Verify Deployment
 
 ```bash
 # Check service health
@@ -218,23 +218,19 @@ docker-compose ps
 # View logs
 docker-compose logs -f
 
-# Test web UI
-curl http://localhost:8080/health
+# Test health endpoint
+curl http://localhost:8042/api/health
 ```
 
 Expected output:
 ```
 NAME                          STATUS
 network-optimizer             Up (healthy)
-network-optimizer-influxdb    Up (healthy)
-network-optimizer-grafana     Up (healthy)
 ```
 
-### 6. Access Services
+### 5. Access Web UI
 
-- Web UI: http://your-server:8080
-- Grafana: http://your-server:3000
-- InfluxDB: http://your-server:8086
+- Web UI: http://your-server:8042
 
 ## Production Configuration
 
@@ -263,7 +259,7 @@ server {
 
     # Blazor Web UI
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:8042;
         proxy_http_version 1.1;
 
         # WebSocket support for Blazor
@@ -279,28 +275,6 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
-    }
-
-    # Metrics API endpoint
-    location /api/metrics {
-        proxy_pass http://localhost:8081;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-
-# Grafana (optional separate subdomain)
-server {
-    listen 443 ssl http2;
-    server_name grafana.example.com;
-
-    ssl_certificate /etc/letsencrypt/live/grafana.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/grafana.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
     }
 }
 ```
