@@ -114,8 +114,7 @@ public class CredentialProtectionService : ICredentialProtectionService
         var salt = Encoding.UTF8.GetBytes(KeyPurpose);
 
         // PBKDF2 to derive a 256-bit key
-        using var pbkdf2 = new Rfc2898DeriveBytes(keyMaterial, salt, 100000, HashAlgorithmName.SHA256);
-        return pbkdf2.GetBytes(32); // 256 bits
+        return Rfc2898DeriveBytes.Pbkdf2(keyMaterial, salt, 100000, HashAlgorithmName.SHA256, 32);
     }
 
     private byte[] GetKeyMaterial()

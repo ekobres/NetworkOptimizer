@@ -332,10 +332,10 @@
         </div>
     </div>
 
-    <!-- 4. UniFi Device SSH -->
+    <!-- 4. Device SSH -->
     <div class="card" id="device-ssh">
         <div class="card-header">
-            <h2 class="card-title">UniFi Device SSH</h2>
+            <h2 class="card-title">Device SSH</h2>
             <span class="status-badge status-@(sshSettings?.Enabled == true ? "connected" : "disconnected")">
                 @(sshSettings?.Enabled == true ? "Configured" : "Not Configured")
             </span>
@@ -1068,7 +1068,7 @@
     private string gatewayMessageClass = "";
     private Iperf3Status? iperf3Status;
 
-    // UniFi Device SSH
+    // Device SSH
     private UniFiSshSettings? sshSettings;
     private string sshUsername = "root";
     private string sshPassword = "";
