@@ -91,9 +91,7 @@ public class IotVlanRule : AuditRuleBase
                 : $"{port.Name ?? $"Port {port.PortIndex}"} on {port.Switch.Name}";
         }
 
-        // Adjust message for offline devices
-        var statusNote = isOfflineDevice ? " (offline, MAC restricted)" : "";
-        var message = $"{detection.CategoryName} on {network.Name} VLAN{statusNote} - should be isolated";
+        var message = $"{detection.CategoryName} on {network.Name} VLAN - should be isolated";
 
         return new AuditIssue
         {

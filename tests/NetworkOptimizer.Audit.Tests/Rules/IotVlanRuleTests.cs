@@ -505,8 +505,7 @@ public class IotVlanRuleTests
 
         // Assert - Should detect IoT device from MAC OUI and flag VLAN issue
         result.Should().NotBeNull();
-        result!.Message.Should().Contain("offline, MAC restricted");
-        result.CurrentNetwork.Should().Be("Corporate");
+        result!.CurrentNetwork.Should().Be("Corporate");
     }
 
     [Fact]
@@ -564,7 +563,6 @@ public class IotVlanRuleTests
 
         // Assert - Should detect from port name pattern
         result.Should().NotBeNull();
-        result!.Message.Should().Contain("offline, MAC restricted");
     }
 
     [Fact]
@@ -627,7 +625,7 @@ public class IotVlanRuleTests
 
         // Assert - Should detect IoT device from last connection MAC
         result.Should().NotBeNull();
-        result!.Message.Should().Contain("offline");
+        
         result.CurrentNetwork.Should().Be("Corporate");
     }
 
@@ -687,7 +685,7 @@ public class IotVlanRuleTests
 
         // Assert - Should detect IoT from either source
         result.Should().NotBeNull();
-        result!.Message.Should().Contain("offline");
+        
     }
 
     [Fact]
@@ -733,7 +731,7 @@ public class IotVlanRuleTests
 
         // Assert - Should detect IoT device from last connection MAC even though port is UP
         result.Should().NotBeNull();
-        result!.Message.Should().Contain("offline");
+        
         result.CurrentNetwork.Should().Be("Corporate");
     }
 
@@ -761,7 +759,7 @@ public class IotVlanRuleTests
 
         // Assert - Should detect IoT device from MAC restriction
         result.Should().NotBeNull();
-        result!.Message.Should().Contain("offline");
+        
     }
 
     [Fact]
