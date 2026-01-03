@@ -36,14 +36,17 @@ sudo usermod -aG docker $USER
 git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
 cd network-optimizer/docker
 
-# Configure environment
+# Configure environment (optional - defaults work out of the box)
 cp .env.example .env
-nano .env  # Set APP_PASSWORD and other options
+nano .env  # Set timezone and other options
 
 # Start with host networking (recommended for Linux)
 docker compose up -d
 
-# Verify
+# Check logs for the auto-generated admin password
+docker compose logs network-optimizer | grep -A5 "FIRST-RUN"
+
+# Verify health
 docker compose ps
 curl http://localhost:8042/api/health
 ```
@@ -196,12 +199,18 @@ nano .env
 
 **Recommended changes:**
 ```env
-# Set an admin password (optional but recommended)
-APP_PASSWORD=your_secure_password_here
-
 # Set your timezone
 TZ=America/Chicago
 ```
+
+**Admin Password:**
+
+On first run, an auto-generated password is displayed in the logs. After logging in,
+go to **Settings > Admin Password** to set your own password (recommended).
+
+Password precedence: Database (Settings UI) > `APP_PASSWORD` env var > Auto-generated
+
+Optionally, set `APP_PASSWORD` in `.env` if you want to configure a password before first login.
 
 ### 3. Deploy Stack
 
@@ -291,11 +300,7 @@ sudo systemctl reload nginx
 ```caddy
 # /etc/caddy/Caddyfile
 network-optimizer.example.com {
-    reverse_proxy localhost:8080
-}
-
-grafana.example.com {
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:8042
 }
 ```
 
@@ -316,10 +321,8 @@ sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 
-# Or allow direct access to services
-sudo ufw allow 8080/tcp  # Web UI
-sudo ufw allow 8081/tcp  # Metrics API
-sudo ufw allow 3000/tcp  # Grafana
+# Or allow direct access to the web UI
+sudo ufw allow 8042/tcp  # Web UI
 
 sudo ufw enable
 ```
@@ -329,9 +332,7 @@ sudo ufw enable
 ```bash
 sudo firewall-cmd --permanent --add-service=http
 sudo firewall-cmd --permanent --add-service=https
-sudo firewall-cmd --permanent --add-port=8080/tcp
-sudo firewall-cmd --permanent --add-port=8081/tcp
-sudo firewall-cmd --permanent --add-port=3000/tcp
+sudo firewall-cmd --permanent --add-port=8042/tcp
 sudo firewall-cmd --reload
 ```
 
@@ -350,16 +351,8 @@ DATE=$(date +%Y%m%d-%H%M%S)
 # Create backup directory
 mkdir -p $BACKUP_DIR
 
-# Backup SQLite data
+# Backup SQLite data and configuration
 tar czf $BACKUP_DIR/data-$DATE.tar.gz -C /path/to/docker data/
-
-# Backup InfluxDB
-docker exec network-optimizer-influxdb influx backup /tmp/backup
-docker cp network-optimizer-influxdb:/tmp/backup $BACKUP_DIR/influxdb-$DATE/
-
-# Backup Grafana
-docker exec network-optimizer-grafana grafana-cli admin export-data --path=/tmp/grafana-export
-docker cp network-optimizer-grafana:/tmp/grafana-export $BACKUP_DIR/grafana-$DATE/
 
 # Cleanup old backups (keep last 7 days)
 find $BACKUP_DIR -type f -mtime +7 -delete
@@ -382,12 +375,7 @@ docker-compose down
 # Restore data
 tar xzf /backups/network-optimizer/data-20240101-020000.tar.gz -C /path/to/docker/
 
-# Restore InfluxDB
-docker-compose up -d influxdb
-docker cp /backups/network-optimizer/influxdb-20240101-020000/ network-optimizer-influxdb:/tmp/restore
-docker exec network-optimizer-influxdb influx restore /tmp/restore
-
-# Start all services
+# Start services
 docker-compose up -d
 ```
 
@@ -426,7 +414,7 @@ Use external monitoring:
 Configure health check endpoint:
 ```bash
 # Monitor this endpoint
-http://your-server:8080/health
+http://your-server:8042/api/health
 ```
 
 ### Resource Limits
@@ -435,8 +423,6 @@ Add resource constraints for production:
 
 ```yaml
 # docker-compose.override.yml
-version: '3.8'
-
 services:
   network-optimizer:
     deploy:
@@ -447,28 +433,6 @@ services:
         reservations:
           cpus: '1.0'
           memory: 1G
-    restart: always
-
-  influxdb:
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    restart: always
-
-  grafana:
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
     restart: always
 ```
 
@@ -564,12 +528,8 @@ cat .env
 # Check resource usage
 docker stats
 
-# Adjust retention period
-# Edit .env:
-INFLUXDB_RETENTION=7d  # Reduce from 30d
-
-# Restart
-docker-compose restart influxdb
+# Restart the service
+docker-compose restart network-optimizer
 ```
 
 ### Network Issues
@@ -648,16 +608,7 @@ chmod 600 .env
 
 ### 1. SSD Storage
 
-Use SSD for InfluxDB volume:
-```yaml
-volumes:
-  influxdb-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /mnt/ssd/influxdb-data
-```
+Use SSD storage for the data directory for best performance with SQLite database.
 
 ### 2. Increase File Descriptors
 
@@ -717,7 +668,7 @@ du -sh data/ logs/
 ### Data Retention
 
 Configure according to your requirements:
-- Metrics: `INFLUXDB_RETENTION` in `.env`
+- Application data: Stored in SQLite database in `data/` directory
 - Logs: Docker logging driver settings
 - Backups: Backup script retention period
 
@@ -738,10 +689,8 @@ Network Optimizer logs all configuration changes and audits.
 After deployment:
 1. Access web UI and complete initial setup
 2. Connect to UniFi Controller
-3. Configure SQM settings
+3. Configure SSH access for gateway and devices
 4. Run security audit
-5. Deploy monitoring agents
-6. Configure Grafana dashboards
-7. Set up alerting (if desired)
+5. Configure SQM settings (if applicable)
 
 See main documentation for feature guides.

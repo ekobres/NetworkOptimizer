@@ -91,11 +91,14 @@ Choose your deployment method:
 ```bash
 git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
 cd network-optimizer/docker
-cp .env.example .env  # Optional - edit to set APP_PASSWORD
+cp .env.example .env  # Optional - set timezone, etc.
 docker compose up -d
+
+# Check logs for the auto-generated admin password
+docker compose logs network-optimizer | grep -A5 "FIRST-RUN"
 ```
 
-Open http://localhost:8080
+Open http://localhost:8042
 
 ### First Run
 
