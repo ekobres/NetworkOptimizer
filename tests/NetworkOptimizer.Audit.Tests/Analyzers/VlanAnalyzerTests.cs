@@ -304,6 +304,246 @@ public class VlanAnalyzerTests
 
     #endregion
 
+    #region Flag-Based Classification Adjustment Tests
+
+    // Home/Corporate networks with no internet should be reclassified
+
+    [Fact]
+    public void ClassifyNetwork_HomeNameNoInternetAndIsolated_ReturnsSecurity()
+    {
+        // A network named "Home" but with no internet and isolated is probably a misnamed security VLAN
+        var result = _analyzer.ClassifyNetwork("Home Network",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_HomeNameNoInternetNotIsolated_ReturnsUnknown()
+    {
+        // A network named "Home" but with no internet and not isolated - unusual, can't determine
+        var result = _analyzer.ClassifyNetwork("Home Network",
+            networkIsolationEnabled: false, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Unknown);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_CorporateNameNoInternetAndIsolated_ReturnsSecurity()
+    {
+        // A network named "Corporate" but with no internet and isolated is probably a misnamed security VLAN
+        var result = _analyzer.ClassifyNetwork("Corporate LAN",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_CorporateNameNoInternetNotIsolated_ReturnsUnknown()
+    {
+        // A network named "Corporate" but with no internet and not isolated - unusual
+        var result = _analyzer.ClassifyNetwork("Corporate LAN",
+            networkIsolationEnabled: false, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Unknown);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_PrivateCamerasNoInternetIsolated_ReturnsSecurity()
+    {
+        // "Private" matches Home pattern, but no internet + isolated = Security
+        // This is a common naming pattern for camera VLANs
+        var result = _analyzer.ClassifyNetwork("Private Cameras",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_TrustedDevicesNoInternetIsolated_ReturnsSecurity()
+    {
+        // "Trusted" matches Home pattern, but no internet + isolated = Security
+        var result = _analyzer.ClassifyNetwork("Trusted Devices",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    // Home/Corporate with internet should remain unchanged
+
+    [Fact]
+    public void ClassifyNetwork_HomeNameWithInternet_ReturnsHome()
+    {
+        // Home network with internet enabled should stay Home
+        var result = _analyzer.ClassifyNetwork("Home Network",
+            networkIsolationEnabled: false, internetAccessEnabled: true);
+        result.Should().Be(NetworkPurpose.Home);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_CorporateNameWithInternet_ReturnsCorporate()
+    {
+        // Corporate network with internet enabled should stay Corporate
+        var result = _analyzer.ClassifyNetwork("Corporate LAN",
+            networkIsolationEnabled: false, internetAccessEnabled: true);
+        result.Should().Be(NetworkPurpose.Corporate);
+    }
+
+    // Unknown networks with isolation flags should be inferred
+
+    [Fact]
+    public void ClassifyNetwork_UnknownNameIsolatedNoInternet_ReturnsSecurity()
+    {
+        // Unknown name + isolated + no internet = likely security/camera VLAN
+        var result = _analyzer.ClassifyNetwork("VLAN42",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_UnknownNameIsolatedWithInternet_ReturnsIoT()
+    {
+        // Unknown name + isolated + internet = likely IoT (needs internet for updates/cloud)
+        var result = _analyzer.ClassifyNetwork("VLAN42",
+            networkIsolationEnabled: true, internetAccessEnabled: true);
+        result.Should().Be(NetworkPurpose.IoT);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_UnknownNameNotIsolated_ReturnsUnknown()
+    {
+        // Unknown name + not isolated = still unknown
+        var result = _analyzer.ClassifyNetwork("VLAN42",
+            networkIsolationEnabled: false, internetAccessEnabled: true);
+        result.Should().Be(NetworkPurpose.Unknown);
+    }
+
+    // Name patterns should still take precedence when flags match expected behavior
+
+    [Fact]
+    public void ClassifyNetwork_SecurityNameIsolatedNoInternet_ReturnsSecurity()
+    {
+        // Security name + isolated + no internet = Security (flags confirm)
+        var result = _analyzer.ClassifyNetwork("Security Cameras",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_IoTNameIsolatedWithInternet_ReturnsIoT()
+    {
+        // IoT name + isolated + internet = IoT (flags confirm)
+        var result = _analyzer.ClassifyNetwork("IoT Devices",
+            networkIsolationEnabled: true, internetAccessEnabled: true);
+        result.Should().Be(NetworkPurpose.IoT);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_ManagementNameIsolated_ReturnsManagement()
+    {
+        // Management name + isolated = Management (flags confirm)
+        var result = _analyzer.ClassifyNetwork("Management",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Management);
+    }
+
+    // Null flags should not affect classification
+
+    [Fact]
+    public void ClassifyNetwork_HomeNameNullFlags_ReturnsHome()
+    {
+        // When flags are null, classification should be based on name only
+        var result = _analyzer.ClassifyNetwork("Home Network",
+            networkIsolationEnabled: null, internetAccessEnabled: null);
+        result.Should().Be(NetworkPurpose.Home);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_UnknownNameNullFlags_ReturnsUnknown()
+    {
+        // Unknown name with null flags stays Unknown
+        var result = _analyzer.ClassifyNetwork("VLAN42",
+            networkIsolationEnabled: null, internetAccessEnabled: null);
+        result.Should().Be(NetworkPurpose.Unknown);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_HomeNameInternetNullIsolationTrue_ReturnsHome()
+    {
+        // Internet flag is null but isolation is true - no reclassification without internet flag
+        var result = _analyzer.ClassifyNetwork("Home Network",
+            networkIsolationEnabled: true, internetAccessEnabled: null);
+        result.Should().Be(NetworkPurpose.Home);
+    }
+
+    // Guest networks should not be affected by flags
+
+    [Fact]
+    public void ClassifyNetwork_GuestNameNoInternet_ReturnsGuest()
+    {
+        // Guest networks are identified by name, flags don't override
+        var result = _analyzer.ClassifyNetwork("Guest WiFi",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Guest);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_ExplicitGuestPurposeNoInternet_ReturnsGuest()
+    {
+        // UniFi explicit guest purpose takes highest priority
+        var result = _analyzer.ClassifyNetwork("Any Network", purpose: "guest",
+            networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Guest);
+    }
+
+    // Edge case: Name strongly suggests one type but flags contradict
+
+    [Fact]
+    public void ClassifyNetwork_SecurityNameNotIsolatedWithInternet_ReturnsSecurity()
+    {
+        // Security name should still classify as Security even with "wrong" flags
+        // (the audit rules will flag this as a configuration issue)
+        var result = _analyzer.ClassifyNetwork("Security Cameras",
+            networkIsolationEnabled: false, internetAccessEnabled: true);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_IoTNameNotIsolatedNoInternet_ReturnsIoT()
+    {
+        // IoT name should still classify as IoT even with unusual flags
+        var result = _analyzer.ClassifyNetwork("Smart Home Devices",
+            networkIsolationEnabled: false, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.IoT);
+    }
+
+    // VLAN 1 special handling with flags
+
+    [Fact]
+    public void ClassifyNetwork_DefaultNameNoInternetIsolated_ReturnsSecurity()
+    {
+        // "Default" matches Home pattern, but with no internet + isolated, it's reclassified as Security
+        // This catches cases where someone named a camera VLAN "Default"
+        var result = _analyzer.ClassifyNetwork("Default",
+            vlanId: 1, networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_DefaultNameWithInternet_ReturnsHome()
+    {
+        // "Default" on VLAN 1 with internet stays Home
+        var result = _analyzer.ClassifyNetwork("Default",
+            vlanId: 1, networkIsolationEnabled: false, internetAccessEnabled: true);
+        result.Should().Be(NetworkPurpose.Home);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_Vlan1NoPatternMatchNoInternetIsolated_ReturnsManagement()
+    {
+        // VLAN 1 with no pattern match becomes Management, and Management is not
+        // affected by flag-based reclassification (flags don't override explicit classifications)
+        var result = _analyzer.ClassifyNetwork("MyNetwork",
+            vlanId: 1, networkIsolationEnabled: true, internetAccessEnabled: false);
+        result.Should().Be(NetworkPurpose.Management);
+    }
+
+    #endregion
+
     #region Network Type Check Tests
 
     [Theory]
