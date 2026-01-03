@@ -9,6 +9,7 @@ using NetworkOptimizer.Web;
 using NetworkOptimizer.Web.Services;
 using NetworkOptimizer.Audit;
 using NetworkOptimizer.Audit.Analyzers;
+using NetworkOptimizer.Audit.Services;
 using NetworkOptimizer.Storage.Models;
 using NetworkOptimizer.UniFi;
 
@@ -140,6 +141,7 @@ builder.Services.AddAuthorization();
 // Register application services (scoped per request/circuit)
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddSingleton<FingerprintDatabaseService>(); // Singleton to cache fingerprint data
+builder.Services.AddSingleton<IeeeOuiDatabase>(); // IEEE OUI database for MAC vendor lookup
 builder.Services.AddSingleton<AuditService>(); // Singleton to persist dismissed alerts across refreshes
 builder.Services.AddScoped<SqmService>();
 builder.Services.AddScoped<SqmDeploymentService>();
@@ -229,6 +231,10 @@ if (!string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAIN
     app.UseHttpsRedirection();
     app.UseHsts();
 }
+
+// Initialize IEEE OUI database (downloads from IEEE on first startup, then caches)
+var ieeeOuiDb = app.Services.GetRequiredService<IeeeOuiDatabase>();
+await ieeeOuiDb.InitializeAsync();
 
 // Log admin auth startup configuration
 using (var startupScope = app.Services.CreateScope())

@@ -20,6 +20,7 @@ public class ConfigAuditEngine
 {
     private readonly ILogger<ConfigAuditEngine> _logger;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IeeeOuiDatabase? _ieeeOuiDb;
     private readonly VlanAnalyzer _vlanAnalyzer;
     private readonly PortSecurityAnalyzer _securityEngine;
     private readonly FirewallRuleAnalyzer _firewallAnalyzer;
@@ -54,16 +55,20 @@ public class ConfigAuditEngine
     /// </summary>
     public ConfigAuditEngine(
         ILogger<ConfigAuditEngine> logger,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        IeeeOuiDatabase? ieeeOuiDb = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _ieeeOuiDb = ieeeOuiDb;
 
         _vlanAnalyzer = new VlanAnalyzer(loggerFactory.CreateLogger<VlanAnalyzer>());
 
         // Create detection service with logging for enhanced device type detection
         var detectionService = new DeviceTypeDetectionService(
-            loggerFactory.CreateLogger<DeviceTypeDetectionService>());
+            loggerFactory.CreateLogger<DeviceTypeDetectionService>(),
+            fingerprintDb: null,
+            ieeeOuiDb: ieeeOuiDb);
 
         _securityEngine = new PortSecurityAnalyzer(
             loggerFactory.CreateLogger<PortSecurityAnalyzer>(),
@@ -190,7 +195,8 @@ public class ConfigAuditEngine
         {
             var detectionService = new DeviceTypeDetectionService(
                 _loggerFactory.CreateLogger<DeviceTypeDetectionService>(),
-                fingerprintDb);
+                fingerprintDb,
+                _ieeeOuiDb);
             securityEngine = new PortSecurityAnalyzer(
                 _loggerFactory.CreateLogger<PortSecurityAnalyzer>(),
                 detectionService);

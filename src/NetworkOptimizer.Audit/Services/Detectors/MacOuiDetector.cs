@@ -5,10 +5,11 @@ namespace NetworkOptimizer.Audit.Services.Detectors;
 
 /// <summary>
 /// Detects device type from MAC address OUI (vendor prefix).
-/// Contains vendor-to-category mappings for common IoT manufacturers.
+/// Uses the IEEE OUI database for vendor names, with curated mappings for device categories.
 /// </summary>
 public class MacOuiDetector
 {
+    private readonly IeeeOuiDatabase? _ieeeDatabase;
     /// <summary>
     /// MAC OUI prefix (first 3 bytes) to vendor and likely category
     /// Format: "AA:BB:CC" -> (VendorName, LikelyCategory, Confidence)
@@ -198,6 +199,54 @@ public class MacOuiDetector
     };
 
     /// <summary>
+    /// Vendor name patterns that suggest specific device categories.
+    /// Used when we have a vendor from IEEE but no curated mapping.
+    /// </summary>
+    private static readonly (string Pattern, ClientDeviceCategory Category, int Confidence)[] VendorPatterns =
+    {
+        // TV manufacturers
+        ("LG Electronics", ClientDeviceCategory.SmartTV, 70),
+        ("Samsung Electronics", ClientDeviceCategory.SmartTV, 65),  // Could be many things
+        ("Sony Corporation", ClientDeviceCategory.SmartTV, 60),
+        ("TCL", ClientDeviceCategory.SmartTV, 70),
+        ("Hisense", ClientDeviceCategory.SmartTV, 70),
+        ("Vizio", ClientDeviceCategory.SmartTV, 75),
+        ("Sharp", ClientDeviceCategory.SmartTV, 65),
+        ("Panasonic", ClientDeviceCategory.SmartTV, 60),
+        ("Toshiba", ClientDeviceCategory.SmartTV, 60),
+
+        // Camera manufacturers
+        ("Hikvision", ClientDeviceCategory.Camera, 90),
+        ("Dahua", ClientDeviceCategory.Camera, 90),
+        ("Axis Communications", ClientDeviceCategory.Camera, 90),
+        ("FLIR", ClientDeviceCategory.Camera, 85),
+        ("Vivotek", ClientDeviceCategory.Camera, 90),
+        ("Hanwha", ClientDeviceCategory.Camera, 90),
+        ("Avigilon", ClientDeviceCategory.Camera, 90),
+        ("Bosch Security", ClientDeviceCategory.Camera, 90),
+
+        // Printer manufacturers
+        ("Hewlett Packard", ClientDeviceCategory.Printer, 75),
+        ("HP Inc", ClientDeviceCategory.Printer, 75),
+        ("Canon", ClientDeviceCategory.Printer, 70),
+        ("Epson", ClientDeviceCategory.Printer, 75),
+        ("Brother", ClientDeviceCategory.Printer, 75),
+        ("Xerox", ClientDeviceCategory.Printer, 80),
+        ("Lexmark", ClientDeviceCategory.Printer, 80),
+        ("Kyocera", ClientDeviceCategory.Printer, 80),
+        ("Ricoh", ClientDeviceCategory.Printer, 80),
+    };
+
+    public MacOuiDetector()
+    {
+    }
+
+    public MacOuiDetector(IeeeOuiDatabase ieeeDatabase)
+    {
+        _ieeeDatabase = ieeeDatabase;
+    }
+
+    /// <summary>
     /// Detect device type from MAC address
     /// </summary>
     public DeviceDetectionResult Detect(string macAddress)
@@ -208,6 +257,7 @@ public class MacOuiDetector
         // Normalize MAC to format "XX:XX:XX"
         var oui = NormalizeOui(macAddress);
 
+        // First check our curated mappings (high confidence, specific device types)
         if (OuiMappings.TryGetValue(oui, out var mapping))
         {
             return new DeviceDetectionResult
@@ -221,6 +271,48 @@ public class MacOuiDetector
                 {
                     ["oui"] = oui,
                     ["vendor"] = mapping.Vendor
+                }
+            };
+        }
+
+        // Fall back to IEEE database for vendor name, then pattern match
+        var ieeeVendor = _ieeeDatabase?.GetVendor(oui);
+        if (!string.IsNullOrEmpty(ieeeVendor))
+        {
+            // Try to infer device type from vendor name patterns
+            foreach (var (pattern, category, confidence) in VendorPatterns)
+            {
+                if (ieeeVendor.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new DeviceDetectionResult
+                    {
+                        Category = category,
+                        Source = DetectionSource.MacOui,
+                        ConfidenceScore = confidence,
+                        VendorName = ieeeVendor,
+                        RecommendedNetwork = FingerprintDetector.GetRecommendedNetwork(category),
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["oui"] = oui,
+                            ["vendor"] = ieeeVendor,
+                            ["pattern_match"] = pattern
+                        }
+                    };
+                }
+            }
+
+            // We have vendor but can't determine device type
+            // Return with vendor info but Unknown category
+            return new DeviceDetectionResult
+            {
+                Category = ClientDeviceCategory.Unknown,
+                Source = DetectionSource.MacOui,
+                ConfidenceScore = 0,
+                VendorName = ieeeVendor,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["oui"] = oui,
+                    ["vendor"] = ieeeVendor
                 }
             };
         }
