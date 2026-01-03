@@ -31,8 +31,8 @@ public class TcMonitorClient
     public async Task<TcMonitorResponse?> GetTcStatsAsync(string host, int port = DefaultPort)
     {
         var url = $"http://{host}:{port}/";
-        const int maxRetries = 3;
-        const int retryDelayMs = 500;
+        const int maxRetries = 1;  // No retries - fail fast if unreachable
+        const int retryDelayMs = 100;
 
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
@@ -42,7 +42,7 @@ public class TcMonitorClient
 
                 // Create fresh HttpClient for each request to avoid DNS caching issues in Docker
                 using var httpClient = _httpClientFactory.CreateClient("TcMonitor");
-                httpClient.Timeout = TimeSpan.FromSeconds(5);
+                httpClient.Timeout = TimeSpan.FromSeconds(2);  // Fast fail - it's a local call
                 var response = await httpClient.GetFromJsonAsync<TcMonitorResponse>(url);
 
                 if (response != null)
