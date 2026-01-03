@@ -290,7 +290,7 @@ app.Use(async (context, next) =>
     }
 
     // Check if authentication is required (admin may have disabled it)
-    var adminAuth = context.RequestServices.GetRequiredService<AdminAuthService>();
+    var adminAuth = context.RequestServices.GetRequiredService<IAdminAuthService>();
     var isAuthRequired = await adminAuth.IsAuthenticationRequiredAsync();
 
     if (!isAuthRequired)
