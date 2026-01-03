@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -12,6 +13,16 @@ using NetworkOptimizer.Storage.Models;
 using NetworkOptimizer.UniFi;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Data Protection to persist keys to the data volume
+var isDocker = string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
+var keysPath = isDocker
+    ? "/app/data/keys"
+    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NetworkOptimizer", "keys");
+Directory.CreateDirectory(keysPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
+    .SetApplicationName("NetworkOptimizer");
 
 // Add services to the container
 builder.Services.AddRazorComponents()
@@ -48,7 +59,6 @@ builder.Services.AddSingleton<TcMonitorClient>();
 
 // Register SQLite database context
 // In Docker, use /app/data; otherwise use LocalApplicationData
-var isDocker = string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase);
 var dbPath = isDocker
     ? "/app/data/network_optimizer.db"
     : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NetworkOptimizer", "network_optimizer.db");
