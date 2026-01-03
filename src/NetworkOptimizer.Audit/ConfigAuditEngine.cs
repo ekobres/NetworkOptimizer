@@ -365,71 +365,96 @@ public class ConfigAuditEngine
             });
 
             // Check if IoT device on wrong VLAN
-            if (detection.Category.IsIoT() && lastNetwork.Purpose != NetworkPurpose.IoT)
+            if (detection.Category.IsIoT())
             {
-                var isRecent = historyClient.LastSeen >= twoWeeksAgo;
-                var severity = isRecent ? Models.AuditSeverity.Critical : Models.AuditSeverity.Informational;
-                var scoreImpact = isRecent ? 10 : 0;
+                // Use VlanPlacementChecker for consistent severity and network recommendation
+                var placement = Rules.VlanPlacementChecker.CheckIoTPlacement(
+                    detection.Category,
+                    lastNetwork,
+                    ctx.Networks,
+                    10, // default score impact
+                    ctx.AllowanceSettings,
+                    detection.VendorName);
 
-                var iotNetwork = ctx.Networks.FirstOrDefault(n => n.Purpose == NetworkPurpose.IoT);
-                var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
-
-                ctx.AllIssues.Add(new AuditIssue
+                if (!placement.IsCorrectlyPlaced)
                 {
-                    Type = "OFFLINE-IOT-VLAN",
-                    Severity = severity,
-                    Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be isolated",
-                    DeviceName = $"{displayName} (offline)",
-                    CurrentNetwork = lastNetwork.Name,
-                    CurrentVlan = lastNetwork.VlanId,
-                    RecommendedNetwork = iotNetwork?.Name,
-                    RecommendedVlan = iotNetwork?.VlanId,
-                    RecommendedAction = iotNetwork != null ? $"Move to {iotNetwork.Name}" : "Create IoT VLAN",
-                    RuleId = "OFFLINE-IOT-VLAN",
-                    ScoreImpact = scoreImpact,
-                    Metadata = new Dictionary<string, object>
+                    var isRecent = historyClient.LastSeen >= twoWeeksAgo;
+                    // Use placement severity for recent devices, Informational for stale
+                    var severity = isRecent ? placement.Severity : Models.AuditSeverity.Informational;
+                    var scoreImpact = isRecent ? placement.ScoreImpact : 0;
+
+                    var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
+
+                    ctx.AllIssues.Add(new AuditIssue
                     {
-                        ["category"] = detection.CategoryName,
-                        ["confidence"] = detection.ConfidenceScore,
-                        ["source"] = detection.Source.ToString(),
-                        ["lastSeen"] = historyClient.LastSeen,
-                        ["isRecent"] = isRecent
-                    }
-                });
+                        Type = "OFFLINE-IOT-VLAN",
+                        Severity = severity,
+                        Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be isolated",
+                        DeviceName = $"{displayName} (offline)",
+                        CurrentNetwork = lastNetwork.Name,
+                        CurrentVlan = lastNetwork.VlanId,
+                        RecommendedNetwork = placement.RecommendedNetwork?.Name,
+                        RecommendedVlan = placement.RecommendedNetwork?.VlanId,
+                        RecommendedAction = placement.RecommendedNetwork != null
+                            ? $"Move to {placement.RecommendedNetworkLabel}"
+                            : "Create IoT VLAN",
+                        RuleId = "OFFLINE-IOT-VLAN",
+                        ScoreImpact = scoreImpact,
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["category"] = detection.CategoryName,
+                            ["confidence"] = detection.ConfidenceScore,
+                            ["source"] = detection.Source.ToString(),
+                            ["lastSeen"] = historyClient.LastSeen,
+                            ["isRecent"] = isRecent,
+                            ["isLowRisk"] = placement.IsLowRisk
+                        }
+                    });
+                }
             }
 
             // Check if camera/surveillance device on wrong VLAN
-            if (detection.Category.IsSurveillance() && lastNetwork.Purpose != NetworkPurpose.Security)
+            if (detection.Category.IsSurveillance())
             {
-                var isRecent = historyClient.LastSeen >= twoWeeksAgo;
-                var severity = isRecent ? Models.AuditSeverity.Critical : Models.AuditSeverity.Informational;
-                var scoreImpact = isRecent ? 8 : 0;
+                // Use VlanPlacementChecker for consistent network recommendation
+                var placement = Rules.VlanPlacementChecker.CheckCameraPlacement(
+                    lastNetwork,
+                    ctx.Networks,
+                    8); // default score impact for cameras
 
-                var securityNetwork = ctx.Networks.FirstOrDefault(n => n.Purpose == NetworkPurpose.Security);
-                var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
-
-                ctx.AllIssues.Add(new AuditIssue
+                if (!placement.IsCorrectlyPlaced)
                 {
-                    Type = "OFFLINE-CAMERA-VLAN",
-                    Severity = severity,
-                    Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be on security VLAN",
-                    DeviceName = $"{displayName} (offline)",
-                    CurrentNetwork = lastNetwork.Name,
-                    CurrentVlan = lastNetwork.VlanId,
-                    RecommendedNetwork = securityNetwork?.Name,
-                    RecommendedVlan = securityNetwork?.VlanId,
-                    RecommendedAction = securityNetwork != null ? $"Move to {securityNetwork.Name}" : "Create Security VLAN",
-                    RuleId = "OFFLINE-CAMERA-VLAN",
-                    ScoreImpact = scoreImpact,
-                    Metadata = new Dictionary<string, object>
+                    var isRecent = historyClient.LastSeen >= twoWeeksAgo;
+                    var severity = isRecent ? Models.AuditSeverity.Critical : Models.AuditSeverity.Informational;
+                    var scoreImpact = isRecent ? placement.ScoreImpact : 0;
+
+                    var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
+
+                    ctx.AllIssues.Add(new AuditIssue
                     {
-                        ["category"] = detection.CategoryName,
-                        ["confidence"] = detection.ConfidenceScore,
-                        ["source"] = detection.Source.ToString(),
-                        ["lastSeen"] = historyClient.LastSeen,
-                        ["isRecent"] = isRecent
-                    }
-                });
+                        Type = "OFFLINE-CAMERA-VLAN",
+                        Severity = severity,
+                        Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be on security VLAN",
+                        DeviceName = $"{displayName} (offline)",
+                        CurrentNetwork = lastNetwork.Name,
+                        CurrentVlan = lastNetwork.VlanId,
+                        RecommendedNetwork = placement.RecommendedNetwork?.Name,
+                        RecommendedVlan = placement.RecommendedNetwork?.VlanId,
+                        RecommendedAction = placement.RecommendedNetwork != null
+                            ? $"Move to {placement.RecommendedNetworkLabel}"
+                            : "Create Security VLAN",
+                        RuleId = "OFFLINE-CAMERA-VLAN",
+                        ScoreImpact = scoreImpact,
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["category"] = detection.CategoryName,
+                            ["confidence"] = detection.ConfidenceScore,
+                            ["source"] = detection.Source.ToString(),
+                            ["lastSeen"] = historyClient.LastSeen,
+                            ["isRecent"] = isRecent
+                        }
+                    });
+                }
             }
         }
 
