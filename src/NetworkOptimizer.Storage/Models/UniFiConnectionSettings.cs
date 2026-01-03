@@ -31,6 +31,12 @@ public class UniFiConnectionSettings
     /// <summary>Whether to persist credentials for auto-reconnect on startup</summary>
     public bool RememberCredentials { get; set; } = true;
 
+    /// <summary>
+    /// Whether to ignore SSL certificate errors when connecting to the UniFi controller.
+    /// Default is true because UniFi controllers use self-signed certificates.
+    /// </summary>
+    public bool IgnoreControllerSSLErrors { get; set; } = true;
+
     /// <summary>Whether connection settings are configured</summary>
     public bool IsConfigured { get; set; } = false;
 

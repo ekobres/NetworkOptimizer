@@ -58,6 +58,14 @@
                 </label>
             </div>
 
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="ignoreControllerSSLErrors" />
+                    <span>Ignore SSL certificate errors</span>
+                </label>
+                <small class="form-help">Enable this for UniFi controllers with self-signed certificates (default)</small>
+            </div>
+
             <div class="action-buttons">
                 <button class="btn btn-primary" @onclick="TestControllerConnection" disabled="@testingController">
                     @if (testingController)
@@ -1006,6 +1014,7 @@
     private string controllerPassword = "";
     private string controllerSite = "default";
     private bool rememberCredentials = true;
+    private bool ignoreControllerSSLErrors = true;
     private string controllerStatus = "Disconnected";
     private bool testingController = false;
     private string controllerMessage = "";
@@ -1107,6 +1116,7 @@
             // Don't load password - keep it empty for security
             controllerSite = ConnectionService.CurrentConfig.Site;
             rememberCredentials = ConnectionService.CurrentConfig.RememberCredentials;
+            ignoreControllerSSLErrors = ConnectionService.CurrentConfig.IgnoreControllerSSLErrors;
         }
 
         // Check if controller has saved password
@@ -1604,7 +1614,8 @@
             Username = controllerUsername,
             Password = password,
             Site = string.IsNullOrWhiteSpace(controllerSite) ? "default" : controllerSite,
-            RememberCredentials = rememberCredentials
+            RememberCredentials = rememberCredentials,
+            IgnoreControllerSSLErrors = ignoreControllerSSLErrors
         };
     }
 

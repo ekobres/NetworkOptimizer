@@ -31,6 +31,7 @@ public class UniFiApiClient : IDisposable
     private readonly string _username;
     private readonly string _password;
     private readonly string _site;
+    private readonly bool _ignoreSSLErrors;
     private HttpClient? _httpClient;
     private CookieContainer? _cookieContainer;
     private string? _csrfToken;
@@ -45,13 +46,15 @@ public class UniFiApiClient : IDisposable
         string controllerHost,
         string username,
         string password,
-        string site = "default")
+        string site = "default",
+        bool ignoreSSLErrors = true)
     {
         _logger = logger;
         _controllerUrl = controllerHost.StartsWith("https://") ? controllerHost : $"https://{controllerHost}";
         _username = username;
         _password = password;
         _site = site;
+        _ignoreSSLErrors = ignoreSSLErrors;
 
         // Configure retry policy for transient failures
         _retryPolicy = Policy
@@ -76,10 +79,15 @@ public class UniFiApiClient : IDisposable
         var handler = new HttpClientHandler
         {
             CookieContainer = _cookieContainer,
-            UseCookies = true,
-            // UniFi controllers often use self-signed certificates
-            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            UseCookies = true
         };
+
+        // UniFi controllers typically use self-signed certificates.
+        // This setting allows bypassing SSL validation when enabled (default: true).
+        if (_ignoreSSLErrors)
+        {
+            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+        }
 
         _httpClient = new HttpClient(handler)
         {

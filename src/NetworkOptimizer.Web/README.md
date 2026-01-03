@@ -110,13 +110,12 @@ NetworkOptimizer.Web/
   "UniFiController": {
     "Url": "https://192.168.1.1",
     "Username": "",
-    "Password": "",
-    "IgnoreSSLErrors": true
+    "Password": ""
   }
 }
 ```
 
-Note: Most configuration is stored in the SQLite database and managed via the Settings UI.
+Note: Most configuration is stored in the SQLite database and managed via the Settings UI, including the SSL certificate validation option.
 
 ## Running the Application
 

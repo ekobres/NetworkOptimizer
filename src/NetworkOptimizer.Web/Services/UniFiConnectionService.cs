@@ -133,7 +133,8 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
                 Username = _settings.Username ?? "",
                 Password = "", // Never expose password
                 Site = _settings.Site,
-                RememberCredentials = _settings.RememberCredentials
+                RememberCredentials = _settings.RememberCredentials,
+                IgnoreControllerSSLErrors = _settings.IgnoreControllerSSLErrors
             };
         }
     }
@@ -221,7 +222,8 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
                 config.ControllerUrl,
                 config.Username,
                 config.Password,
-                config.Site
+                config.Site,
+                config.IgnoreControllerSSLErrors
             );
 
             // Attempt to authenticate
@@ -275,7 +277,8 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
                 Username = settings.Username!,
                 Password = decryptedPassword,
                 Site = settings.Site,
-                RememberCredentials = settings.RememberCredentials
+                RememberCredentials = settings.RememberCredentials,
+                IgnoreControllerSSLErrors = settings.IgnoreControllerSSLErrors
             };
 
             // Dispose existing client
@@ -291,7 +294,8 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
                 config.ControllerUrl,
                 config.Username,
                 config.Password,
-                config.Site
+                config.Site,
+                config.IgnoreControllerSSLErrors
             );
 
             var success = await _client.LoginAsync();
@@ -353,6 +357,7 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
             settings.Username = config.Username;
             settings.Site = config.Site;
             settings.RememberCredentials = config.RememberCredentials;
+            settings.IgnoreControllerSSLErrors = config.IgnoreControllerSSLErrors;
             settings.IsConfigured = true;
             settings.LastConnectedAt = DateTime.UtcNow;
             settings.LastError = null;
@@ -418,7 +423,8 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
                 config.ControllerUrl,
                 config.Username,
                 config.Password,
-                config.Site
+                config.Site,
+                config.IgnoreControllerSSLErrors
             );
 
             var success = await testClient.LoginAsync();
@@ -551,4 +557,9 @@ public class UniFiConnectionConfig
     public string Password { get; set; } = "";
     public string Site { get; set; } = "default";
     public bool RememberCredentials { get; set; } = true;
+    /// <summary>
+    /// Whether to ignore SSL certificate errors when connecting to the controller.
+    /// Default is true because UniFi controllers use self-signed certificates.
+    /// </summary>
+    public bool IgnoreControllerSSLErrors { get; set; } = true;
 }
