@@ -71,19 +71,7 @@ public class SqmService
 
         SqmStatusData result;
 
-        // Check if controller is connected
-        if (!_connectionService.IsConnected)
-        {
-            result = new SqmStatusData
-            {
-                Status = "Unavailable",
-                StatusMessage = "Connect to UniFi controller first"
-            };
-            CacheStatusResult(result);
-            return result;
-        }
-
-        // Get gateway host for TC Monitor
+        // Get gateway host for TC Monitor (from database settings, doesn't require controller)
         var gatewayHost = _tcMonitorHost ?? await GetGatewayHostAsync();
 
         // Check if gateway is configured
