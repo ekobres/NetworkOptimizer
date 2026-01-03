@@ -1063,6 +1063,13 @@
 
             // Refresh history to show the new result
             await LoadHistory();
+
+            // Set currentResult to show in "Latest Test Result" section
+            // (LoadHistory only sets it when null, but we want to show the new result)
+            if (gatewayLastResult.Success && testHistory.Count > 0)
+            {
+                currentResult = testHistory[0];
+            }
         }
         catch (Exception ex)
         {

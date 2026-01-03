@@ -172,11 +172,14 @@
         });
         observer.observe(document.body, { childList: true, subtree: true });
 
-        // Auto-reload when Blazor reconnects (successful or failed)
+        // Auto-reload when Blazor reconnects after a real disconnection
         // After server restart, client state is stale and causes loading issues
+        // But don't reload on quick reconnects during normal page refresh
         const reconnectModal = document.getElementById('components-reconnect-modal');
         if (reconnectModal) {
-            let wasReconnecting = false;
+            let disconnectedAt = null;
+            const MIN_DISCONNECT_TIME_MS = 1500; // Only reload if disconnected > 1.5s
+
             const reconnectObserver = new MutationObserver(function(mutations) {
                 mutations.forEach(function(mutation) {
                     if (mutation.attributeName === 'class') {
@@ -185,12 +188,18 @@
                         const isFailed = classList.contains('components-reconnect-failed') ||
                                         classList.contains('components-reconnect-rejected');
 
-                        if (isShowing) {
-                            wasReconnecting = true;
-                        } else if (wasReconnecting && !isFailed) {
-                            // Successfully reconnected - reload to get fresh state
-                            location.reload();
+                        if (isShowing && !disconnectedAt) {
+                            // Record when we started showing the reconnect modal
+                            disconnectedAt = Date.now();
+                        } else if (!isShowing && !isFailed && disconnectedAt) {
+                            // Successfully reconnected - only reload if we were disconnected long enough
+                            const disconnectDuration = Date.now() - disconnectedAt;
+                            disconnectedAt = null;
+                            if (disconnectDuration >= MIN_DISCONNECT_TIME_MS) {
+                                location.reload();
+                            }
                         } else if (isFailed) {
+                            disconnectedAt = null;
                             location.reload();
                         }
                     }
