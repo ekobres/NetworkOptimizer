@@ -342,10 +342,11 @@ Key improvements in C# version:
 
 ## License
 
-- **Code**: Part of NetworkOptimizer project
-- **QuestPDF**: Community License (non-commercial)
-  - Professional license required for commercial MSP use
-  - See: https://www.questpdf.com/license/
+Business Source License 1.1. See [LICENSE](../../LICENSE) in the repository root.
+
+This component uses [QuestPDF](https://www.questpdf.com/) for PDF generation. QuestPDF has its own licensing terms; see their website for details.
+
+© 2026 Ozark Connect
 
 ---
 

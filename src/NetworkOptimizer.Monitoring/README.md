@@ -402,4 +402,8 @@ public async Task MonitorDevicesAsync(List<string> deviceIps, CancellationToken 
 
 ## License
 
-This library uses [Lextm.SharpSnmpLib](https://github.com/lextm/sharpsnmplib) for SNMP operations.
+Business Source License 1.1. See [LICENSE](../../LICENSE) in the repository root.
+
+This component uses [Lextm.SharpSnmpLib](https://github.com/lextm/sharpsnmplib) (MIT License) for SNMP operations.
+
+© 2026 Ozark Connect

@@ -419,12 +419,8 @@ The client uses `ILogger` for comprehensive logging:
 - Polly (retry policies)
 - System.Text.Json
 
-## References
-
-This implementation is based on patterns from:
-- **SeaTurtleGamingBuddy** - UniFi API authentication and traffic route management
-- **SeaTurtleMonitor** - SNMP-based device discovery patterns
-
 ## License
 
-Production-ready code for UniFi network optimization and analysis.
+Business Source License 1.1. See [LICENSE](../../LICENSE) in the repository root.
+
+© 2026 Ozark Connect

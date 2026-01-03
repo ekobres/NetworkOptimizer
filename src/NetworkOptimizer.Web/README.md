@@ -218,5 +218,6 @@ Components follow Blazor best practices:
 
 ## License
 
-Part of the Network Optimizer for UniFi suite.
-© 2025 Ozark Connect
+Business Source License 1.1. See [LICENSE](../../LICENSE) in the repository root.
+
+© 2026 Ozark Connect

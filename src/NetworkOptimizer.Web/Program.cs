@@ -333,19 +333,6 @@ app.MapPost("/api/metrics", async (HttpContext context) =>
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
-// Debug endpoint to see raw device JSON (temporary)
-app.MapGet("/api/debug/devices", async (UniFiConnectionService connectionService) =>
-{
-    if (!connectionService.IsConnected || connectionService.Client == null)
-        return Results.BadRequest(new { error = "Not connected to controller" });
-
-    var rawJson = await connectionService.Client.GetDevicesRawJsonAsync();
-    if (rawJson == null)
-        return Results.NotFound(new { error = "Could not fetch devices" });
-
-    return Results.Content(rawJson, "application/json");
-});
-
 // iperf3 Speed Test API endpoints
 app.MapGet("/api/iperf3/devices", async (Iperf3SpeedTestService service) =>
 {

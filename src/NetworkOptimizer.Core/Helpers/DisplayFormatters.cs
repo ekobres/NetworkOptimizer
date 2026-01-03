@@ -81,7 +81,7 @@ public static class DisplayFormatters
     /// <summary>
     /// Extract a clean network name from a device name for report titles.
     /// Strips prefixes like [Gateway], [Switch] and parenthetical suffixes like (UCG-Fiber).
-    /// Example: "[Gateway] SeaTurtle Home" → "SeaTurtle Home"
+    /// Example: "[Gateway] Home Network" → "Home Network"
     /// </summary>
     public static string ExtractNetworkName(string? deviceName)
     {

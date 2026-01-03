@@ -263,4 +263,6 @@ For issues, feature requests, or questions:
 
 ## License
 
-See main project LICENSE file.
+Business Source License 1.1. See [LICENSE](../LICENSE) in the repository root.
+
+© 2026 Ozark Connect

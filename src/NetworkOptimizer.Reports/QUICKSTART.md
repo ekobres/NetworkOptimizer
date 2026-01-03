@@ -350,13 +350,11 @@ await Task.Run(() => generator.GenerateReport(data, path));
 - Review inline XML documentation (IntelliSense)
 - Check Examples/SampleReportGeneration.cs for patterns
 - See ReportData.cs for all available properties
-- Refer to Python reference: OzarkConnect/UniFiNetworkReport/generate_port_audit.py
 
 ## License
 
-QuestPDF Community License applies (free for non-commercial use).
-For commercial MSP deployments, review QuestPDF Professional License.
+Business Source License 1.1. See [LICENSE](../../LICENSE) in the repository root.
 
----
+This component uses [QuestPDF](https://www.questpdf.com/) for PDF generation. QuestPDF has its own licensing terms; see their website for details.
 
-**Ready to generate professional network audit reports!**
+© 2026 Ozark Connect

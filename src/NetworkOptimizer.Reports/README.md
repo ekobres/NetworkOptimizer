@@ -311,7 +311,11 @@ reportData.SecurityScore.Rating = SecurityScore.CalculateRating(
 
 ## License
 
-This library is designed for use with NetworkOptimizer. QuestPDF uses a Community License for non-commercial use.
+Business Source License 1.1. See [LICENSE](../../LICENSE) in the repository root.
+
+This component uses [QuestPDF](https://www.questpdf.com/) for PDF generation. QuestPDF has its own licensing terms; see their website for details.
+
+© 2026 Ozark Connect
 
 ## Support
 

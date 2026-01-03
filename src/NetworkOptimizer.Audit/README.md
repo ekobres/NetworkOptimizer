@@ -290,4 +290,6 @@ Key enhancements over the Python version:
 
 ## License
 
-Copyright (c) 2024. All rights reserved.
+Business Source License 1.1. See [LICENSE](../../LICENSE) in the repository root.
+
+© 2026 Ozark Connect
