@@ -432,7 +432,7 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
     /// <returns>True if connected, false if timeout or no saved credentials</returns>
     public async Task<bool> WaitForConnectionAsync(TimeSpan? timeout = null, TimeSpan? pollInterval = null)
     {
-        timeout ??= TimeSpan.FromSeconds(2);
+        timeout ??= TimeSpan.FromSeconds(3);
         pollInterval ??= TimeSpan.FromMilliseconds(250);
 
         // If already connected, return immediately
