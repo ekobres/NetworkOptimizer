@@ -48,6 +48,23 @@ public class PdfReportGenerator
         }
     }
 
+    /// <summary>
+    /// Determines if an audit issue belongs to a specific switch.
+    /// Uses MAC address for reliable identification when available,
+    /// falls back to name matching for backwards compatibility.
+    /// </summary>
+    private static bool MatchesSwitch(AuditIssue issue, SwitchDetail switchDevice)
+    {
+        // Prefer MAC matching when available (reliable unique identifier)
+        if (!string.IsNullOrEmpty(issue.SwitchMac) && !string.IsNullOrEmpty(switchDevice.Mac))
+        {
+            return issue.SwitchMac.Equals(switchDevice.Mac, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Fall back to name matching for backwards compatibility
+        // SwitchName may contain full device context like "Device on SwitchName"
+        return issue.SwitchName?.Contains(switchDevice.Name) ?? false;
+    }
 
     /// <summary>
     /// Generate PDF report and save to file
@@ -632,11 +649,11 @@ public class PdfReportGenerator
                     .FontColor(primaryColor);
 
                 // Port table - pass all issues for this switch
-                // TODO: Use SwitchMac as unique identifier instead of name matching
-                // SwitchName may contain full device context like "[TV] Device on [Switch] SwitchName"
+                // Use MAC address for reliable switch identification when available,
+                // fall back to name matching for backwards compatibility
                 var allSwitchIssues = data.CriticalIssues
                     .Concat(data.RecommendedImprovements)
-                    .Where(i => !i.IsWireless && (i.SwitchName?.Contains(switchDevice.Name) ?? false))
+                    .Where(i => !i.IsWireless && MatchesSwitch(i, switchDevice))
                     .ToList();
                 column.Item().Element(c => ComposePortTable(c, switchDevice, allSwitchIssues));
 

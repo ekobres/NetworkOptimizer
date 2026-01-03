@@ -12,6 +12,7 @@ docker compose -f docker-compose.macos.yml up -d
 ### Linux / Windows
 ```bash
 cd docker
+docker compose build
 docker compose up -d
 ```
 

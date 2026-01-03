@@ -8,7 +8,8 @@ using NetworkOptimizer.Storage.Interfaces;
 namespace NetworkOptimizer.Web.Services;
 
 /// <summary>
-/// Service for JWT token generation and validation
+/// Handles JWT token generation and validation for authentication.
+/// Stores the signing key securely in the database and caches it for performance.
 /// </summary>
 public class JwtService
 {
@@ -29,8 +30,10 @@ public class JwtService
     }
 
     /// <summary>
-    /// Generate a JWT token for the admin user
+    /// Generates a JWT token for the specified user with Admin role.
     /// </summary>
+    /// <param name="username">The username to include in the token claims.</param>
+    /// <returns>A signed JWT token string valid for 24 hours.</returns>
     public async Task<string> GenerateTokenAsync(string username = "admin")
     {
         var key = await GetOrCreateSecretKeyAsync();
@@ -60,8 +63,10 @@ public class JwtService
     }
 
     /// <summary>
-    /// Validate a JWT token and return the claims principal
+    /// Validates a JWT token and extracts the claims principal.
     /// </summary>
+    /// <param name="token">The JWT token string to validate.</param>
+    /// <returns>The claims principal if valid, or null if the token is invalid or expired.</returns>
     public async Task<ClaimsPrincipal?> ValidateTokenAsync(string token)
     {
         if (string.IsNullOrEmpty(token))
@@ -100,8 +105,9 @@ public class JwtService
     }
 
     /// <summary>
-    /// Get token validation parameters for ASP.NET Core authentication
+    /// Gets token validation parameters configured for ASP.NET Core authentication middleware.
     /// </summary>
+    /// <returns>Configured <see cref="TokenValidationParameters"/> for JWT validation.</returns>
     public async Task<TokenValidationParameters> GetTokenValidationParametersAsync()
     {
         var key = await GetOrCreateSecretKeyAsync();

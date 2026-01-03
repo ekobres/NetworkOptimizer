@@ -4,7 +4,11 @@ using NetworkOptimizer.UniFi;
 
 namespace NetworkOptimizer.Web.Services;
 
-public class DashboardService
+/// <summary>
+/// Provides aggregated dashboard data by collecting information from UniFi controllers,
+/// audit services, and SQM status monitors.
+/// </summary>
+public class DashboardService : IDashboardService
 {
     private readonly ILogger<DashboardService> _logger;
     private readonly UniFiConnectionService _connectionService;
@@ -26,6 +30,11 @@ public class DashboardService
         _sqmService = sqmService;
     }
 
+    /// <summary>
+    /// Retrieves comprehensive dashboard data including device counts, client counts,
+    /// security audit summary, and SQM status.
+    /// </summary>
+    /// <returns>A <see cref="DashboardData"/> object containing all dashboard metrics.</returns>
     public async Task<DashboardData> GetDashboardDataAsync()
     {
         _logger.LogInformation("Loading dashboard data");
@@ -185,6 +194,9 @@ public class DashboardService
     }
 }
 
+/// <summary>
+/// Contains aggregated dashboard metrics and device information.
+/// </summary>
 public class DashboardData
 {
     public int DeviceCount { get; set; }
@@ -204,6 +216,9 @@ public class DashboardData
     public List<DeviceInfo> Devices { get; set; } = new();
 }
 
+/// <summary>
+/// Represents summary information about a network device for dashboard display.
+/// </summary>
 public class DeviceInfo
 {
     public string Name { get; set; } = "";

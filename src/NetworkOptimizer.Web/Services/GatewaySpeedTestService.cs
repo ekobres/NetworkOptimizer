@@ -14,7 +14,7 @@ namespace NetworkOptimizer.Web.Services;
 /// Service for managing gateway SSH settings and running iperf3 speed tests.
 /// The gateway typically has different SSH credentials than other UniFi devices.
 /// </summary>
-public class GatewaySpeedTestService
+public class GatewaySpeedTestService : IGatewaySpeedTestService
 {
     private readonly ILogger<GatewaySpeedTestService> _logger;
     private readonly IServiceProvider _serviceProvider;
@@ -250,12 +250,12 @@ public class GatewaySpeedTestService
             var outputTask = process.StandardOutput.ReadToEndAsync();
             var errorTask = process.StandardError.ReadToEndAsync();
 
-            await Task.WhenAny(
-                Task.Run(() => process.WaitForExit(30000)),
-                Task.Delay(30000)
-            );
-
-            if (!process.HasExited)
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
             {
                 process.Kill();
                 return (false, "SSH command timed out");
@@ -567,13 +567,13 @@ public class GatewaySpeedTestService
             var errorTask = process.StandardError.ReadToEndAsync();
 
             // Allow extra time for the test plus overhead
-            var timeoutMs = (duration + 30) * 1000;
-            await Task.WhenAny(
-                Task.Run(() => process.WaitForExit(timeoutMs)),
-                Task.Delay(timeoutMs)
-            );
-
-            if (!process.HasExited)
+            var timeoutSeconds = duration + 30;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
             {
                 process.Kill();
                 return (false, "iperf3 test timed out");

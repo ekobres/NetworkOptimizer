@@ -11,14 +11,16 @@ namespace NetworkOptimizer.Storage;
 /// <summary>
 /// InfluxDB storage implementation with batch writing and health monitoring
 /// </summary>
-public class InfluxDbStorage : IMetricsStorage, IDisposable
+public class InfluxDbStorage : IMetricsStorage, IDisposable, IAsyncDisposable
 {
     private readonly InfluxDBClient _client;
     private readonly string _bucket;
     private readonly string _organization;
     private readonly WriteApiAsync _writeApi;
     private readonly ConcurrentQueue<PointData> _writeBuffer;
-    private readonly Timer _flushTimer;
+    private readonly PeriodicTimer? _flushTimer;
+    private readonly CancellationTokenSource _timerCts;
+    private readonly Task? _flushTask;
     private readonly int _maxBufferSize;
     private readonly SemaphoreSlim _flushSemaphore = new(1, 1);
     private readonly ILogger<InfluxDbStorage> _logger;
@@ -48,16 +50,13 @@ public class InfluxDbStorage : IMetricsStorage, IDisposable
 
         _client = new InfluxDBClient(options);
         _writeApi = _client.GetWriteApiAsync();
+        _timerCts = new CancellationTokenSource();
 
-        // Start flush timer for batching writes
+        // Start flush timer for batching writes using PeriodicTimer (async-safe)
         if (batchFlushIntervalSeconds > 0)
         {
-            _flushTimer = new Timer(
-                _ => FlushBufferAsync().GetAwaiter().GetResult(),
-                null,
-                TimeSpan.FromSeconds(batchFlushIntervalSeconds),
-                TimeSpan.FromSeconds(batchFlushIntervalSeconds)
-            );
+            _flushTimer = new PeriodicTimer(TimeSpan.FromSeconds(batchFlushIntervalSeconds));
+            _flushTask = RunFlushLoopAsync(_timerCts.Token);
             _logger.LogInformation(
                 "InfluxDB batch writing enabled: flush every {FlushInterval}s or {MaxBuffer} points",
                 batchFlushIntervalSeconds,
@@ -66,8 +65,32 @@ public class InfluxDbStorage : IMetricsStorage, IDisposable
         else
         {
             // No batching - direct writes
-            _flushTimer = null!;
+            _flushTimer = null;
+            _flushTask = null;
             _logger.LogInformation("InfluxDB batch writing disabled - using direct writes");
+        }
+    }
+
+    /// <summary>
+    /// Background loop that periodically flushes the buffer using async/await
+    /// </summary>
+    private async Task RunFlushLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await _flushTimer!.WaitForNextTickAsync(cancellationToken))
+            {
+                await FlushBufferAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown - not an error
+            _logger.LogDebug("Flush timer loop cancelled");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in flush timer loop");
         }
     }
 
@@ -350,7 +373,48 @@ public class InfluxDbStorage : IMetricsStorage, IDisposable
     }
 
     /// <summary>
-    /// Dispose resources
+    /// Dispose resources asynchronously (preferred)
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        // Cancel the flush timer loop and wait for it to complete
+        if (_flushTask != null)
+        {
+            await _timerCts.CancelAsync();
+            try
+            {
+                await _flushTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected
+            }
+        }
+
+        // Flush any remaining buffered data
+        if (!_writeBuffer.IsEmpty)
+        {
+            _logger.LogInformation("Flushing remaining {Count} buffered points before disposal...", _writeBuffer.Count);
+            await FlushBufferAsync();
+        }
+
+        _flushTimer?.Dispose();
+        _timerCts.Dispose();
+        _flushSemaphore.Dispose();
+        _client.Dispose();
+        _disposed = true;
+
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Dispose resources synchronously (for non-async contexts)
+    /// Prefer DisposeAsync when possible
     /// </summary>
     public void Dispose()
     {
@@ -359,16 +423,43 @@ public class InfluxDbStorage : IMetricsStorage, IDisposable
             return;
         }
 
-        // Flush any remaining buffered data
-        if (_flushTimer != null && !_writeBuffer.IsEmpty)
+        // Cancel the flush timer loop
+        if (_flushTask != null)
+        {
+            _timerCts.Cancel();
+            try
+            {
+                // Wait with a reasonable timeout to avoid indefinite blocking
+                _flushTask.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
+            {
+                // Expected
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error waiting for flush task during sync disposal");
+            }
+        }
+
+        // Flush any remaining buffered data synchronously with timeout
+        if (!_writeBuffer.IsEmpty)
         {
             _logger.LogInformation("Flushing remaining {Count} buffered points before disposal...", _writeBuffer.Count);
-            FlushBufferAsync().GetAwaiter().GetResult();
+            try
+            {
+                FlushBufferAsync().Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error flushing buffer during sync disposal");
+            }
         }
 
         _flushTimer?.Dispose();
-        _flushSemaphore?.Dispose();
-        _client?.Dispose();
+        _timerCts.Dispose();
+        _flushSemaphore.Dispose();
+        _client.Dispose();
         _disposed = true;
 
         GC.SuppressFinalize(this);

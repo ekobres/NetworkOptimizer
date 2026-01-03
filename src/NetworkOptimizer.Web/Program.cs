@@ -142,7 +142,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddSingleton<FingerprintDatabaseService>(); // Singleton to cache fingerprint data
 builder.Services.AddSingleton<IeeeOuiDatabase>(); // IEEE OUI database for MAC vendor lookup
-builder.Services.AddSingleton<AuditService>(); // Singleton to persist dismissed alerts across refreshes
+builder.Services.AddScoped<AuditService>(); // Scoped - uses IMemoryCache for cross-request state
 builder.Services.AddScoped<SqmService>();
 builder.Services.AddScoped<SqmDeploymentService>();
 builder.Services.AddScoped<AgentService>();
@@ -216,8 +216,8 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// Pre-generate the credential encryption key
-NetworkOptimizer.Storage.Services.CredentialProtectionService.EnsureKeyExists();
+// Pre-generate the credential encryption key (resolves singleton, triggering key creation)
+app.Services.GetRequiredService<NetworkOptimizer.Storage.Services.ICredentialProtectionService>().EnsureKeyExists();
 
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())
@@ -323,9 +323,11 @@ app.MapRazorComponents<App>()
 // API endpoints for agent metrics ingestion
 app.MapPost("/api/metrics", async (HttpContext context) =>
 {
-    // TODO: Implement metrics ingestion from agents
+    // TODO(agent-infrastructure): Implement metrics ingestion from agents.
+    // Requires: NetworkOptimizer.Agents package with gateway agent that pushes
+    // latency, bandwidth, and SQM stats. Metrics should be stored in SQLite
+    // time-series tables or optionally forwarded to external TSDB.
     var metrics = await context.Request.ReadFromJsonAsync<Dictionary<string, object>>();
-    // Store in InfluxDB or queue for processing
     return Results.Ok(new { status = "accepted" });
 });
 

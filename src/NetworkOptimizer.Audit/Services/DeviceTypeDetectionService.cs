@@ -192,7 +192,7 @@ public class DeviceTypeDetectionService
         // Client name/hostname
         if (!string.IsNullOrEmpty(client?.Name))
             namesToCheck.Add((client.Name, false));
-        if (!string.IsNullOrEmpty(client?.Hostname) && client.Hostname != client?.Name)
+        if (!string.IsNullOrEmpty(client?.Hostname) && client!.Hostname != client.Name)
             namesToCheck.Add((client.Hostname, false));
 
         // Explicit device name
@@ -521,8 +521,8 @@ public class DeviceTypeDetectionService
                 var pseudoClient = new UniFiClientResponse
                 {
                     Mac = historyClient.Mac,
-                    Name = historyClient.Name,
-                    Hostname = historyClient.Hostname,
+                    Name = historyClient.Name ?? string.Empty,
+                    Hostname = historyClient.Hostname ?? string.Empty,
                     DevIdOverride = historyClient.Fingerprint.DevIdOverride,
                     DevCat = historyClient.Fingerprint.DevCat,
                     DevFamily = historyClient.Fingerprint.DevFamily,

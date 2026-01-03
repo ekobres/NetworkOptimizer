@@ -12,7 +12,7 @@ namespace NetworkOptimizer.Web.Services;
 /// Service for running iperf3 speed tests to UniFi devices.
 /// Uses UniFiSshService for SSH operations with shared credentials.
 /// </summary>
-public class Iperf3SpeedTestService
+public class Iperf3SpeedTestService : IIperf3SpeedTestService
 {
     private readonly ILogger<Iperf3SpeedTestService> _logger;
     private readonly IServiceProvider _serviceProvider;
@@ -434,7 +434,10 @@ public class Iperf3SpeedTestService
                 {
                     await KillIperf3Async(device, isWindows);
                 }
-                catch { }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogDebug(cleanupEx, "Cleanup error");
+                }
             }
 
             return result;
@@ -525,10 +528,15 @@ public class Iperf3SpeedTestService
 
             // Connection timeout is 5s, so overall timeout can be shorter
             var timeoutMs = (duration + 15) * 1000;
-            var completed = await Task.WhenAny(
-                Task.Run(() => process.WaitForExit(timeoutMs)),
-                Task.Delay(timeoutMs)
-            );
+            using var cts = new CancellationTokenSource(timeoutMs);
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Timeout occurred
+            }
 
             if (!process.HasExited)
             {
@@ -560,9 +568,10 @@ public class Iperf3SpeedTestService
                         }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
                     // If we can't parse, just return the raw output
+                    _logger.LogDebug(ex, "Failed to parse iperf3 error JSON, returning raw output");
                 }
             }
 
@@ -648,7 +657,7 @@ public class Iperf3SpeedTestService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to parse iperf3 JSON result");
+            _logger.LogError(ex, "Failed to parse iperf3 JSON result");
         }
     }
 

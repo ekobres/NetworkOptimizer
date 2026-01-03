@@ -10,7 +10,7 @@ namespace NetworkOptimizer.Web.Services;
 /// The tc-monitor script must be deployed to /data/on_boot.d/ on the gateway.
 /// It exposes TC class rates via HTTP on port 8088.
 /// </summary>
-public class SqmService
+public class SqmService : ISqmService
 {
     private readonly ILogger<SqmService> _logger;
     private readonly UniFiConnectionService _connectionService;
@@ -59,7 +59,6 @@ public class SqmService
     /// </summary>
     public async Task<SqmStatusData> GetSqmStatusAsync(bool forceRefresh = false)
     {
-        // Check cache first (unless force refresh requested)
         if (!forceRefresh && _cachedStatusData != null &&
             DateTime.UtcNow - _lastStatusCheck < StatusCacheDuration)
         {
@@ -71,10 +70,9 @@ public class SqmService
 
         SqmStatusData result;
 
-        // Get gateway host for TC Monitor (from database settings, doesn't require controller)
+        // Gateway host from database settings - doesn't require active controller connection
         var gatewayHost = _tcMonitorHost ?? await GetGatewayHostAsync();
 
-        // Check if gateway is configured
         if (string.IsNullOrEmpty(gatewayHost))
         {
             result = new SqmStatusData
@@ -86,7 +84,6 @@ public class SqmService
             return result;
         }
 
-        // Try to get TC stats from the gateway
         var tcStats = await _tcMonitorClient.GetTcStatsAsync(gatewayHost, _tcMonitorPort);
 
         if (tcStats != null)
@@ -115,7 +112,9 @@ public class SqmService
             Status = "Active",
             CurrentRate = primaryWan?.RateMbps ?? 0,
             BaselineRate = _currentConfig?.DownloadSpeed ?? primaryWan?.RateMbps ?? 0,
-            CurrentLatency = 0, // TODO: Get from latency monitoring
+            // TODO(latency-monitoring): Get real latency from agent metrics.
+            // Requires: Agent infrastructure pushing latency samples to /api/metrics endpoint.
+            CurrentLatency = 0,
             LastAdjustment = _lastPollTime?.ToString("HH:mm:ss") ?? "Never",
             IsLearning = false,
             LearningProgress = 100,
@@ -509,10 +508,11 @@ public class SqmService
             return false;
         }
 
-        // TODO: When agent infrastructure is ready:
-        // - Generate SQM scripts using NetworkOptimizer.Sqm.ScriptGenerator
-        // - Deploy via SSH using NetworkOptimizer.Agents
-        // - Verify deployment success
+        // TODO(agent-infrastructure): Deploy SQM via agent when infrastructure is ready.
+        // Requires: NetworkOptimizer.Agents package with SSH deployment capability.
+        // Steps: 1) Generate scripts via NetworkOptimizer.Sqm.ScriptGenerator
+        //        2) Push to gateway via agent SSH connection
+        //        3) Verify tc qdisc installation and crontab entry
 
         await Task.Delay(2000); // Simulate deployment
 
@@ -525,7 +525,9 @@ public class SqmService
     {
         _logger.LogInformation("Generating SQM scripts for configuration: {@Config}", config);
 
-        // TODO: Use NetworkOptimizer.Sqm.ScriptGenerator
+        // TODO(sqm-scripts): Integrate NetworkOptimizer.Sqm.ScriptGenerator.
+        // Requires: Finalized script templates for CAKE qdisc configuration.
+        // Should generate: sqm-start.sh, sqm-stop.sh, crontab entry, tc-monitor.sh
 
         await Task.Delay(500); // Simulate generation
 
@@ -556,7 +558,9 @@ public class SqmService
             throw new InvalidOperationException("Cannot run speedtest: controller not connected");
         }
 
-        // TODO: Trigger speedtest on agent
+        // TODO(agent-infrastructure): Trigger speedtest on gateway agent.
+        // Requires: Agent with iperf3/speedtest-cli installed, endpoint to trigger test,
+        // and callback to report results. Consider using existing Iperf3SpeedTestService.
 
         await Task.Delay(15000); // Simulate speedtest duration
 

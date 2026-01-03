@@ -3,15 +3,24 @@ using Microsoft.Extensions.Logging;
 namespace NetworkOptimizer.Web.Services;
 
 /// <summary>
-/// Service for managing metric collection agents.
-/// TODO: Integrate with NetworkOptimizer.Agents project when SSH/deployment infrastructure is ready.
+/// Placeholder service for managing metric collection agents.
+///
+/// This is a stub implementation that simulates agent management functionality.
+/// All methods use mock data and simulated delays until the NetworkOptimizer.Agents
+/// project provides the actual SSH/deployment infrastructure.
+///
+/// Future integration will connect to NetworkOptimizer.Agents for:
+/// - SSH-based agent deployment to UniFi devices
+/// - Real-time agent health monitoring
+/// - Metric collection from deployed agents
+/// - Agent lifecycle management (start/stop/restart)
 /// </summary>
-public class AgentService
+public class AgentService : IAgentService
 {
     private readonly ILogger<AgentService> _logger;
     private readonly UniFiConnectionService _connectionService;
 
-    // In-memory agent registry (TODO: replace with database)
+    // TODO(agent-integration): Replace in-memory registry with database persistence
     private readonly List<AgentDetails> _registeredAgents = new();
 
     public AgentService(ILogger<AgentService> logger, UniFiConnectionService connectionService)
@@ -24,7 +33,7 @@ public class AgentService
     {
         _logger.LogInformation("Loading agent summary data");
 
-        await Task.Delay(50); // Simulate async operation
+        await Task.Delay(50);
 
         var agents = await GetAllAgentsAsync();
         var activeCount = agents.Count(a => a.Status == "Active");
@@ -35,7 +44,8 @@ public class AgentService
             ActiveCount = activeCount,
             InactiveCount = inactiveCount,
             TotalMetrics = agents.Where(a => a.Status == "Active").Sum(a => a.MetricsPerMin),
-            AvgLatency = 15 // TODO: Get from InfluxDB
+            // TODO(agent-integration): Calculate average latency from actual agent metrics
+            AvgLatency = 15
         };
     }
 
@@ -43,18 +53,17 @@ public class AgentService
     {
         _logger.LogInformation("Testing SSH connection to {Host} as {Username}", host, username);
 
-        // TODO: Use NetworkOptimizer.Agents SSH functionality
-        // - Attempt SSH connection
-        // - Verify authentication
-        // - Check permissions
+        // TODO(agent-integration): Use NetworkOptimizer.Agents SSH functionality
+        // - Attempt SSH connection using provided credentials
+        // - Verify authentication method (password vs key)
+        // - Check user permissions on target device
 
-        await Task.Delay(1500); // Simulate connection test
+        await Task.Delay(1500);
 
         // Simple validation for now
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username))
             return false;
 
-        // Simulate success for valid-looking inputs
         return true;
     }
 
@@ -68,14 +77,14 @@ public class AgentService
             return false;
         }
 
-        // TODO: Use NetworkOptimizer.Agents.AgentDeployer
-        // - Connect via SSH
-        // - Upload agent scripts
-        // - Configure systemd/on_boot.d
+        // TODO(agent-integration): Use NetworkOptimizer.Agents.AgentDeployer
+        // - Connect via SSH to target device
+        // - Upload agent scripts and configuration
+        // - Configure systemd service or on_boot.d for persistence
         // - Start agent service
-        // - Verify check-in
+        // - Verify agent check-in to confirm successful deployment
 
-        await Task.Delay(3000); // Simulate deployment
+        await Task.Delay(3000);
 
         // Register the new agent
         var newAgent = new AgentDetails
@@ -99,12 +108,12 @@ public class AgentService
     {
         _logger.LogInformation("Generating agent scripts for: {@Config}", config);
 
-        // TODO: Use NetworkOptimizer.Agents.ScriptRenderer
-        // - Render templates with Scriban
-        // - Package scripts into tar.gz
-        // - Include installation instructions
+        // TODO(agent-integration): Use NetworkOptimizer.Agents.ScriptRenderer
+        // - Render agent scripts from Scriban templates with device-specific config
+        // - Package scripts into downloadable tar.gz archive
+        // - Include installation instructions and systemd unit files
 
-        await Task.Delay(500); // Simulate generation
+        await Task.Delay(500);
 
         return "/downloads/agent-bundle.tar.gz";
     }
@@ -113,7 +122,7 @@ public class AgentService
     {
         _logger.LogInformation("Loading all agent details");
 
-        await Task.Delay(50); // Simulate query
+        await Task.Delay(50);
 
         // If no agents registered, return empty list with connection status message
         if (_registeredAgents.Count == 0)
@@ -122,10 +131,10 @@ public class AgentService
             return new List<AgentDetails>();
         }
 
+        // TODO(agent-integration): Query actual agent status from database and health endpoints
         // Update check-in times and status for simulation
         foreach (var agent in _registeredAgents)
         {
-            // Simulate random check-ins
             var timeSinceCheckIn = DateTime.UtcNow - agent.LastCheckIn;
             if (timeSinceCheckIn.TotalMinutes > 5)
             {
@@ -140,12 +149,14 @@ public class AgentService
     {
         _logger.LogInformation("Removing agent {AgentId}", agentId);
 
-        // TODO: Implement agent removal
-        // - Stop agent service via SSH
-        // - Remove from database
-        // - Clean up metrics from InfluxDB
+        // TODO(agent-integration): Implement full agent removal
+        // - Connect to device via SSH
+        // - Stop agent service gracefully
+        // - Remove agent files from device
+        // - Delete agent record from database
+        // - Clean up associated metrics data
 
-        await Task.Delay(500); // Simulate removal
+        await Task.Delay(500);
 
         var agent = _registeredAgents.FirstOrDefault(a => a.Id == agentId);
         if (agent != null)
@@ -161,9 +172,11 @@ public class AgentService
     {
         _logger.LogInformation("Restarting agent {AgentId}", agentId);
 
-        // TODO: Implement agent restart via SSH
+        // TODO(agent-integration): Implement agent restart via SSH
+        // - Connect to device and restart agent service
+        // - Wait for agent to check in with new status
 
-        await Task.Delay(2000); // Simulate restart
+        await Task.Delay(2000);
 
         var agent = _registeredAgents.FirstOrDefault(a => a.Id == agentId);
         if (agent != null)

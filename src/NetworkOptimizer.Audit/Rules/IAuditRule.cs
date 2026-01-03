@@ -259,6 +259,7 @@ public abstract class AuditRuleBase : IAuditRule
             Severity = Severity,
             Message = message,
             DeviceName = deviceName,
+            DeviceMac = port.Switch.MacAddress,
             Port = port.PortIndex.ToString(),
             PortName = port.Name,
             Metadata = metadata,

@@ -599,7 +599,7 @@ public class ConfigAuditEngine
             OfflineClients = ctx.OfflineClients,
             Issues = ctx.AllIssues,
             HardeningMeasures = ctx.HardeningMeasures,
-            Statistics = ctx.Statistics,
+            Statistics = ctx.Statistics ?? new AuditStatistics(),
             DnsSecurity = dnsSecurityInfo
         };
     }

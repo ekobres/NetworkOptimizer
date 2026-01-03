@@ -116,6 +116,7 @@ public class CameraVlanRule : AuditRuleBase
             Severity = severity,
             Message = message,
             DeviceName = deviceName,
+            DeviceMac = port.Switch.MacAddress,
             Port = port.PortIndex.ToString(),
             PortName = port.Name,
             CurrentNetwork = network.Name,

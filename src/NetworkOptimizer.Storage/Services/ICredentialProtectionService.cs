@@ -19,4 +19,9 @@ public interface ICredentialProtectionService
     /// Check if a value is already encrypted
     /// </summary>
     bool IsEncrypted(string? value);
+
+    /// <summary>
+    /// Ensures the credential key file exists. Call at startup to pre-generate.
+    /// </summary>
+    void EnsureKeyExists();
 }

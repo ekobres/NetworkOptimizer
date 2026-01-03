@@ -10,9 +10,6 @@
     <ProjectReference Include="..\NetworkOptimizer.Core\NetworkOptimizer.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Text.Json" Version="10.0.1" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Update="Templates\*.template">

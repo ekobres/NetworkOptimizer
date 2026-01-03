@@ -7,7 +7,7 @@ namespace NetworkOptimizer.Audit.Services;
 /// Downloads and indexes the IEEE OUI database for MAC vendor lookup.
 /// The database is downloaded on startup and cached in memory.
 /// </summary>
-public class IeeeOuiDatabase
+public class IeeeOuiDatabase : IIeeeOuiDatabase
 {
     private const string IeeeOuiUrl = "https://standards-oui.ieee.org/oui/oui.txt";
     private const string CacheFileName = "ieee-oui-cache.txt";

@@ -7,7 +7,7 @@ namespace NetworkOptimizer.Web.Services;
 /// <summary>
 /// Service for reading and writing system-wide settings
 /// </summary>
-public class SystemSettingsService
+public class SystemSettingsService : ISystemSettingsService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<SystemSettingsService> _logger;
@@ -235,7 +235,7 @@ public class SystemSettingsService
             var completed = process.WaitForExit(5000);
             if (!completed)
             {
-                try { process.Kill(); } catch { }
+                try { process.Kill(); } catch (Exception ex) { _logger.LogDebug(ex, "Failed to kill process"); }
                 status.IsAvailable = false;
                 status.Error = "iperf3 version check timed out";
                 return status;

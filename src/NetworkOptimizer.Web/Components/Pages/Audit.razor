@@ -416,8 +416,8 @@
                                     {
                                         var (status, statusClass) = GetPortStatus(port, sw.MaxCustomMacAcls > 0);
                                         // Check for any issues on this port (IoT/Camera placement, etc.)
-                                        // TODO: Use SwitchMac as unique identifier instead of name matching
-                                        var portIssue = issues.FirstOrDefault(i => !i.IsWireless && i.Port == port.PortIndex.ToString() && (i.DeviceName?.Contains(sw.Name) ?? false));
+                                        // Use MAC address for reliable switch identification when available
+                                        var portIssue = issues.FirstOrDefault(i => !i.IsWireless && i.Port == port.PortIndex.ToString() && MatchesSwitch(i, sw));
                                         var hasPortIssue = portIssue != null;
                                         var finalClass = hasPortIssue ? (portIssue!.Severity == "Critical" ? "row-critical" : "row-warning") : statusClass;
                                         var finalStatus = hasPortIssue ? portIssue!.Title : status;
@@ -812,6 +812,7 @@
                     {
                         Severity = NetworkOptimizer.Reports.IssueSeverity.Critical,
                         SwitchName = i.DeviceName ?? "Unknown",
+                        SwitchMac = i.DeviceMac,
                         PortIndex = int.TryParse(i.Port, out var p) ? p : null,
                         PortId = int.TryParse(i.Port, out _) ? null : i.Port,  // Non-integer port IDs (e.g., "WAN1")
                         PortName = i.PortName ?? "",
@@ -835,6 +836,7 @@
                     {
                         Severity = NetworkOptimizer.Reports.IssueSeverity.Warning,
                         SwitchName = i.DeviceName ?? "Unknown",
+                        SwitchMac = i.DeviceMac,
                         PortIndex = int.TryParse(i.Port, out var p) ? p : null,
                         PortId = int.TryParse(i.Port, out _) ? null : i.Port,  // Non-integer port IDs (e.g., "WAN1")
                         PortName = i.PortName ?? "",
@@ -904,8 +906,8 @@
                         {
                             Name = firstClient.AccessPointName ?? "Unknown AP",
                             Mac = g.Key,
-                            Model = firstClient.AccessPointModel,
-                            ModelName = firstClient.AccessPointModelName,
+                            Model = firstClient.AccessPointModel ?? string.Empty,
+                            ModelName = firstClient.AccessPointModelName ?? string.Empty,
                             Clients = g.Select(wc => {
                                 var clientIssue = issues.FirstOrDefault(i => i.IsWireless && i.ClientMac == wc.Mac);
                                 return new NetworkOptimizer.Reports.WirelessClientDetail
@@ -1223,6 +1225,22 @@
         var dns = lastResult.DnsSecurity;
         return DisplayFormatters.GetDeviceDnsDisplay(
             dns.TotalDevicesChecked, dns.DevicesWithCorrectDns, dns.DhcpDeviceCount, dns.DeviceDnsPointsToGateway);
+    }
+
+    /// <summary>
+    /// Determines if an audit issue belongs to a specific switch.
+    /// Uses MAC address for reliable identification when available.
+    /// </summary>
+    private static bool MatchesSwitch(Services.AuditIssue issue, Services.SwitchReference sw)
+    {
+        // Prefer MAC matching when available (reliable unique identifier)
+        if (!string.IsNullOrEmpty(issue.DeviceMac) && !string.IsNullOrEmpty(sw.Mac))
+        {
+            return issue.DeviceMac.Equals(sw.Mac, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Fall back to name matching for backwards compatibility
+        return issue.DeviceName?.Contains(sw.Name) ?? false;
     }
 
     private string GetLinkStatus(Services.PortReference port) =>

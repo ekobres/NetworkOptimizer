@@ -40,7 +40,8 @@ cd network-optimizer/docker
 cp .env.example .env
 nano .env  # Set timezone and other options
 
-# Start with host networking (recommended for Linux)
+# Build and start with host networking (recommended for Linux)
+docker compose build
 docker compose up -d
 
 # Check logs for the auto-generated admin password

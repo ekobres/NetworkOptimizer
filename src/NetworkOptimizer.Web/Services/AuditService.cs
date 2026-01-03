@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetworkOptimizer.Audit;
 using NetworkOptimizer.Audit.Models;
@@ -18,33 +19,72 @@ public class AuditService
     private const string SeverityWarning = "Warning";
     private const string SeverityInfo = "Info";
 
+    // Cache keys for IMemoryCache
+    private const string CacheKeyLastAuditResult = "AuditService_LastAuditResult";
+    private const string CacheKeyLastAuditTime = "AuditService_LastAuditTime";
+    private const string CacheKeyDismissedIssues = "AuditService_DismissedIssues";
+    private const string CacheKeyDismissedIssuesLoaded = "AuditService_DismissedIssuesLoaded";
+
     private readonly ILogger<AuditService> _logger;
     private readonly UniFiConnectionService _connectionService;
     private readonly ConfigAuditEngine _auditEngine;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IAuditRepository _auditRepository;
+    private readonly SystemSettingsService _settingsService;
     private readonly FingerprintDatabaseService _fingerprintService;
-
-    // Cache the last audit result
-    private AuditResult? _lastAuditResult;
-    private DateTime? _lastAuditTime;
-
-    // Track dismissed issues (by unique key: Title + DeviceName + Port)
-    // Using ConcurrentDictionary for thread-safe access from multiple requests
-    private readonly ConcurrentDictionary<string, byte> _dismissedIssues = new();
-    private bool _dismissedIssuesLoaded = false;
+    private readonly IMemoryCache _cache;
 
     public AuditService(
         ILogger<AuditService> logger,
         UniFiConnectionService connectionService,
         ConfigAuditEngine auditEngine,
-        IServiceProvider serviceProvider,
-        FingerprintDatabaseService fingerprintService)
+        IAuditRepository auditRepository,
+        SystemSettingsService settingsService,
+        FingerprintDatabaseService fingerprintService,
+        IMemoryCache cache)
     {
         _logger = logger;
         _connectionService = connectionService;
         _auditEngine = auditEngine;
-        _serviceProvider = serviceProvider;
+        _auditRepository = auditRepository;
+        _settingsService = settingsService;
         _fingerprintService = fingerprintService;
+        _cache = cache;
+    }
+
+    // Cache accessors using IMemoryCache
+    private AuditResult? LastAuditResultCached
+    {
+        get => _cache.Get<AuditResult>(CacheKeyLastAuditResult);
+        set
+        {
+            if (value != null)
+                _cache.Set(CacheKeyLastAuditResult, value);
+            else
+                _cache.Remove(CacheKeyLastAuditResult);
+        }
+    }
+
+    private DateTime? LastAuditTimeCached
+    {
+        get => _cache.Get<DateTime?>(CacheKeyLastAuditTime);
+        set
+        {
+            if (value != null)
+                _cache.Set(CacheKeyLastAuditTime, value);
+            else
+                _cache.Remove(CacheKeyLastAuditTime);
+        }
+    }
+
+    private ConcurrentDictionary<string, byte> DismissedIssuesCache
+    {
+        get => _cache.GetOrCreate(CacheKeyDismissedIssues, _ => new ConcurrentDictionary<string, byte>())!;
+    }
+
+    private bool DismissedIssuesLoaded
+    {
+        get => _cache.Get<bool>(CacheKeyDismissedIssuesLoaded);
+        set => _cache.Set(CacheKeyDismissedIssuesLoaded, value);
     }
 
     /// <summary>
@@ -53,10 +93,10 @@ public class AuditService
     /// </summary>
     public void ClearCache()
     {
-        _lastAuditResult = null;
-        _lastAuditTime = null;
-        _dismissedIssues.Clear();
-        _dismissedIssuesLoaded = false;
+        _cache.Remove(CacheKeyLastAuditResult);
+        _cache.Remove(CacheKeyLastAuditTime);
+        _cache.Remove(CacheKeyDismissedIssues);
+        _cache.Remove(CacheKeyDismissedIssuesLoaded);
         _logger.LogInformation("Audit cache cleared");
     }
 
@@ -65,25 +105,23 @@ public class AuditService
     /// </summary>
     private async Task EnsureDismissedIssuesLoadedAsync()
     {
-        if (_dismissedIssuesLoaded) return;
+        if (DismissedIssuesLoaded) return;
 
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<IAuditRepository>();
-
-            var dismissed = await repository.GetDismissedIssuesAsync();
+            var dismissed = await _auditRepository.GetDismissedIssuesAsync();
+            var cache = DismissedIssuesCache;
             foreach (var issue in dismissed)
             {
-                _dismissedIssues.TryAdd(issue.IssueKey, 0);
+                cache.TryAdd(issue.IssueKey, 0);
             }
-            _dismissedIssuesLoaded = true;
+            DismissedIssuesLoaded = true;
             _logger.LogInformation("Loaded {Count} dismissed issues from database", dismissed.Count);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load dismissed issues from database");
-            _dismissedIssuesLoaded = true; // Don't retry on every call
+            DismissedIssuesLoaded = true; // Don't retry on every call
         }
     }
 
@@ -94,13 +132,10 @@ public class AuditService
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var settingsService = scope.ServiceProvider.GetRequiredService<SystemSettingsService>();
-
-            var appleStreaming = await settingsService.GetAsync("audit:allowAppleStreamingOnMainNetwork");
-            var allStreaming = await settingsService.GetAsync("audit:allowAllStreamingOnMainNetwork");
-            var nameBrandTVs = await settingsService.GetAsync("audit:allowNameBrandTVsOnMainNetwork");
-            var allTVs = await settingsService.GetAsync("audit:allowAllTVsOnMainNetwork");
+            var appleStreaming = await _settingsService.GetAsync("audit:allowAppleStreamingOnMainNetwork");
+            var allStreaming = await _settingsService.GetAsync("audit:allowAllStreamingOnMainNetwork");
+            var nameBrandTVs = await _settingsService.GetAsync("audit:allowNameBrandTVsOnMainNetwork");
+            var allTVs = await _settingsService.GetAsync("audit:allowAllTVsOnMainNetwork");
 
             options.AllowAppleStreamingOnMainNetwork = appleStreaming?.ToLower() == "true";
             options.AllowAllStreamingOnMainNetwork = allStreaming?.ToLower() == "true";
@@ -117,8 +152,8 @@ public class AuditService
         }
     }
 
-    public AuditResult? LastAuditResult => _lastAuditResult;
-    public DateTime? LastAuditTime => _lastAuditTime;
+    public AuditResult? LastAuditResult => LastAuditResultCached;
+    public DateTime? LastAuditTime => LastAuditTimeCached;
 
     /// <summary>
     /// Get a unique key for an issue (for tracking dismissals)
@@ -132,14 +167,11 @@ public class AuditService
     public async Task DismissIssueAsync(AuditIssue issue)
     {
         var key = GetIssueKey(issue);
-        if (_dismissedIssues.TryAdd(key, 0))
+        if (DismissedIssuesCache.TryAdd(key, 0))
         {
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var repository = scope.ServiceProvider.GetRequiredService<IAuditRepository>();
-
-                await repository.SaveDismissedIssueAsync(new DismissedIssue
+                await _auditRepository.SaveDismissedIssueAsync(new DismissedIssue
                 {
                     IssueKey = key,
                     DismissedAt = DateTime.UtcNow
@@ -157,7 +189,7 @@ public class AuditService
     /// Check if an issue has been dismissed
     /// </summary>
     public bool IsIssueDismissed(AuditIssue issue) =>
-        _dismissedIssues.ContainsKey(GetIssueKey(issue));
+        DismissedIssuesCache.ContainsKey(GetIssueKey(issue));
 
     /// <summary>
     /// Get active (non-dismissed) issues (synchronous - may not include dismissed filter if not yet loaded)
@@ -167,7 +199,7 @@ public class AuditService
     {
         // Return cached data only - don't block on loading dismissed issues
         // If dismissed issues haven't loaded yet, returns all issues
-        return _lastAuditResult?.Issues.Where(i => !IsIssueDismissed(i)).ToList() ?? new();
+        return LastAuditResultCached?.Issues.Where(i => !IsIssueDismissed(i)).ToList() ?? new();
     }
 
     /// <summary>
@@ -176,7 +208,7 @@ public class AuditService
     public async Task<List<AuditIssue>> GetActiveIssuesAsync()
     {
         await EnsureDismissedIssuesLoadedAsync();
-        return _lastAuditResult?.Issues.Where(i => !IsIssueDismissed(i)).ToList() ?? new();
+        return LastAuditResultCached?.Issues.Where(i => !IsIssueDismissed(i)).ToList() ?? new();
     }
 
     /// <summary>
@@ -185,7 +217,7 @@ public class AuditService
     public async Task<List<AuditIssue>> GetDismissedIssuesAsync()
     {
         await EnsureDismissedIssuesLoadedAsync();
-        return _lastAuditResult?.Issues.Where(i => IsIssueDismissed(i)).ToList() ?? new();
+        return LastAuditResultCached?.Issues.Where(i => IsIssueDismissed(i)).ToList() ?? new();
     }
 
     /// <summary>
@@ -194,14 +226,11 @@ public class AuditService
     public async Task RestoreIssueAsync(AuditIssue issue)
     {
         var key = GetIssueKey(issue);
-        if (_dismissedIssues.TryRemove(key, out _))
+        if (DismissedIssuesCache.TryRemove(key, out _))
         {
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var repository = scope.ServiceProvider.GetRequiredService<IAuditRepository>();
-
-                await repository.DeleteDismissedIssueAsync(key);
+                await _auditRepository.DeleteDismissedIssueAsync(key);
                 _logger.LogInformation("Restored issue: {Key}", key);
             }
             catch (Exception ex)
@@ -228,13 +257,10 @@ public class AuditService
     /// </summary>
     public async Task ClearDismissedIssuesAsync()
     {
-        _dismissedIssues.Clear();
+        DismissedIssuesCache.Clear();
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<IAuditRepository>();
-
-            await repository.ClearAllDismissedIssuesAsync();
+            await _auditRepository.ClearAllDismissedIssuesAsync();
             _logger.LogInformation("Cleared all dismissed issues from database");
         }
         catch (Exception ex)
@@ -250,10 +276,7 @@ public class AuditService
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<IAuditRepository>();
-
-            var latestAudit = await repository.GetLatestAuditResultAsync();
+            var latestAudit = await _auditRepository.GetLatestAuditResultAsync();
 
             if (latestAudit == null)
                 return null;
@@ -331,8 +354,8 @@ public class AuditService
             }
 
             // Cache it
-            _lastAuditResult = result;
-            _lastAuditTime = latestAudit.AuditDate;
+            LastAuditResultCached = result;
+            LastAuditTimeCached = latestAudit.AuditDate;
 
             return result;
         }
@@ -349,29 +372,32 @@ public class AuditService
     public async Task<AuditSummary> GetAuditSummaryAsync()
     {
         // Try memory cache first (use active counts to exclude dismissed issues)
-        if (_lastAuditResult != null && _lastAuditTime != null)
+        var cachedResult = LastAuditResultCached;
+        var cachedTime = LastAuditTimeCached;
+        if (cachedResult != null && cachedTime != null)
         {
             var activeIssues = GetActiveIssues();
             return new AuditSummary
             {
-                Score = _lastAuditResult.Score,
+                Score = cachedResult.Score,
                 CriticalCount = activeIssues.Count(i => i.Severity == SeverityCritical),
                 WarningCount = activeIssues.Count(i => i.Severity == SeverityWarning),
-                LastAuditTime = _lastAuditTime.Value,
+                LastAuditTime = cachedTime.Value,
                 RecentIssues = activeIssues.Take(5).ToList()
             };
         }
 
         // Try to load from database
         var dbResult = await LoadLastAuditFromDatabaseAsync();
-        if (dbResult != null && _lastAuditTime != null)
+        var lastAuditTime = LastAuditTimeCached;
+        if (dbResult != null && lastAuditTime != null)
         {
             return new AuditSummary
             {
                 Score = dbResult.Score,
                 CriticalCount = dbResult.CriticalCount,
                 WarningCount = dbResult.WarningCount,
-                LastAuditTime = _lastAuditTime.Value,
+                LastAuditTime = lastAuditTime.Value,
                 RecentIssues = dbResult.Issues.Take(5).ToList()
             };
         }
@@ -391,9 +417,6 @@ public class AuditService
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var repository = scope.ServiceProvider.GetRequiredService<IAuditRepository>();
-
             // Serialize the full report data for PDF generation after page reload
             var reportData = new
             {
@@ -423,7 +446,7 @@ public class AuditService
                 CreatedAt = DateTime.UtcNow
             };
 
-            await repository.SaveAuditResultAsync(storageResult);
+            await _auditRepository.SaveAuditResultAsync(storageResult);
 
             _logger.LogInformation("Persisted audit result to database with {IssueCount} issues, {ReportSize} bytes report data",
                 result.Issues.Count, reportDataJson.Length);
@@ -559,8 +582,8 @@ public class AuditService
             var webResult = ConvertAuditResult(auditResult, options);
 
             // Cache the result
-            _lastAuditResult = webResult;
-            _lastAuditTime = DateTime.UtcNow;
+            LastAuditResultCached = webResult;
+            LastAuditTimeCached = DateTime.UtcNow;
 
             // Persist to database
             await PersistAuditResultAsync(webResult);
@@ -615,6 +638,7 @@ public class AuditService
                 Recommendation = issue.RecommendedAction ?? GetDefaultRecommendation(issue.Type),
                 // Context fields
                 DeviceName = issue.DeviceName,
+                DeviceMac = issue.DeviceMac,
                 Port = issue.Port,
                 PortName = issue.PortName,
                 CurrentNetwork = issue.CurrentNetwork,
@@ -669,6 +693,7 @@ public class AuditService
             .Select(s => new SwitchReference
             {
                 Name = s.Name,
+                Mac = s.MacAddress,
                 Model = s.Model,
                 ModelName = s.ModelName ?? s.Model,
                 DeviceType = s.Type,
@@ -982,29 +1007,9 @@ public class AuditOptions
     public bool IncludeVlanSecurity { get; set; } = true;
     public bool IncludePortSecurity { get; set; } = true;
     public bool IncludeDnsSecurity { get; set; } = true;
-
-    /// <summary>
-    /// Allow Apple streaming devices (Apple TV) on main network without warning.
-    /// When true, these devices show as Info instead of Warning.
-    /// </summary>
     public bool AllowAppleStreamingOnMainNetwork { get; set; } = false;
-
-    /// <summary>
-    /// Allow all streaming devices (Apple TV, Roku, Fire TV, Chromecast) on main network without warning.
-    /// When true, these devices show as Info instead of Warning.
-    /// </summary>
     public bool AllowAllStreamingOnMainNetwork { get; set; } = false;
-
-    /// <summary>
-    /// Allow name-brand Smart TVs (LG, Samsung, Sony) on main network without warning.
-    /// When true, these devices show as Info instead of Warning.
-    /// </summary>
     public bool AllowNameBrandTVsOnMainNetwork { get; set; } = false;
-
-    /// <summary>
-    /// Allow all Smart TVs on main network without warning.
-    /// When true, these devices show as Info instead of Warning.
-    /// </summary>
     public bool AllowAllTVsOnMainNetwork { get; set; } = false;
 }
 
@@ -1037,8 +1042,6 @@ public class DnsSecurityReference
     public bool DotBlocked { get; set; }
     public bool DohBypassBlocked { get; set; }
     public bool FullyProtected { get; set; }
-
-    // WAN DNS validation
     public List<string> WanDnsServers { get; set; } = new();
     public List<string?> WanDnsPtrResults { get; set; } = new();
     public bool WanDnsMatchesDoH { get; set; }
@@ -1049,14 +1052,10 @@ public class DnsSecurityReference
     public List<string> InterfacesWithMismatch { get; set; } = new();
     public List<string> MismatchedDnsServers { get; set; } = new();
     public List<string> MatchedDnsServers { get; set; } = new();
-
-    // Device DNS validation
     public bool DeviceDnsPointsToGateway { get; set; } = true;
     public int TotalDevicesChecked { get; set; }
     public int DevicesWithCorrectDns { get; set; }
     public int DhcpDeviceCount { get; set; }
-
-    // Third-party DNS (Pi-hole, etc.)
     public bool HasThirdPartyDns { get; set; }
     public bool IsPiholeDetected { get; set; }
     public string? ThirdPartyDnsProviderName { get; set; }
@@ -1088,17 +1087,14 @@ public class AuditIssue
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
     public string Recommendation { get; set; } = "";
-
-    // Context fields
     public string? DeviceName { get; set; }
+    public string? DeviceMac { get; set; }
     public string? Port { get; set; }
     public string? PortName { get; set; }
     public string? CurrentNetwork { get; set; }
     public int? CurrentVlan { get; set; }
     public string? RecommendedNetwork { get; set; }
     public int? RecommendedVlan { get; set; }
-
-    // Wireless-specific fields
     public bool IsWireless { get; set; }
     public string? ClientName { get; set; }
     public string? ClientMac { get; set; }
@@ -1127,6 +1123,7 @@ public class NetworkReference
 public class SwitchReference
 {
     public string Name { get; set; } = "";
+    public string? Mac { get; set; }
     public string? Model { get; set; }
     public string? ModelName { get; set; }
     public string? DeviceType { get; set; }

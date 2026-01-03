@@ -9,7 +9,7 @@ namespace NetworkOptimizer.Web.Services;
 /// The gateway must have the tc-monitor script deployed, which exposes
 /// SQM/FQ_CoDel rates via a simple HTTP endpoint on port 8088.
 /// </summary>
-public class TcMonitorClient
+public class TcMonitorClient : ITcMonitorClient
 {
     private readonly ILogger<TcMonitorClient> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -79,8 +79,11 @@ public class TcMonitorClient
     }
 
     /// <summary>
-    /// Check if a gateway has the tc-monitor script running
+    /// Check if a gateway has the tc-monitor script running.
     /// </summary>
+    /// <param name="host">Gateway IP address or hostname.</param>
+    /// <param name="port">Port number where tc-monitor is listening (default 8088).</param>
+    /// <returns>True if the tc-monitor endpoint responds; otherwise, false.</returns>
     public async Task<bool> IsMonitorAvailableAsync(string host, int port = DefaultPort)
     {
         var result = await GetTcStatsAsync(host, port);
@@ -88,8 +91,11 @@ public class TcMonitorClient
     }
 
     /// <summary>
-    /// Get the primary WAN rate (first interface with active status)
+    /// Get the primary WAN rate (first interface with active status).
     /// </summary>
+    /// <param name="host">Gateway IP address or hostname.</param>
+    /// <param name="port">Port number where tc-monitor is listening (default 8088).</param>
+    /// <returns>The rate in Mbps of the first active interface, or null if unavailable.</returns>
     public async Task<double?> GetPrimaryWanRateAsync(string host, int port = DefaultPort)
     {
         var stats = await GetTcStatsAsync(host, port);
@@ -117,8 +123,9 @@ public class TcMonitorResponse
     public TcWanStats? Wan2 { get; set; }
 
     /// <summary>
-    /// Get all interfaces, converting from wan1/wan2 format
+    /// Get all interfaces, converting from legacy wan1/wan2 format if necessary.
     /// </summary>
+    /// <returns>List of interface statistics, preferring the new format if available.</returns>
     public List<TcInterfaceStats> GetAllInterfaces()
     {
         // If new format is present, use it

@@ -7,7 +7,7 @@ namespace NetworkOptimizer.Web.Services;
 /// Caches and provides access to the UniFi fingerprint database.
 /// The database maps device IDs to names and categories.
 /// </summary>
-public class FingerprintDatabaseService
+public class FingerprintDatabaseService : IFingerprintDatabaseService
 {
     private readonly ILogger<FingerprintDatabaseService> _logger;
     private readonly UniFiConnectionService _connectionService;
@@ -26,8 +26,10 @@ public class FingerprintDatabaseService
     }
 
     /// <summary>
-    /// Get the cached fingerprint database, fetching if needed
+    /// Gets the cached fingerprint database, fetching from the controller if the cache is expired or empty.
     /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The fingerprint database, or null if not connected or fetch failed.</returns>
     public async Task<UniFiFingerprintDatabase?> GetDatabaseAsync(CancellationToken cancellationToken = default)
     {
         // Return cached if still valid
@@ -58,8 +60,10 @@ public class FingerprintDatabaseService
     }
 
     /// <summary>
-    /// Force refresh the fingerprint database
+    /// Forces a refresh of the fingerprint database from the controller, bypassing the cache.
     /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous refresh operation.</returns>
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         await _fetchLock.WaitAsync(cancellationToken);
@@ -104,8 +108,10 @@ public class FingerprintDatabaseService
     }
 
     /// <summary>
-    /// Look up a device name by its device ID (used for dev_id_override)
+    /// Looks up a device name by its device ID (used for dev_id_override).
     /// </summary>
+    /// <param name="deviceId">The device ID to look up.</param>
+    /// <returns>The device name if found, otherwise null.</returns>
     public string? GetDeviceName(int? deviceId)
     {
         if (deviceId == null || _database == null)
@@ -120,20 +126,26 @@ public class FingerprintDatabaseService
     }
 
     /// <summary>
-    /// Look up device type name by ID (used for dev_cat)
+    /// Looks up a device type name by its ID (used for dev_cat).
     /// </summary>
+    /// <param name="devTypeId">The device type ID to look up.</param>
+    /// <returns>The device type name if found, otherwise null.</returns>
     public string? GetDeviceTypeName(int? devTypeId) =>
         _database?.GetDeviceTypeName(devTypeId);
 
     /// <summary>
-    /// Look up vendor name by ID
+    /// Looks up a vendor name by its ID.
     /// </summary>
+    /// <param name="vendorId">The vendor ID to look up.</param>
+    /// <returns>The vendor name if found, otherwise null.</returns>
     public string? GetVendorName(int? vendorId) =>
         _database?.GetVendorName(vendorId);
 
     /// <summary>
-    /// Get the device type ID for a specific device (from dev_ids lookup)
+    /// Gets the device type ID for a specific device (from dev_ids lookup).
     /// </summary>
+    /// <param name="deviceId">The device ID to look up.</param>
+    /// <returns>The device type ID if found, otherwise null.</returns>
     public int? GetDeviceTypeId(int? deviceId)
     {
         if (deviceId == null || _database == null)

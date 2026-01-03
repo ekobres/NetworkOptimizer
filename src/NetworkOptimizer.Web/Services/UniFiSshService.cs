@@ -10,7 +10,7 @@ namespace NetworkOptimizer.Web.Services;
 /// Service for managing shared SSH credentials and executing SSH commands on UniFi devices.
 /// All UniFi network devices (APs, switches) share the same SSH credentials.
 /// </summary>
-public class UniFiSshService
+public class UniFiSshService : IUniFiSshService
 {
     private readonly ILogger<UniFiSshService> _logger;
     private readonly IServiceProvider _serviceProvider;
@@ -124,9 +124,9 @@ public class UniFiSshService
     /// <summary>
     /// Run an SSH command on a device using shared credentials
     /// </summary>
-    public async Task<(bool success, string output)> RunCommandAsync(string host, string command, int? portOverride = null)
+    public async Task<(bool success, string output)> RunCommandAsync(string host, string command, int? portOverride = null, CancellationToken cancellationToken = default)
     {
-        return await RunCommandAsync(host, command, portOverride, null, null, null);
+        return await RunCommandAsync(host, command, portOverride, null, null, null, cancellationToken);
     }
 
     /// <summary>
@@ -139,7 +139,8 @@ public class UniFiSshService
         int? portOverride,
         string? usernameOverride,
         string? passwordOverride,
-        string? privateKeyPathOverride)
+        string? privateKeyPathOverride,
+        CancellationToken cancellationToken = default)
     {
         var settings = await GetSettingsAsync();
 
@@ -216,19 +217,26 @@ public class UniFiSshService
         {
             process.Start();
 
-            var outputTask = process.StandardOutput.ReadToEndAsync();
-            var errorTask = process.StandardError.ReadToEndAsync();
+            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-            var completed = await Task.WhenAny(
-                Task.Run(() => process.WaitForExit(30000)),
-                Task.Delay(30000)
-            );
+            // Create a linked token that cancels on timeout OR external cancellation
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
 
-            if (!process.HasExited)
+            try
             {
+                await process.WaitForExitAsync(timeoutCts.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Timeout occurred (not external cancellation)
                 process.Kill();
                 return (false, "SSH command timed out");
             }
+
+            // If we get here due to external cancellation, propagate it
+            cancellationToken.ThrowIfCancellationRequested();
 
             var output = await outputTask;
             var error = await errorTask;
@@ -240,6 +248,14 @@ public class UniFiSshService
 
             return (true, output);
         }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited)
+            {
+                process.Kill();
+            }
+            throw;
+        }
         catch (Exception ex)
         {
             return (false, ex.Message);
@@ -249,7 +265,7 @@ public class UniFiSshService
     /// <summary>
     /// Run an SSH command using device-specific credentials if configured, falling back to global settings.
     /// </summary>
-    public async Task<(bool success, string output)> RunCommandWithDeviceAsync(DeviceSshConfiguration device, string command)
+    public async Task<(bool success, string output)> RunCommandWithDeviceAsync(DeviceSshConfiguration device, string command, CancellationToken cancellationToken = default)
     {
         return await RunCommandAsync(
             device.Host,
@@ -257,7 +273,8 @@ public class UniFiSshService
             null,
             device.SshUsername,
             device.SshPassword,
-            device.SshPrivateKeyPath);
+            device.SshPrivateKeyPath,
+            cancellationToken);
     }
 
     /// <summary>

@@ -12,7 +12,7 @@ namespace NetworkOptimizer.Web.Services;
 /// Service for deploying SQM scripts to UniFi gateways via SSH.
 /// Follows the same SSH execution pattern as Iperf3SpeedTestService.
 /// </summary>
-public class SqmDeploymentService
+public class SqmDeploymentService : ISqmDeploymentService
 {
     private readonly ILogger<SqmDeploymentService> _logger;
     private readonly UniFiSshService _sshService;

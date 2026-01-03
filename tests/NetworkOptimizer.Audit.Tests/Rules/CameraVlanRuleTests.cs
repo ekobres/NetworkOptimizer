@@ -615,9 +615,9 @@ public class CameraVlanRuleTests
             connectedClient = new UniFiClientResponse
             {
                 Mac = "00:11:22:33:44:55",
-                Name = clientName,
+                Name = clientName ?? string.Empty,
                 IsWired = true,
-                NetworkId = networkId
+                NetworkId = networkId ?? string.Empty
             };
         }
 

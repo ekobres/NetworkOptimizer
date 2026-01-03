@@ -1072,25 +1072,6 @@
     private string iperf3Message = "";
     private string iperf3MessageClass = "";
 
-    // InfluxDB
-    private string influxUrl = "http://influxdb:8086";
-    private string influxOrg = "network-optimizer";
-    private string influxBucket = "network_optimizer";
-    private string influxToken = "";
-    private string influxRetention = "30d";
-    private string influxStatus = "Disconnected";
-    private bool testingInflux = false;
-    private string influxMessage = "";
-    private string influxMessageClass = "";
-
-    // License
-    private string licenseType = "Standard";
-    private string licensedTo = "John Doe";
-    private string controllerId = "abc123def456";
-    private string activationDate = "Dec 01, 2024";
-    private string licenseStatus = "Active";
-    private int gracePeriodDays = 30;
-
     // Admin Password
     private AdminPasswordSource adminPasswordSource = AdminPasswordSource.None;
     private string adminNewPassword = "";
@@ -1868,51 +1849,6 @@
             modemMessageClass = "danger";
         }
         StateHasChanged();
-    }
-
-    private async Task TestInfluxConnection()
-    {
-        testingInflux = true;
-        influxMessage = "";
-        StateHasChanged();
-
-        try
-        {
-            await Task.Delay(1500);
-            // TODO: Implement actual connection test
-            influxStatus = "Connected";
-            influxMessage = "Successfully connected to InfluxDB";
-            influxMessageClass = "success";
-        }
-        catch
-        {
-            influxStatus = "Error";
-            influxMessage = "Failed to connect. Check URL and token.";
-            influxMessageClass = "danger";
-        }
-        finally
-        {
-            testingInflux = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task SaveInfluxSettings()
-    {
-        // TODO: Implement save
-        await Task.CompletedTask;
-    }
-
-    private async Task ActivateLicense()
-    {
-        // TODO: Implement license activation
-        await Task.CompletedTask;
-    }
-
-    private async Task RequestReactivation()
-    {
-        // TODO: Implement reactivation request
-        await Task.CompletedTask;
     }
 
     private async Task SaveAppSettings()

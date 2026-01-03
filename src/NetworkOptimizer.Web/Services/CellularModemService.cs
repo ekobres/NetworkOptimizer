@@ -11,7 +11,7 @@ namespace NetworkOptimizer.Web.Services;
 /// Uses shared UniFiSshService for SSH operations.
 /// Auto-discovers U5G-Max modems from UniFi device list.
 /// </summary>
-public class CellularModemService : IDisposable
+public class CellularModemService : ICellularModemService
 {
     private readonly ILogger<CellularModemService> _logger;
     private readonly IServiceProvider _serviceProvider;
@@ -108,7 +108,9 @@ public class CellularModemService : IDisposable
     }
 
     /// <summary>
-    /// Execute SSH poll to modem - internal implementation
+    /// Execute SSH poll to modem via qmicli commands.
+    /// Runs signal, serving system, cell location, and band info queries in a single SSH session
+    /// (to avoid rate limiting), then delegates parsing to QmicliParser for each section.
     /// </summary>
     private async Task<CellularModemStats?> ExecutePollAsync(string host, string name, string qmiDevice)
     {
@@ -123,7 +125,6 @@ public class CellularModemService : IDisposable
                 Timestamp = DateTime.UtcNow
             };
 
-            // Run all qmicli commands in a single SSH session to avoid rate limiting
             var combinedCommand = $"echo '===SIGNAL===' && qmicli -d {qmiDevice} --device-open-proxy --nas-get-signal-info; " +
                                   $"echo '===SERVING===' && qmicli -d {qmiDevice} --device-open-proxy --nas-get-serving-system; " +
                                   $"echo '===CELL===' && qmicli -d {qmiDevice} --device-open-proxy --nas-get-cell-location-info; " +
@@ -137,10 +138,8 @@ public class CellularModemService : IDisposable
                 return null;
             }
 
-            // Split output by markers and parse each section
             var sections = ParseCombinedOutput(output);
 
-            // Parse signal info
             if (sections.TryGetValue("SIGNAL", out var signalOutput))
             {
                 var (lte, nr5g) = QmicliParser.ParseSignalInfo(signalOutput);
@@ -148,7 +147,6 @@ public class CellularModemService : IDisposable
                 stats.Nr5g = nr5g;
             }
 
-            // Parse serving system
             if (sections.TryGetValue("SERVING", out var servingOutput))
             {
                 var (regState, carrier, mcc, mnc, roaming) = QmicliParser.ParseServingSystem(servingOutput);
@@ -159,7 +157,6 @@ public class CellularModemService : IDisposable
                 stats.IsRoaming = roaming;
             }
 
-            // Parse cell location info
             if (sections.TryGetValue("CELL", out var cellOutput))
             {
                 var (servingCell, neighbors) = QmicliParser.ParseCellLocationInfo(cellOutput);
@@ -167,13 +164,11 @@ public class CellularModemService : IDisposable
                 stats.NeighborCells = neighbors;
             }
 
-            // Parse band info
             if (sections.TryGetValue("BAND", out var bandOutput))
             {
                 stats.ActiveBand = QmicliParser.ParseRfBandInfo(bandOutput);
             }
 
-            // Update last stats
             lock (_lock)
             {
                 _lastStats = stats;

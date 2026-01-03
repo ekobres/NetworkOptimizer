@@ -46,8 +46,25 @@ public interface ISnmpPoller
 }
 
 /// <summary>
-/// SNMP poller with support for v1/v2c/v3 and comprehensive metric collection
+/// SNMP poller with support for v1/v2c/v3 and comprehensive metric collection.
 /// </summary>
+/// <remarks>
+/// <para>
+/// This class wraps the Lextm.SharpSnmpLib library to provide async methods for SNMP operations.
+/// The underlying SharpSnmpLib library is synchronous-only and does not provide native async APIs.
+/// </para>
+/// <para>
+/// To avoid blocking the calling thread (which is critical in ASP.NET Core and Blazor applications),
+/// all SNMP operations are wrapped in <see cref="Task.Run"/> to offload the synchronous work to
+/// a thread pool thread. While this is not true async I/O, it prevents blocking the main thread
+/// and allows the application to remain responsive during potentially long-running SNMP operations
+/// (especially when devices are unresponsive or timeouts occur).
+/// </para>
+/// <para>
+/// If a future version of SharpSnmpLib adds native async support, these implementations should
+/// be updated to use the native async methods instead of Task.Run wrapping.
+/// </para>
+/// </remarks>
 public class SnmpPoller : ISnmpPoller
 {
     private readonly SnmpConfiguration _config;
@@ -63,8 +80,18 @@ public class SnmpPoller : ISnmpPoller
     #region Core SNMP Operations
 
     /// <summary>
-    /// Get a single SNMP value
+    /// Gets a single SNMP value for the specified OID.
     /// </summary>
+    /// <typeparam name="T">The expected return type (string, int, long, double, etc.).</typeparam>
+    /// <param name="ip">The IP address of the SNMP-enabled device.</param>
+    /// <param name="oid">The Object Identifier (OID) to query.</param>
+    /// <returns>The value converted to type <typeparamref name="T"/>, or default if the operation fails.</returns>
+    /// <remarks>
+    /// This method uses <see cref="Task.Run"/> to wrap the synchronous SharpSnmpLib calls.
+    /// The underlying Lextm.SharpSnmpLib library does not provide native async APIs, so
+    /// Task.Run is necessary to prevent blocking the calling thread during network I/O
+    /// and potential timeout waits.
+    /// </remarks>
     public async Task<T?> GetAsync<T>(IPAddress ip, string oid)
     {
         return await Task.Run(() =>
@@ -107,8 +134,18 @@ public class SnmpPoller : ISnmpPoller
     }
 
     /// <summary>
-    /// Walk an SNMP OID tree
+    /// Walks an SNMP OID subtree and returns all variables within it.
     /// </summary>
+    /// <param name="ip">The IP address of the SNMP-enabled device.</param>
+    /// <param name="oid">The root OID of the subtree to walk.</param>
+    /// <returns>A list of all SNMP variables found within the specified OID subtree.</returns>
+    /// <remarks>
+    /// This method uses <see cref="Task.Run"/> to wrap the synchronous SharpSnmpLib walk operation.
+    /// The underlying Lextm.SharpSnmpLib library does not provide native async APIs, so
+    /// Task.Run is necessary to prevent blocking the calling thread. SNMP walks can be
+    /// particularly long-running as they involve multiple sequential SNMP requests to
+    /// traverse the entire subtree.
+    /// </remarks>
     public async Task<List<Variable>> WalkAsync(IPAddress ip, string oid)
     {
         return await Task.Run(() =>

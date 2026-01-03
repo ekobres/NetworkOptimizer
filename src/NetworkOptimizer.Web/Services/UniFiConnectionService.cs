@@ -28,6 +28,10 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
     private DateTime _cacheTime = DateTime.MinValue;
     private readonly TimeSpan _cacheExpiry = TimeSpan.FromMinutes(5);
 
+    // Lazy initialization for async config loading
+    private Task? _initializationTask;
+    private readonly object _initLock = new();
+
     public UniFiConnectionService(ILogger<UniFiConnectionService> logger, ILoggerFactory loggerFactory, IServiceProvider serviceProvider, ICredentialProtectionService credentialProtection)
     {
         _logger = logger;
@@ -35,19 +39,46 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
         _serviceProvider = serviceProvider;
         _credentialProtection = credentialProtection;
 
-        // Load saved configuration on startup (sync to avoid deadlock)
-        LoadConfigSync();
+        // Start initialization in background (non-blocking)
+        StartInitializationAsync();
     }
 
-    private void LoadConfigSync()
+    /// <summary>
+    /// Starts the async initialization without blocking the constructor.
+    /// Uses double-checked locking to ensure initialization runs only once.
+    /// </summary>
+    private void StartInitializationAsync()
+    {
+        lock (_initLock)
+        {
+            if (_initializationTask == null)
+            {
+                _initializationTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await LoadConfigAndConnectAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error during UniFi connection service initialization");
+                    }
+                });
+            }
+        }
+    }
+
+    /// <summary>
+    /// Loads configuration from database and optionally auto-connects.
+    /// </summary>
+    private async Task LoadConfigAndConnectAsync()
     {
         try
         {
             using var scope = _serviceProvider.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<IUniFiRepository>();
 
-            // Note: GetUniFiConnectionSettingsAsync is async, but we need sync for constructor
-            var settings = repository.GetUniFiConnectionSettingsAsync().GetAwaiter().GetResult();
+            var settings = await repository.GetUniFiConnectionSettingsAsync();
 
             if (settings != null && settings.IsConfigured && !string.IsNullOrEmpty(settings.ControllerUrl))
             {
@@ -56,20 +87,30 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
 
                 _logger.LogInformation("Loaded saved UniFi configuration for {Url}", settings.ControllerUrl);
 
-                // Auto-connect in background if we have credentials and RememberCredentials is true
+                // Auto-connect if we have credentials and RememberCredentials is true
                 if (settings.RememberCredentials && settings.HasCredentials)
                 {
-                    _ = Task.Run(async () =>
-                    {
-                        await Task.Delay(2000); // Wait for app startup
-                        await ConnectWithSettingsAsync(settings);
-                    });
+                    await Task.Delay(2000); // Wait for app startup
+                    await ConnectWithSettingsAsync(settings);
                 }
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error loading UniFi configuration from database");
+        }
+    }
+
+    /// <summary>
+    /// Ensures initialization has completed. Call this before accessing settings
+    /// if you need to guarantee config is loaded.
+    /// </summary>
+    public async Task EnsureInitializedAsync()
+    {
+        var task = _initializationTask;
+        if (task != null)
+        {
+            await task;
         }
     }
 

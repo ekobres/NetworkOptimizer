@@ -36,6 +36,12 @@ public class AuditIssue
     public string? PortName { get; init; }
 
     /// <summary>
+    /// MAC address of the switch/device where the issue was found.
+    /// Used for reliable device identification.
+    /// </summary>
+    public string? DeviceMac { get; init; }
+
+    /// <summary>
     /// Current network/VLAN the port is on
     /// </summary>
     public string? CurrentNetwork { get; init; }

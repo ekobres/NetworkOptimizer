@@ -366,6 +366,7 @@ public class AuditIssue
     public IssueType Type { get; set; }
     public IssueSeverity Severity { get; set; }
     public string SwitchName { get; set; } = string.Empty;
+    public string? SwitchMac { get; set; }  // MAC address for reliable switch identification
     public int? PortIndex { get; set; }
     public string? PortId { get; set; }  // Non-integer port identifier (e.g., "WAN1")
     public string PortName { get; set; } = string.Empty;

@@ -293,7 +293,7 @@ public class WirelessIotVlanRuleTests
             Mac = clientMac,
             Name = clientName,
             IsWired = false,
-            NetworkId = network?.Id
+            NetworkId = network?.Id ?? string.Empty
         };
 
         var detection = new DeviceDetectionResult

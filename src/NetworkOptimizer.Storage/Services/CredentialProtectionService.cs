@@ -21,11 +21,13 @@ public class CredentialProtectionService : ICredentialProtectionService
 
     /// <summary>
     /// Ensures the credential key file exists. Call at startup to pre-generate.
+    /// The key is already created in the constructor, so this is a no-op but
+    /// provides a clear intent when called at application startup via DI.
     /// </summary>
-    public static void EnsureKeyExists()
+    public void EnsureKeyExists()
     {
-        // Simply instantiating the service will generate the key
-        _ = new CredentialProtectionService();
+        // Key is already generated in constructor via DeriveKey()
+        // This method exists to provide explicit startup initialization via DI
     }
 
     /// <summary>
