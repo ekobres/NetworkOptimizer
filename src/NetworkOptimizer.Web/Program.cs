@@ -250,12 +250,12 @@ await ieeeOuiDb.InitializeAsync();
 // Log admin auth startup configuration
 using (var startupScope = app.Services.CreateScope())
 {
-    var adminAuthService = startupScope.ServiceProvider.GetRequiredService<AdminAuthService>();
+    var adminAuthService = startupScope.ServiceProvider.GetRequiredService<IAdminAuthService>();
     await adminAuthService.LogStartupConfigurationAsync();
 }
 
 // Configure JWT Bearer token validation parameters (requires JwtService from DI)
-var jwtService = app.Services.GetRequiredService<JwtService>();
+var jwtService = app.Services.GetRequiredService<IJwtService>();
 var tokenValidationParams = await jwtService.GetTokenValidationParametersAsync();
 
 // Get the JwtBearerOptions and set the token validation parameters
