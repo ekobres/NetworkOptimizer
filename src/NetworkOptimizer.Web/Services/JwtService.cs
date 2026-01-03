@@ -8,10 +8,20 @@ using NetworkOptimizer.Storage.Interfaces;
 namespace NetworkOptimizer.Web.Services;
 
 /// <summary>
+/// Interface for JWT token operations
+/// </summary>
+public interface IJwtService
+{
+    Task<string> GenerateTokenAsync(string username = "admin");
+    Task<ClaimsPrincipal?> ValidateTokenAsync(string token);
+    Task<TokenValidationParameters> GetTokenValidationParametersAsync();
+}
+
+/// <summary>
 /// Handles JWT token generation and validation for authentication.
 /// Stores the signing key securely in the database and caches it for performance.
 /// </summary>
-public class JwtService
+public class JwtService : IJwtService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<JwtService> _logger;

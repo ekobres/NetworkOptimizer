@@ -600,75 +600,37 @@ public class GatewaySpeedTestService : IGatewaySpeedTestService
 
     private void ParseIperf3Result(string jsonOutput, GatewaySpeedTestResult result, bool isDownload)
     {
-        try
+        // Store raw JSON for debugging
+        if (isDownload)
         {
-            using var doc = JsonDocument.Parse(jsonOutput);
-            var root = doc.RootElement;
-
-            // Extract local IP from the connection info (only need to do this once)
-            if (string.IsNullOrEmpty(result.LocalIp) &&
-                root.TryGetProperty("start", out var start) &&
-                start.TryGetProperty("connected", out var connected) &&
-                connected.GetArrayLength() > 0)
-            {
-                var firstConn = connected[0];
-                if (firstConn.TryGetProperty("local_host", out var localHost))
-                {
-                    result.LocalIp = localHost.GetString();
-                }
-            }
-
-            if (root.TryGetProperty("end", out var end))
-            {
-                // Get sum_sent and sum_received
-                if (end.TryGetProperty("sum_sent", out var sumSent))
-                {
-                    var bitsPerSecond = sumSent.GetProperty("bits_per_second").GetDouble();
-                    var bytes = sumSent.GetProperty("bytes").GetInt64();
-                    var retransmits = sumSent.TryGetProperty("retransmits", out var rt) ? rt.GetInt32() : 0;
-
-                    if (isDownload)
-                    {
-                        // In reverse mode, sum_sent is actually the download (server -> client)
-                        result.DownloadBitsPerSecond = bitsPerSecond;
-                        result.DownloadBytes = bytes;
-                        result.DownloadRetransmits = retransmits;
-                    }
-                    else
-                    {
-                        result.UploadBitsPerSecond = bitsPerSecond;
-                        result.UploadBytes = bytes;
-                        result.UploadRetransmits = retransmits;
-                    }
-                }
-
-                if (end.TryGetProperty("sum_received", out var sumReceived))
-                {
-                    var bitsPerSecond = sumReceived.GetProperty("bits_per_second").GetDouble();
-                    var bytes = sumReceived.GetProperty("bytes").GetInt64();
-
-                    if (isDownload)
-                    {
-                        // In reverse mode, sum_received is the download received at client
-                        result.DownloadBitsPerSecond = bitsPerSecond;
-                        result.DownloadBytes = bytes;
-                    }
-                }
-            }
-
-            // Store raw JSON for debugging
-            if (isDownload)
-            {
-                result.RawDownloadJson = jsonOutput;
-            }
-            else
-            {
-                result.RawUploadJson = jsonOutput;
-            }
+            result.RawDownloadJson = jsonOutput;
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogWarning(ex, "Failed to parse iperf3 JSON output");
+            result.RawUploadJson = jsonOutput;
+        }
+
+        // For download tests (reverse mode), prefer sum_received for accurate received bytes
+        var parsed = Iperf3JsonParser.Parse(jsonOutput, useSumReceived: isDownload, _logger);
+
+        // Extract local IP (only need to do this once)
+        if (string.IsNullOrEmpty(result.LocalIp) && !string.IsNullOrEmpty(parsed.LocalIp))
+        {
+            result.LocalIp = parsed.LocalIp;
+        }
+
+        // Apply results (ignore errors - they're logged by the parser)
+        if (isDownload)
+        {
+            result.DownloadBitsPerSecond = parsed.BitsPerSecond;
+            result.DownloadBytes = parsed.Bytes;
+            result.DownloadRetransmits = parsed.Retransmits;
+        }
+        else
+        {
+            result.UploadBitsPerSecond = parsed.BitsPerSecond;
+            result.UploadBytes = parsed.Bytes;
+            result.UploadRetransmits = parsed.Retransmits;
         }
     }
 

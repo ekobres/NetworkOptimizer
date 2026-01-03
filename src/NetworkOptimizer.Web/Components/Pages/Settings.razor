@@ -470,6 +470,14 @@
                 Stats are polled every 5 minutes. Requires SSH credentials configured above.
             </p>
 
+            @if (sshSettings?.HasCredentials != true)
+            {
+                <div class="alert alert-warning">
+                    <strong>SSH credentials required:</strong> Configure Device SSH credentials above before adding modems.
+                    <a href="#device-ssh" style="margin-left: 0.5rem;">Go to Device SSH Settings</a>
+                </div>
+            }
+
             <!-- Discovered Modems from UniFi Controller -->
             <h4>Auto-Discovered Modems</h4>
             <div class="action-buttons" style="margin-bottom: 1rem;">
@@ -524,6 +532,10 @@
                                     @if (isConfigured)
                                     {
                                         <span class="status-badge status-connected">Configured</span>
+                                    }
+                                    else if (sshSettings?.HasCredentials != true)
+                                    {
+                                        <span class="status-badge status-warning" title="Configure SSH credentials first">SSH Required</span>
                                     }
                                     else
                                     {
@@ -1210,6 +1222,34 @@
 
     private async Task SaveGatewaySettings()
     {
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(gatewayHost))
+        {
+            gatewayMessage = "Gateway Host / IP is required";
+            gatewayMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(gatewayUsername))
+        {
+            gatewayMessage = "Username is required";
+            gatewayMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        // Must have either: password (new or saved) OR private key
+        var hasPassword = !string.IsNullOrEmpty(gatewayPassword) || hasGatewayPassword;
+        var hasPrivateKey = !string.IsNullOrWhiteSpace(gatewayPrivateKeyPath);
+        if (!hasPassword && !hasPrivateKey)
+        {
+            gatewayMessage = "Either a password or private key path is required";
+            gatewayMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
         savingGatewaySettings = true;
         gatewayMessage = "";
         StateHasChanged();
@@ -1256,8 +1296,27 @@
     {
         if (string.IsNullOrWhiteSpace(gatewayHost))
         {
-            gatewayMessage = "Please enter a gateway host first";
-            gatewayMessageClass = "warning";
+            gatewayMessage = "Gateway Host / IP is required";
+            gatewayMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(gatewayUsername))
+        {
+            gatewayMessage = "Username is required";
+            gatewayMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        // Must have either: password (new or saved) OR private key
+        var hasPassword = !string.IsNullOrEmpty(gatewayPassword) || hasGatewayPassword;
+        var hasPrivateKey = !string.IsNullOrWhiteSpace(gatewayPrivateKeyPath);
+        if (!hasPassword && !hasPrivateKey)
+        {
+            gatewayMessage = "Either a password or private key path is required";
+            gatewayMessageClass = "danger";
             StateHasChanged();
             return;
         }
@@ -1388,6 +1447,26 @@
 
     private async Task SaveSshSettings()
     {
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(sshUsername))
+        {
+            sshMessage = "Username is required";
+            sshMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        // Must have either: password (new or saved) OR private key
+        var hasPassword = !string.IsNullOrEmpty(sshPassword) || hasSshPassword;
+        var hasPrivateKey = !string.IsNullOrWhiteSpace(sshPrivateKeyPath);
+        if (!hasPassword && !hasPrivateKey)
+        {
+            sshMessage = "Either a password or private key path is required";
+            sshMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
         savingSshSettings = true;
         sshMessage = "";
         StateHasChanged();
@@ -1430,10 +1509,30 @@
 
     private async Task TestSshConnection()
     {
-        // Check if connected to the controller
+        // Validate credentials first
+        if (string.IsNullOrWhiteSpace(sshUsername))
+        {
+            sshMessage = "Username is required";
+            sshMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        // Must have either: password (new or saved) OR private key
+        var hasPassword = !string.IsNullOrEmpty(sshPassword) || hasSshPassword;
+        var hasPrivateKey = !string.IsNullOrWhiteSpace(sshPrivateKeyPath);
+        if (!hasPassword && !hasPrivateKey)
+        {
+            sshMessage = "Either a password or private key path is required";
+            sshMessageClass = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        // Check if connected to the controller (needed to find a device to test against)
         if (!ConnectionService.IsConnected || ConnectionService.Client == null)
         {
-            sshMessage = "Connect to UniFi controller first to test SSH connection.";
+            sshMessage = "Connect to UniFi controller first to find a device to test SSH against.";
             sshMessageClass = "warning";
             StateHasChanged();
             return;
@@ -1538,6 +1637,15 @@
 
     private async Task AddDiscoveredModem(DiscoveredModem discovered)
     {
+        // Check if SSH credentials are configured
+        if (sshSettings?.HasCredentials != true)
+        {
+            modemMessage = "SSH credentials must be configured before adding modems. Please configure them in the Device SSH section above.";
+            modemMessageClass = "warning";
+            StateHasChanged();
+            return;
+        }
+
         // Check if already configured
         if (modemConfigs.Any(m => m.Host == discovered.Host))
         {
@@ -1782,6 +1890,14 @@
 
     private async Task SaveModem()
     {
+        // Check if SSH credentials are configured (for new modems)
+        if (editingModem.Id == 0 && sshSettings?.HasCredentials != true)
+        {
+            modemMessage = "SSH credentials must be configured before adding modems. Please configure them in the Device SSH section above.";
+            modemMessageClass = "warning";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(editingModem.Name) || string.IsNullOrWhiteSpace(editingModem.Host))
         {
             modemMessage = "Name and Host are required";
@@ -1953,35 +2069,11 @@
 
     private async Task SaveAdminPassword()
     {
-        // Validate - must enter a new password
-        if (string.IsNullOrEmpty(adminNewPassword))
+        // Validate using service
+        var validation = AdminAuth.ValidateNewPassword(adminNewPassword, adminConfirmPassword);
+        if (!validation.IsValid)
         {
-            adminPasswordMessage = "Please enter a new password";
-            adminPasswordMessageClass = "warning";
-            StateHasChanged();
-            return;
-        }
-
-        // Password complexity: minimum 8 chars, at least one letter and one number
-        if (adminNewPassword.Length < 8)
-        {
-            adminPasswordMessage = "Password must be at least 8 characters";
-            adminPasswordMessageClass = "danger";
-            StateHasChanged();
-            return;
-        }
-
-        if (!adminNewPassword.Any(char.IsLetter) || !adminNewPassword.Any(char.IsDigit))
-        {
-            adminPasswordMessage = "Password must contain at least one letter and one number";
-            adminPasswordMessageClass = "danger";
-            StateHasChanged();
-            return;
-        }
-
-        if (adminNewPassword != adminConfirmPassword)
-        {
-            adminPasswordMessage = "Passwords do not match";
+            adminPasswordMessage = validation.ErrorMessage;
             adminPasswordMessageClass = "danger";
             StateHasChanged();
             return;

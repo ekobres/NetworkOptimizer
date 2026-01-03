@@ -6,11 +6,31 @@ using NetworkOptimizer.Storage.Models;
 namespace NetworkOptimizer.Web.Services;
 
 /// <summary>
+/// Result of password validation
+/// </summary>
+public record PasswordValidationResult(bool IsValid, string? ErrorMessage = null);
+
+/// <summary>
+/// Interface for admin authentication service
+/// </summary>
+public interface IAdminAuthService
+{
+    Task<AdminPasswordSource> GetPasswordSourceAsync(CancellationToken cancellationToken = default);
+    Task<bool> ValidatePasswordAsync(string password, CancellationToken cancellationToken = default);
+    Task<bool> IsAuthenticationRequiredAsync(CancellationToken cancellationToken = default);
+    Task<AdminSettings?> GetAdminSettingsAsync(CancellationToken cancellationToken = default);
+    Task SaveAdminSettingsAsync(string? plainPassword, bool enabled, CancellationToken cancellationToken = default);
+    Task ClearDatabasePasswordAsync(CancellationToken cancellationToken = default);
+    Task LogStartupConfigurationAsync(CancellationToken cancellationToken = default);
+    PasswordValidationResult ValidateNewPassword(string password, string confirmPassword);
+}
+
+/// <summary>
 /// Determines the admin password source and provides password resolution.
 /// Priority: Database (if enabled) > Environment variable > Auto-generated (first run)
 /// Passwords are stored using PBKDF2-SHA256 hashing (not reversible).
 /// </summary>
-public class AdminAuthService
+public class AdminAuthService : IAdminAuthService
 {
     private readonly ISettingsRepository _settingsRepository;
     private readonly IPasswordHasher _passwordHasher;
@@ -137,6 +157,26 @@ public class AdminAuthService
         {
             _logger.LogInformation("Admin settings updated. Source: {Source}", newSource);
         }
+    }
+
+    /// <summary>
+    /// Validates a new password meets complexity requirements.
+    /// </summary>
+    public PasswordValidationResult ValidateNewPassword(string password, string confirmPassword)
+    {
+        if (string.IsNullOrEmpty(password))
+            return new PasswordValidationResult(false, "Please enter a new password");
+
+        if (password.Length < 8)
+            return new PasswordValidationResult(false, "Password must be at least 8 characters");
+
+        if (!password.Any(char.IsLetter) || !password.Any(char.IsDigit))
+            return new PasswordValidationResult(false, "Password must contain at least one letter and one number");
+
+        if (password != confirmPassword)
+            return new PasswordValidationResult(false, "Passwords do not match");
+
+        return new PasswordValidationResult(true);
     }
 
     /// <summary>

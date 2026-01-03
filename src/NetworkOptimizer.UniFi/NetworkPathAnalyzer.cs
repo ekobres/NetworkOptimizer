@@ -18,10 +18,21 @@ public interface IUniFiClientProvider
 }
 
 /// <summary>
+/// Interface for network path analysis operations
+/// </summary>
+public interface INetworkPathAnalyzer
+{
+    void InvalidateTopologyCache();
+    Task<ServerPosition?> DiscoverServerPositionAsync(string? sourceIp = null, CancellationToken cancellationToken = default);
+    Task<NetworkPath> CalculatePathAsync(string targetHost, string? sourceIp = null, CancellationToken cancellationToken = default);
+    PathAnalysisResult AnalyzeSpeedTest(NetworkPath path, double fromDeviceMbps, double toDeviceMbps, int fromDeviceRetransmits = 0, int toDeviceRetransmits = 0, long fromDeviceBytes = 0, long toDeviceBytes = 0);
+}
+
+/// <summary>
 /// Analyzes network paths between the iperf3 server and target devices.
 /// Discovers L2/L3 paths, calculates theoretical bottlenecks, and grades speed test results.
 /// </summary>
-public class NetworkPathAnalyzer
+public class NetworkPathAnalyzer : INetworkPathAnalyzer
 {
     private readonly IUniFiClientProvider _clientProvider;
     private readonly IMemoryCache _cache;
