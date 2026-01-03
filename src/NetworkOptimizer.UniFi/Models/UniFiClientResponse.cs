@@ -124,7 +124,7 @@ public class UniFiClientResponse
     public bool QosPolicyApplied { get; set; }
 
     [JsonPropertyName("satisfaction")]
-    public int Satisfaction { get; set; }
+    public int? Satisfaction { get; set; }
 
     [JsonPropertyName("anomalies")]
     public int Anomalies { get; set; }

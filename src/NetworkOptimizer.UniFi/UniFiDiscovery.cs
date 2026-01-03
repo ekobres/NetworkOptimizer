@@ -437,7 +437,7 @@ public class DiscoveredClient
     public double TxBytesRate { get; set; }
     public double RxBytesRate { get; set; }
     // QoS
-    public int Satisfaction { get; set; }
+    public int? Satisfaction { get; set; }
     public bool HasFixedIp { get; set; }
     public string? FixedIp { get; set; }
     public string? Note { get; set; }
