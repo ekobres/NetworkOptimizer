@@ -214,7 +214,7 @@ public class AuditScorerTests
         var score = _scorer.CalculateScore(result);
 
         // Assert - Should be capped at 50 deduction, so 50
-        score.Should().BeGreaterOrEqualTo(0);
+        score.Should().BeGreaterThanOrEqualTo(0);
     }
 
     #endregion

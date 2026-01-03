@@ -139,7 +139,7 @@ public class DnsSecurityAnalyzerTests
 
         var result = await _analyzer.AnalyzeAsync(settings, null);
 
-        result.ConfiguredServers.Should().HaveCountGreaterOrEqualTo(1);
+        result.ConfiguredServers.Should().HaveCountGreaterThanOrEqualTo(1);
         result.DohConfigured.Should().BeTrue();
     }
 

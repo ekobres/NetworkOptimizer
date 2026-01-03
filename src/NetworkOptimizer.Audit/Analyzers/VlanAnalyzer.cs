@@ -17,8 +17,10 @@ public class VlanAnalyzer
     // Note: "device" removed from IoT - too generic, causes false positives with "Security Devices"
     private static readonly string[] IoTPatterns = { "iot", "smart", "automation", "zero trust" };
     private static readonly string[] SecurityPatterns = { "camera", "security", "nvr", "surveillance", "protect" };
+    // Patterns that require word boundary matching (to avoid false positives like "Hotspot" matching "not")
+    private static readonly string[] SecurityWordBoundaryPatterns = { "not" }; // "NoT" = "Network of Things"
     private static readonly string[] ManagementPatterns = { "management", "mgmt", "admin", "infrastructure" };
-    private static readonly string[] GuestPatterns = { "guest", "visitor" };
+    private static readonly string[] GuestPatterns = { "guest", "visitor", "hotspot" };
     private static readonly string[] HomePatterns = { "home", "main", "primary", "personal", "family", "trusted", "private" };
     // Note: "work" removed - it matches "network" which causes false positives
     private static readonly string[] CorporatePatterns = { "corporate", "office", "business", "enterprise" };
@@ -65,6 +67,32 @@ public class VlanAnalyzer
             // Found network table, no need to check other devices
             if (networks.Any())
                 break;
+        }
+
+        // Post-processing: if no Management network was found, designate VLAN 1 as Management
+        // Enterprise networks typically use VLAN 1 as the native/management VLAN
+        if (!networks.Any(n => n.Purpose == NetworkPurpose.Management))
+        {
+            var vlan1Network = networks.FirstOrDefault(n => n.VlanId == 1);
+            if (vlan1Network != null && vlan1Network.Purpose == NetworkPurpose.Unknown)
+            {
+                _logger.LogInformation("No Management network found - designating VLAN 1 '{Name}' as Management", vlan1Network.Name);
+                // NetworkInfo is immutable, so we need to replace it
+                var index = networks.IndexOf(vlan1Network);
+                networks[index] = new NetworkInfo
+                {
+                    Id = vlan1Network.Id,
+                    Name = vlan1Network.Name,
+                    VlanId = vlan1Network.VlanId,
+                    Purpose = NetworkPurpose.Management,
+                    Subnet = vlan1Network.Subnet,
+                    Gateway = vlan1Network.Gateway,
+                    DnsServers = vlan1Network.DnsServers,
+                    DhcpEnabled = vlan1Network.DhcpEnabled,
+                    NetworkIsolationEnabled = vlan1Network.NetworkIsolationEnabled,
+                    InternetAccessEnabled = vlan1Network.InternetAccessEnabled
+                };
+            }
         }
 
         return networks;
@@ -181,6 +209,10 @@ public class VlanAnalyzer
         if (SecurityPatterns.Any(p => networkName.Contains(p, StringComparison.OrdinalIgnoreCase)))
             return NetworkPurpose.Security;
 
+        // Word-boundary patterns for Security (e.g., "NoT" should not match "Hotspot")
+        if (SecurityWordBoundaryPatterns.Any(p => ContainsWord(networkName, p)))
+            return NetworkPurpose.Security;
+
         if (IoTPatterns.Any(p => networkName.Contains(p, StringComparison.OrdinalIgnoreCase)))
             return NetworkPurpose.IoT;
 
@@ -198,20 +230,52 @@ public class VlanAnalyzer
         if (HomePatterns.Any(p => networkName.Contains(p, StringComparison.OrdinalIgnoreCase)))
             return NetworkPurpose.Home;
 
-        // For VLAN 1 (native) with DHCP enabled and no specific keywords, assume Home
-        // This is the most common case for residential networks
-        if (vlanId == 1 && dhcpEnabled == true)
-            return NetworkPurpose.Home;
-
-        // Fallback: if name is "default" or "lan", treat as Home
-        if (networkName.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+        // Fallback: if name starts with "default" or "main", or is exactly "lan", treat as Home
+        if (networkName.StartsWith("default", StringComparison.OrdinalIgnoreCase) ||
+            networkName.StartsWith("main", StringComparison.OrdinalIgnoreCase) ||
             networkName.Equals("lan", StringComparison.OrdinalIgnoreCase))
             return NetworkPurpose.Home;
+
+        // For VLAN 1 (native) that doesn't match home/corporate patterns, assume Management
+        // Enterprise networks typically use VLAN 1 as the native/management VLAN
+        if (vlanId == 1)
+            return NetworkPurpose.Management;
 
         // Log unclassified networks for debugging and pattern improvement
         _logger.LogDebug("Network '{NetworkName}' (VLAN {VlanId}) could not be classified - consider adding a matching pattern",
             networkName, vlanId);
         return NetworkPurpose.Unknown;
+    }
+
+    /// <summary>
+    /// Check if a string contains a word with word boundaries (not as a substring).
+    /// For example, "NoT" matches "NoT Network" but not "Hotspot".
+    /// </summary>
+    private static bool ContainsWord(string text, string word)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(word))
+            return false;
+
+        var textLower = text.ToLowerInvariant();
+        var wordLower = word.ToLowerInvariant();
+        var index = textLower.IndexOf(wordLower);
+
+        while (index >= 0)
+        {
+            // Check if character before is a word boundary (start of string or non-letter)
+            var beforeOk = index == 0 || !char.IsLetter(textLower[index - 1]);
+            // Check if character after is a word boundary (end of string or non-letter)
+            var afterIndex = index + wordLower.Length;
+            var afterOk = afterIndex >= textLower.Length || !char.IsLetter(textLower[afterIndex]);
+
+            if (beforeOk && afterOk)
+                return true;
+
+            // Look for next occurrence
+            index = textLower.IndexOf(wordLower, index + 1);
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -233,7 +297,8 @@ public class VlanAnalyzer
         if (string.IsNullOrEmpty(networkName))
             return false;
 
-        return SecurityPatterns.Any(p => networkName.Contains(p, StringComparison.OrdinalIgnoreCase));
+        return SecurityPatterns.Any(p => networkName.Contains(p, StringComparison.OrdinalIgnoreCase))
+            || SecurityWordBoundaryPatterns.Any(p => ContainsWord(networkName, p));
     }
 
     /// <summary>

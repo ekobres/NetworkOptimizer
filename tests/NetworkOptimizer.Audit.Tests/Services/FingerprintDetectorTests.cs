@@ -562,7 +562,7 @@ public class FingerprintDetectorTests
 
         var result = _detector.Detect(client);
 
-        result.ConfidenceScore.Should().BeGreaterOrEqualTo(98);
+        result.ConfidenceScore.Should().BeGreaterThanOrEqualTo(98);
     }
 
     [Fact]
@@ -572,7 +572,7 @@ public class FingerprintDetectorTests
 
         var result = _detector.Detect(client);
 
-        result.ConfidenceScore.Should().BeGreaterOrEqualTo(95);
+        result.ConfidenceScore.Should().BeGreaterThanOrEqualTo(95);
     }
 
     #endregion

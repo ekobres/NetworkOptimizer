@@ -183,10 +183,22 @@ public class VlanAnalyzerTests
     [InlineData("NVR Network", NetworkPurpose.Security)]
     [InlineData("Surveillance", NetworkPurpose.Security)]
     [InlineData("Protect", NetworkPurpose.Security)]
+    [InlineData("NoT", NetworkPurpose.Security)]  // Network of Things
+    [InlineData("NoT Network", NetworkPurpose.Security)]
+    [InlineData("My-NoT-VLAN", NetworkPurpose.Security)]
     public void ClassifyNetwork_SecurityPatterns_ReturnsSecurity(string networkName, NetworkPurpose expected)
     {
         var result = _analyzer.ClassifyNetwork(networkName);
         result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void ClassifyNetwork_HotspotDoesNotMatchNoT_ReturnsGuest()
+    {
+        // "Hotspot" contains "not" but should NOT match as Security due to word boundary check
+        // Instead it should match as Guest due to "hotspot" pattern
+        var result = _analyzer.ClassifyNetwork("Hotspot");
+        result.Should().Be(NetworkPurpose.Guest);
     }
 
     [Theory]
@@ -203,6 +215,8 @@ public class VlanAnalyzerTests
     [Theory]
     [InlineData("Guest", NetworkPurpose.Guest)]
     [InlineData("Visitors", NetworkPurpose.Guest)]
+    [InlineData("Hotspot", NetworkPurpose.Guest)]
+    [InlineData("WiFi Hotspot", NetworkPurpose.Guest)]
     public void ClassifyNetwork_GuestPatterns_ReturnsGuest(string networkName, NetworkPurpose expected)
     {
         var result = _analyzer.ClassifyNetwork(networkName);
@@ -238,17 +252,28 @@ public class VlanAnalyzerTests
     }
 
     [Fact]
-    public void ClassifyNetwork_Vlan1WithDhcp_ReturnsHome()
+    public void ClassifyNetwork_Vlan1WithUnknownName_ReturnsManagement()
     {
-        // Use a name that doesn't match any patterns ("work" is a corporate pattern!)
+        // VLAN 1 with unknown name defaults to Management (enterprise native VLAN convention)
         var result = _analyzer.ClassifyNetwork("MyVlan", vlanId: 1, dhcpEnabled: true);
-        result.Should().Be(NetworkPurpose.Home);
+        result.Should().Be(NetworkPurpose.Management);
     }
 
     [Fact]
-    public void ClassifyNetwork_DefaultName_ReturnsHome()
+    public void ClassifyNetwork_Vlan1WithHomeName_ReturnsHome()
     {
-        var result = _analyzer.ClassifyNetwork("default");
+        // VLAN 1 with home-like name returns Home (residential setup)
+        var result = _analyzer.ClassifyNetwork("Home Network", vlanId: 1, dhcpEnabled: true);
+        result.Should().Be(NetworkPurpose.Home);
+    }
+
+    [Theory]
+    [InlineData("default")]
+    [InlineData("Default")]
+    [InlineData("Default Network")]
+    public void ClassifyNetwork_DefaultName_ReturnsHome(string networkName)
+    {
+        var result = _analyzer.ClassifyNetwork(networkName);
         result.Should().Be(NetworkPurpose.Home);
     }
 
@@ -256,6 +281,16 @@ public class VlanAnalyzerTests
     public void ClassifyNetwork_LanName_ReturnsHome()
     {
         var result = _analyzer.ClassifyNetwork("LAN");
+        result.Should().Be(NetworkPurpose.Home);
+    }
+
+    [Theory]
+    [InlineData("Main")]
+    [InlineData("main")]
+    [InlineData("Main Network")]
+    public void ClassifyNetwork_MainName_ReturnsHome(string networkName)
+    {
+        var result = _analyzer.ClassifyNetwork(networkName);
         result.Should().Be(NetworkPurpose.Home);
     }
 
@@ -287,6 +322,9 @@ public class VlanAnalyzerTests
     [InlineData("Cameras", true)]
     [InlineData("Security", true)]
     [InlineData("NVR", true)]
+    [InlineData("NoT", true)]  // Network of Things
+    [InlineData("NoT Network", true)]
+    [InlineData("Hotspot", false)]  // Contains "not" but word boundary prevents match
     [InlineData("Corporate", false)]
     [InlineData(null, false)]
     [InlineData("", false)]
