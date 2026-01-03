@@ -154,16 +154,16 @@ builder.Services.AddHttpClient("TcMonitor", client =>
     client.Timeout = TimeSpan.FromSeconds(5);
 });
 
-// Add CORS for API endpoints (if needed for agents)
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+// TODO(agent-infrastructure): CORS for agent API endpoints - enable when agents are implemented
+// builder.Services.AddCors(options =>
+// {
+//     options.AddDefaultPolicy(policy =>
+//     {
+//         policy.AllowAnyOrigin()
+//               .AllowAnyMethod()
+//               .AllowAnyHeader();
+//     });
+// });
 
 var app = builder.Build();
 
@@ -315,7 +315,7 @@ app.UseStaticFiles(new StaticFileOptions
     ContentTypeProvider = contentTypeProvider
 });
 app.UseAntiforgery();
-app.UseCors();
+// app.UseCors(); // TODO(agent-infrastructure): Enable when agents are implemented
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
