@@ -18,7 +18,7 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     private readonly IServiceProvider _serviceProvider;
     private readonly UniFiSshService _sshService;
     private readonly SystemSettingsService _settingsService;
-    private readonly NetworkPathAnalyzer _pathAnalyzer;
+    private readonly INetworkPathAnalyzer _pathAnalyzer;
 
     // Track running tests to prevent duplicates
     private readonly HashSet<string> _runningTests = new();
@@ -38,7 +38,7 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
         IServiceProvider serviceProvider,
         UniFiSshService sshService,
         SystemSettingsService settingsService,
-        NetworkPathAnalyzer pathAnalyzer)
+        INetworkPathAnalyzer pathAnalyzer)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;

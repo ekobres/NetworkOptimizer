@@ -431,7 +431,7 @@ app.MapGet("/api/auth/logout", (HttpContext context) =>
     return Results.Redirect("/login");
 });
 
-app.MapGet("/api/auth/check", async (HttpContext context, JwtService jwt) =>
+app.MapGet("/api/auth/check", async (HttpContext context, IJwtService jwt) =>
 {
     if (context.Request.Cookies.TryGetValue("auth_token", out var token))
     {

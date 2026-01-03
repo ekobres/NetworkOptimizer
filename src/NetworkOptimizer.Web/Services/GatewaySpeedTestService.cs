@@ -21,7 +21,7 @@ public class GatewaySpeedTestService : IGatewaySpeedTestService
     private readonly UniFiConnectionService _connectionService;
     private readonly ICredentialProtectionService _credentialProtection;
     private readonly SystemSettingsService _systemSettings;
-    private readonly NetworkPathAnalyzer _pathAnalyzer;
+    private readonly INetworkPathAnalyzer _pathAnalyzer;
 
     // Cache the settings to avoid repeated DB queries
     private GatewaySshSettings? _cachedSettings;
@@ -38,7 +38,7 @@ public class GatewaySpeedTestService : IGatewaySpeedTestService
         UniFiConnectionService connectionService,
         SystemSettingsService systemSettings,
         ICredentialProtectionService credentialProtection,
-        NetworkPathAnalyzer pathAnalyzer)
+        INetworkPathAnalyzer pathAnalyzer)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
