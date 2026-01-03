@@ -677,7 +677,7 @@ services:
 
 ```bash
 # Scan images for vulnerabilities
-docker scan network-optimizer:latest
+docker scan ozark-connect/network-optimizer:latest
 ```
 
 ### 5. Secrets Management

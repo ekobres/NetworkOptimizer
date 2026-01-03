@@ -14,7 +14,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: network-optimizer:latest
+    image: ozark-connect/network-optimizer:latest
     container_name: network-optimizer
     restart: unless-stopped
     ports:
