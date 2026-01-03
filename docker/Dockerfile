@@ -86,9 +86,8 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8080/api/health || exit 1
 
-# Run as non-root user (UID 1000 may exist in base image)
-RUN id -u appuser 2>/dev/null || useradd -r -u 1001 -g root appuser && \
-    chown -R 1001:root /app
-USER 1001
+# Run as non-root user (using built-in 'app' user from base image)
+RUN chown -R app:app /app
+USER app
 
 ENTRYPOINT ["dotnet", "NetworkOptimizer.Web.dll"]
