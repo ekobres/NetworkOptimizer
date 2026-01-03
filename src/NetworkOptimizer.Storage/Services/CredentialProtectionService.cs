@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace NetworkOptimizer.Storage.Services;
 
@@ -10,10 +11,12 @@ namespace NetworkOptimizer.Storage.Services;
 public class CredentialProtectionService : ICredentialProtectionService
 {
     private readonly byte[] _key;
+    private readonly ILogger<CredentialProtectionService>? _logger;
     private const string KeyPurpose = "NetworkOptimizer.Credentials.v1";
 
-    public CredentialProtectionService()
+    public CredentialProtectionService(ILogger<CredentialProtectionService>? logger = null)
     {
+        _logger = logger;
         // Derive a machine-specific key using DPAPI (Windows) or a file-based key (Linux)
         // This also generates the key file if it doesn't exist
         _key = DeriveKey();
@@ -89,7 +92,7 @@ public class CredentialProtectionService : ICredentialProtectionService
         catch (Exception ex)
         {
             // If decryption fails, return empty (don't expose partial data)
-            Console.Error.WriteLine($"[CredentialProtectionService] Decryption failed: {ex.Message}");
+            _logger?.LogError(ex, "Decryption failed");
             return "";
         }
     }
@@ -159,7 +162,7 @@ public class CredentialProtectionService : ICredentialProtectionService
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"[CredentialProtectionService] Unable to set Unix file permissions: {ex.Message}");
+                    _logger?.LogWarning(ex, "Unable to set Unix file permissions on credential key file");
                 }
             }
 
@@ -168,7 +171,7 @@ public class CredentialProtectionService : ICredentialProtectionService
         catch (Exception ex)
         {
             // Fallback: use machine name + some entropy
-            Console.Error.WriteLine($"[CredentialProtectionService] Failed to create/read key file, using fallback: {ex.Message}");
+            _logger?.LogWarning(ex, "Failed to create/read credential key file, using fallback key derivation");
             var fallback = Environment.MachineName + KeyPurpose + Environment.UserName;
             return Encoding.UTF8.GetBytes(fallback.PadRight(64, 'X'));
         }
