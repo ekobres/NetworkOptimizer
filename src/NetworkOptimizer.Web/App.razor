@@ -172,15 +172,25 @@
         });
         observer.observe(document.body, { childList: true, subtree: true });
 
-        // Auto-reload when Blazor connection fails or is rejected
+        // Auto-reload when Blazor reconnects (successful or failed)
+        // After server restart, client state is stale and causes loading issues
         const reconnectModal = document.getElementById('components-reconnect-modal');
         if (reconnectModal) {
+            let wasReconnecting = false;
             const reconnectObserver = new MutationObserver(function(mutations) {
                 mutations.forEach(function(mutation) {
                     if (mutation.attributeName === 'class') {
                         const classList = reconnectModal.classList;
-                        if (classList.contains('components-reconnect-failed') ||
-                            classList.contains('components-reconnect-rejected')) {
+                        const isShowing = classList.contains('components-reconnect-show');
+                        const isFailed = classList.contains('components-reconnect-failed') ||
+                                        classList.contains('components-reconnect-rejected');
+
+                        if (isShowing) {
+                            wasReconnecting = true;
+                        } else if (wasReconnecting && !isFailed) {
+                            // Successfully reconnected - reload to get fresh state
+                            location.reload();
+                        } else if (isFailed) {
                             location.reload();
                         }
                     }
