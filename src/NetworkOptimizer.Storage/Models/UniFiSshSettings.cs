@@ -29,7 +29,7 @@ public class UniFiSshSettings
     public string? PrivateKeyPath { get; set; }
 
     /// <summary>Whether SSH access is configured and enabled</summary>
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
     /// <summary>Last successful connection test timestamp</summary>
     public DateTime? LastTestedAt { get; set; }

@@ -33,7 +33,7 @@ public class GatewaySshSettings
     public string? PrivateKeyPath { get; set; }
 
     /// <summary>Whether SSH access is configured and enabled</summary>
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
     /// <summary>iperf3 port on the gateway (typically 5201 or 5202)</summary>
     public int Iperf3Port { get; set; } = 5201;
