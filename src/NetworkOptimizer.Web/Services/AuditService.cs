@@ -823,8 +823,8 @@ public class AuditService
         Audit.IssueTypes.SecurityNetworkHasInternet or Audit.IssueTypes.MgmtNetworkHasInternet => "VLAN Security",
         Audit.IssueTypes.MgmtMissingUnifiAccess or Audit.IssueTypes.MgmtMissingAfcAccess or Audit.IssueTypes.MgmtMissingNtpAccess or Audit.IssueTypes.MgmtMissing5gAccess => "VLAN Security",
         // Device placement (wrong VLAN) - controlled by VLAN Security checkbox
-        Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan => "VLAN Security",
-        Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan => "VLAN Security",
+        Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan or "OFFLINE-IOT-VLAN" => "VLAN Security",
+        Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" => "VLAN Security",
 
         // Port security issues
         Audit.IssueTypes.MacRestriction or Audit.IssueTypes.UnusedPort or Audit.IssueTypes.PortIsolation or "PORT_SECURITY" => "Port Security",
