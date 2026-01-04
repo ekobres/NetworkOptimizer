@@ -26,9 +26,11 @@ Current limitation: LAN speed tests require SSH access to target devices (UniFi 
    - Challenge: Correlating browser client to network device identity
 
 **Implementation considerations:**
-- Device identification (MAC discovery, user selection, or cookie-based)
+- Device identification via source IP (sufficient - can correlate to UniFi client list)
 - Result storage and historical tracking
 - Integration with existing path analysis
+
+**Status:** In Progress - implementing both approaches
 
 ### ~~Retransmit Analysis~~ (FIXED)
 - ~~Flag high retransmit counts as a separate insight~~
