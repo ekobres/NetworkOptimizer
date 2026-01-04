@@ -3247,12 +3247,80 @@ td .btn + .btn {
     font-size: 0.875rem;
 }
 
-/* Port table */
+/* Port table - fixed column widths */
+.port-table {
+    table-layout: fixed;
+}
+
 .port-table th,
 .port-table td {
     font-size: 0.8rem;
     padding: 0.4rem 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+
+/* Switch port table columns: Port, Name, Link, PoE, Port Sec, Forward, Native VLAN, Status */
+.port-table th:nth-child(1),
+.port-table td:nth-child(1) { width: 50px; }  /* Port */
+.port-table th:nth-child(2),
+.port-table td:nth-child(2) { width: 140px; } /* Name */
+.port-table th:nth-child(3),
+.port-table td:nth-child(3) { width: 60px; }  /* Link */
+.port-table th:nth-child(4),
+.port-table td:nth-child(4) { width: 45px; }  /* PoE */
+.port-table th:nth-child(5),
+.port-table td:nth-child(5) { width: 70px; }  /* Port Sec */
+.port-table th:nth-child(6),
+.port-table td:nth-child(6) { width: 75px; }  /* Forward */
+.port-table th:nth-child(7),
+.port-table td:nth-child(7) { width: auto; }  /* Native VLAN - flexible */
+.port-table th:nth-child(8),
+.port-table td:nth-child(8) { width: 65px; }  /* Status */
+
+/* Wireless client table - fixed column widths */
+.wireless-client-table {
+    table-layout: fixed;
+}
+
+.wireless-client-table th,
+.wireless-client-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Wireless client columns: Client, Type, Network, Status */
+.wireless-client-table th:nth-child(1),
+.wireless-client-table td:nth-child(1) { width: 35%; }  /* Client */
+.wireless-client-table th:nth-child(2),
+.wireless-client-table td:nth-child(2) { width: 20%; }  /* Type */
+.wireless-client-table th:nth-child(3),
+.wireless-client-table td:nth-child(3) { width: 25%; }  /* Network */
+.wireless-client-table th:nth-child(4),
+.wireless-client-table td:nth-child(4) { width: 20%; }  /* Status */
+
+/* Offline client table - fixed column widths */
+.offline-client-table {
+    table-layout: fixed;
+}
+
+.offline-client-table th,
+.offline-client-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Offline client columns: Client, Type, Network, Last Seen, Status */
+.offline-client-table th:nth-child(1),
+.offline-client-table td:nth-child(1) { width: 30%; }  /* Client */
+.offline-client-table th:nth-child(2),
+.offline-client-table td:nth-child(2) { width: 18%; }  /* Type */
+.offline-client-table th:nth-child(3),
+.offline-client-table td:nth-child(3) { width: 22%; }  /* Network */
+.offline-client-table th:nth-child(4),
+.offline-client-table td:nth-child(4) { width: 13%; }  /* Last Seen */
+.offline-client-table th:nth-child(5),
+.offline-client-table td:nth-child(5) { width: 17%; }  /* Status */
 
 /* Status classes */
 .status-success {
