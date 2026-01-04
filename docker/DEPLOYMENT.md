@@ -249,6 +249,12 @@ network-optimizer             Up (healthy)
 
 Use nginx, Caddy, or Traefik for SSL termination.
 
+**If the reverse proxy is on the same host**, add to your `.env`:
+```env
+BIND_LOCALHOST_ONLY=true
+```
+This binds the app to `127.0.0.1:8042` instead of all interfaces, so only the local proxy can access it.
+
 #### Nginx Example
 
 ```nginx
