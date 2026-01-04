@@ -262,7 +262,7 @@ sudo dnf install -y sshpass iperf3
 # Debian/Ubuntu:
 wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
 chmod +x dotnet-install.sh
-./dotnet-install.sh --channel 9.0
+./dotnet-install.sh --channel 10.0
 export PATH="$HOME/.dotnet:$PATH"
 
 # Clone and build
@@ -393,9 +393,9 @@ Or download directly:
 ### Build from Source
 
 ```powershell
-# Install .NET SDK from https://dotnet.microsoft.com/download/dotnet/9.0
+# Install .NET SDK from https://dotnet.microsoft.com/download/dotnet/10.0
 # Or via winget:
-winget install Microsoft.DotNet.SDK.9
+winget install Microsoft.DotNet.SDK.10
 
 # Clone repository
 git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
