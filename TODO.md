@@ -114,6 +114,17 @@ Current limitation: LAN speed tests require SSH access to target devices (UniFi 
 - JSON columns are intentional for flexible nested data (e.g., PathAnalysisJson, RawJson)
 - Consider: Separate Clients table with FK references instead of storing ClientMac/ClientName inline
 
+### Normalize Environment Variable Handling
+- Current: Mixed patterns for reading configuration
+  - Direct env var reads: `HOST_IP`, `APP_PASSWORD`, `HOST_NAME` (via `Environment.GetEnvironmentVariable()`)
+  - .NET configuration: `Iperf3Server:Enabled` (via `IConfiguration`, requires `Iperf3Server__Enabled` env var format)
+- Problem: Inconsistent for native deployments (Docker translates `IPERF3_SERVER_ENABLED` → `Iperf3Server__Enabled`)
+- Options:
+  1. Route everything through .NET configuration (use `__` notation everywhere)
+  2. Route everything through direct env var reads (simpler for native)
+  3. Support both patterns in app (check env var first, fall back to config)
+- Low priority but would improve consistency
+
 ### Replace Severity String Constants with Enums
 - Current: Severity comparisons use string literals like `"Critical"`, `"Recommended"`, `"Informational"`
 - Example: `i.Severity == "Critical"` scattered throughout codebase
