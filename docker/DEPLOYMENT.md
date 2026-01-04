@@ -723,7 +723,7 @@ sudo netstat -tlnp | grep 5201
 # or
 sudo ss -tlnp | grep 5201
 
-# Check for existing services on port 3005 (our default external port)
+# Check for existing services on port 3005
 sudo netstat -tlnp | grep 3005
 docker ps | grep -E "3000|3005"
 ```
@@ -733,9 +733,7 @@ docker ps | grep -E "3000|3005"
 | Port | Service | Resolution |
 |------|---------|------------|
 | 5201 | Existing iperf3 server | Stop: `sudo systemctl stop iperf3` |
-| 3005 | Other web services | Change our mapping in docker-compose.yml: `"3006:3000"` |
-
-> **Note:** OpenSpeedTest listens on port 3000 internally. We map it to 3005 externally via `"3005:3000"` in docker-compose.yml. Currently this external port cannot be reconfigured via environment variable.
+| 3005 | OpenSpeedTest port conflict | [Open an issue](https://github.com/Ozark-Connect/NetworkOptimizer/issues) for port remapping support |
 
 **Container name conflicts:**
 
