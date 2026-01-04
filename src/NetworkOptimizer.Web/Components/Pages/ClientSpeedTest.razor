@@ -7,6 +7,7 @@
 @inject ClientSpeedTestService ClientSpeedTestService
 @inject NavigationManager NavigationManager
 @inject IConfiguration Configuration
+@inject IJSRuntime JS
 
 @* Uses unified Iperf3Result model with Direction field to distinguish test sources *@
 
@@ -36,10 +37,23 @@
                     @if (!string.IsNullOrEmpty(openSpeedTestUrl))
                     {
                         <div class="test-option-actions">
-                            <a href="@openSpeedTestUrl" target="_blank" class="btn btn-primary">
-                                Open Speed Test
+                            <a href="@(openSpeedTestUrl)?Run" target="_blank" class="btn btn-primary">
+                                Run Speed Test
                             </a>
-                            <span class="form-help">Opens in a new tab</span>
+                            <span class="form-help">Opens in a new tab and auto-starts</span>
+                        </div>
+                        <div class="url-copy-row">
+                            <code class="url-display">@(openSpeedTestUrl)?Run</code>
+                            <button class="btn-icon" title="Copy URL" @onclick="CopySpeedTestUrl">
+                                @if (urlCopied)
+                                {
+                                    <span class="copy-check">✓</span>
+                                }
+                                else
+                                {
+                                    <span class="copy-icon">📋</span>
+                                }
+                            </button>
                         </div>
                     }
                     else
@@ -300,6 +314,41 @@
         gap: 1rem;
     }
 
+    .url-copy-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        padding: 0.5rem;
+        background: var(--bg-primary);
+        border-radius: var(--border-radius);
+    }
+
+    .url-display {
+        flex: 1;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        word-break: break-all;
+    }
+
+    .btn-icon {
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 0.25rem;
+        font-size: 1rem;
+        opacity: 0.7;
+        transition: opacity 0.15s;
+    }
+
+    .btn-icon:hover {
+        opacity: 1;
+    }
+
+    .copy-check {
+        color: var(--success-color, #22c55e);
+    }
+
     .badge {
         display: inline-block;
         padding: 0.25rem 0.5rem;
@@ -455,6 +504,9 @@
     // Expandable rows
     private int? expandedHistoryId = null;
 
+    // Copy URL state
+    private bool urlCopied = false;
+
     protected override async Task OnInitializedAsync()
     {
         // Load configuration
@@ -531,6 +583,21 @@
     private void ToggleHistoryExpand(int resultId)
     {
         expandedHistoryId = expandedHistoryId == resultId ? null : resultId;
+    }
+
+    private async Task CopySpeedTestUrl()
+    {
+        if (!string.IsNullOrEmpty(openSpeedTestUrl))
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", $"{openSpeedTestUrl}?Run");
+            urlCopied = true;
+            StateHasChanged();
+
+            // Reset after 2 seconds
+            await Task.Delay(2000);
+            urlCopied = false;
+            StateHasChanged();
+        }
     }
 
     public void Dispose()
