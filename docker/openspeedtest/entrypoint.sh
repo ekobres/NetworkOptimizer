@@ -44,12 +44,12 @@ elif [ -z "$SAVE_DATA_URL" ]; then
 fi
 
 # Disable caching for HTML files (so patches take effect immediately)
-NGINX_CONF="/etc/nginx/conf.d/default.conf"
+NGINX_CONF="/etc/nginx/conf.d/OpenSpeedTest-Server.conf"
 if [ -f "$NGINX_CONF" ]; then
-    # Add no-cache for HTML files if not already present
-    if ! grep -q "text/html.*no-cache" "$NGINX_CONF"; then
-        sed -i '/location \/ {/a\        add_header Cache-Control "no-cache, no-store, must-revalidate";' "$NGINX_CONF"
-        echo "Disabled caching for HTML files"
+    # Remove aggressive caching and add no-cache for HTML
+    if grep -q "max-age=31536000" "$NGINX_CONF"; then
+        sed -i 's/max-age=31536000/max-age=0, no-cache, no-store, must-revalidate/' "$NGINX_CONF"
+        echo "Disabled aggressive caching"
     fi
 fi
 
