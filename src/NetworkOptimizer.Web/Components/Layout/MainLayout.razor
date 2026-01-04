@@ -4,17 +4,23 @@
 @inject UniFiConnectionService ConnectionService
 
 <div class="app-container">
-    <div class="sidebar">
+    <div class="sidebar-overlay @(sidebarOpen ? "visible" : "")" @onclick="CloseSidebar"></div>
+    <div class="sidebar @(sidebarOpen ? "open" : "")">
         <div class="sidebar-header">
             <img src="images/ozark-connect-logo.png" alt="Ozark Connect" class="sidebar-logo" />
             <h2 class="app-title">Network Optimizer</h2>
             <p class="app-subtitle">for UniFi</p>
         </div>
-        <NavMenu />
+        <NavMenu OnNavigate="CloseSidebar" />
     </div>
 
     <div class="main-content">
         <header class="top-bar">
+            <button class="hamburger-btn" @onclick="ToggleSidebar" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
             <div class="status-indicators">
                 @if (ConnectionService.IsConnected)
                 {
@@ -58,3 +64,16 @@
     </div>
 </div>
 
+@code {
+    private bool sidebarOpen = false;
+
+    private void ToggleSidebar()
+    {
+        sidebarOpen = !sidebarOpen;
+    }
+
+    private void CloseSidebar()
+    {
+        sidebarOpen = false;
+    }
+}

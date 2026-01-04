@@ -45,6 +45,9 @@
 </nav>
 
 @code {
+    [Parameter]
+    public Action? OnNavigate { get; set; }
+
     protected override void OnInitialized()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
@@ -52,6 +55,7 @@
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
+        OnNavigate?.Invoke();
         StateHasChanged();
     }
 
