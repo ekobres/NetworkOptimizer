@@ -181,10 +181,15 @@ public class MacOuiDetector
         // Meross
         { "48:E1:E9", ("Meross", ClientDeviceCategory.SmartPlug, 85) },
 
-        // UniFi Protect cameras
+        // UniFi Protect cameras (Ubiquiti OUI prefixes used for Protect devices)
         { "FC:EC:DA", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
         { "24:5A:4C", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
         { "B4:FB:E4", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
+        { "1C:6A:1B", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
+        { "28:70:4E", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
+        { "A8:9C:6C", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
+        { "E0:63:DA", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
+        { "78:45:58", ("UniFi Protect", ClientDeviceCategory.Camera, 95) },
 
         // Hikvision
         { "C4:2F:90", ("Hikvision", ClientDeviceCategory.Camera, 90) },
