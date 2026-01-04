@@ -89,7 +89,7 @@ The main application providing:
 
 Browser-based speed testing from any device. Results are automatically sent to Network Optimizer.
 
-**Configuration:** Set `HOST_IP` in `.env` (required for path analysis). Optionally set `HOST_NAME` for friendlier URLs (requires DNS resolution—can be local DNS via gateway).
+**Configuration:** Set `HOST_NAME` in `.env` for canonical URL enforcement and friendlier URLs. Set `HOST_IP` if path analysis can't auto-detect the server IP (bridge networking). See [Client Speed Testing](DEPLOYMENT.md#client-speed-testing-optional) for details.
 
 **To disable:** Comment out the `openspeedtest` service in `docker-compose.yml`.
 

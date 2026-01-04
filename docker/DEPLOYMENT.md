@@ -670,19 +670,19 @@ Bundled as part of the Docker Compose stack. Access at `http://your-server:3005`
 Set these environment variables in `.env`:
 
 ```env
-# Required: Server IP for path analysis (matching speed tests to network topology)
+# Server IP for path analysis (only needed if auto-detection fails, e.g., bridge networking)
 HOST_IP=192.168.1.100
 
-# Optional: Hostname for friendlier user-facing URLs (requires DNS resolution)
-# Can be local DNS via router/Pi-hole (e.g., nas, server.local, optimizer.home.arpa)
+# Hostname for canonical URL enforcement and friendlier user-facing URLs
+# Requires DNS resolution (can be local DNS via router/Pi-hole)
 HOST_NAME=nas
 
-# Optional: If app/API is behind a reverse proxy with HTTPS
-# Only affects API URL for result reporting, not the OpenSpeedTest URL
+# If app/API is behind a reverse proxy with HTTPS (takes priority for canonical URL)
+# Only affects app/API URL, not the OpenSpeedTest container URL
 REVERSE_PROXIED_HOST_NAME=optimizer.example.com
 ```
 
-These settings are complementary—set `HOST_IP` always, then optionally add `HOST_NAME` for friendlier URLs and/or `REVERSE_PROXIED_HOST_NAME` if behind a proxy.
+These settings enforce a canonical URL via 302 redirect. Priority: `REVERSE_PROXIED_HOST_NAME` > `HOST_NAME` > `HOST_IP`. If none set, any Host header is accepted. `HOST_IP` is only required for speed test path analysis when the server IP can't be auto-detected.
 
 The API URL for result reporting is constructed using this priority:
 1. `REVERSE_PROXIED_HOST_NAME` → `https://hostname/api/public/speedtest/results`

@@ -291,6 +291,48 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
 }
 
+// Host enforcement: redirect to canonical host if configured
+// Priority: REVERSE_PROXIED_HOST_NAME (https) > HOST_NAME (http:8042) > HOST_IP (http:8042)
+// If none configured, accept any host
+var canonicalHost = builder.Configuration["REVERSE_PROXIED_HOST_NAME"];
+var canonicalScheme = "https";
+var canonicalPort = (string?)null; // No port for reverse proxy (443 implied)
+
+if (string.IsNullOrEmpty(canonicalHost))
+{
+    canonicalHost = builder.Configuration["HOST_NAME"];
+    canonicalScheme = "http";
+    canonicalPort = "8042";
+}
+if (string.IsNullOrEmpty(canonicalHost))
+{
+    canonicalHost = builder.Configuration["HOST_IP"];
+    canonicalScheme = "http";
+    canonicalPort = "8042";
+}
+
+if (!string.IsNullOrEmpty(canonicalHost))
+{
+    app.Use(async (context, next) =>
+    {
+        var requestHost = context.Request.Host.Host;
+
+        // Check if host matches (case-insensitive)
+        if (!string.Equals(requestHost, canonicalHost, StringComparison.OrdinalIgnoreCase))
+        {
+            // Build redirect URL
+            var port = canonicalPort != null ? $":{canonicalPort}" : "";
+            var redirectUrl = $"{canonicalScheme}://{canonicalHost}{port}{context.Request.Path}{context.Request.QueryString}";
+
+            // 302 redirect (not 301 to avoid browser caching)
+            context.Response.Redirect(redirectUrl, permanent: false);
+            return;
+        }
+
+        await next();
+    });
+}
+
 // Only use HTTPS redirection if not in Docker/container (check for DOTNET_RUNNING_IN_CONTAINER)
 if (!string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
 {
