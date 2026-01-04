@@ -6,11 +6,11 @@
 <div class="app-container">
     <div class="sidebar-overlay @(sidebarOpen ? "visible" : "")" @onclick="CloseSidebar"></div>
     <div class="sidebar @(sidebarOpen ? "open" : "")">
-        <div class="sidebar-header">
+        <a href="/" class="sidebar-header" @onclick="CloseSidebar">
             <img src="images/ozark-connect-logo.png" alt="Ozark Connect" class="sidebar-logo" />
             <h2 class="app-title">Network Optimizer</h2>
             <p class="app-subtitle">for UniFi</p>
-        </div>
+        </a>
         <NavMenu OnNavigate="CloseSidebar" />
     </div>
 

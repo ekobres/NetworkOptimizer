@@ -98,9 +98,16 @@ a:hover {
 }
 
 .sidebar-header {
+    display: block;
     padding: 16px;
     border-bottom: 1px solid var(--border-color);
     text-align: center;
+    text-decoration: none;
+    color: inherit;
+}
+
+.sidebar-header:hover {
+    text-decoration: none;
 }
 
 .sidebar-logo {
