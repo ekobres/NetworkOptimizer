@@ -13,6 +13,9 @@ using NetworkOptimizer.Audit.Services;
 using NetworkOptimizer.Storage.Models;
 using NetworkOptimizer.UniFi;
 
+// TODO(i18n): Add internationalization/localization support. Community volunteers available for translations.
+// See: https://learn.microsoft.com/en-us/aspnet/core/blazor/globalization-localization
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Data Protection to persist keys to the data volume

@@ -1,5 +1,7 @@
 # Network Optimizer for UniFi
 
+> **Early Access Testers:** This project is under active development. Until official beta releases are cut, please **pull from `main` regularly** to get the latest fixes and features. Breaking changes may occur between updates.
+
 You've set up VLANs, configured firewall rules, maybe even deployed a Pi-hole for DNS filtering. The UniFi controller gives you all this power, but it never actually tells you whether your configuration is any good. Are your firewall rules doing what you think they're doing? Is that IoT VLAN actually isolated, or did you miss something? When a device bypasses your DNS settings and phones home directly, would you even know?
 
 Network Optimizer answers those questions. It connects to your UniFi controller, analyzes your configuration, and tells you what's working, what's broken, and what you should fix. No more guessing.
