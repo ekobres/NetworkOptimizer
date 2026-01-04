@@ -434,6 +434,23 @@ public class DeviceTypeDetectionService
             };
         }
 
+        // Printers - UniFi often miscategorizes as "Network & Peripheral" (IoTGeneric)
+        if (nameLower.Contains("printer"))
+        {
+            return new DeviceDetectionResult
+            {
+                Category = ClientDeviceCategory.Printer,
+                Source = DetectionSource.DeviceName,
+                ConfidenceScore = NameOverrideConfidence,
+                RecommendedNetwork = NetworkPurpose.Corporate,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["override_reason"] = "Name contains 'printer' - overrides vendor fingerprint",
+                    ["matched_name"] = checkName
+                }
+            };
+        }
+
         // Apple Watch is a wearable/smartphone, not an IoT sensor
         if (nameLower.Contains("apple watch") || (nameLower.Contains("watch") && nameLower.Contains("apple")))
         {
