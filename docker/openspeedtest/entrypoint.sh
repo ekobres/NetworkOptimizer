@@ -19,7 +19,8 @@ else
 fi
 
 # Find and patch the main JavaScript file
-JS_FILE=$(find /var/www/html -name "app-*.js" -o -name "app-*.min.js" 2>/dev/null | head -1)
+# OpenSpeedTest uses /usr/share/nginx/html
+JS_FILE=$(find /usr/share/nginx/html -name "app-*.js" -o -name "app-*.min.js" 2>/dev/null | head -1)
 
 if [ -n "$JS_FILE" ] && [ -n "$SAVE_DATA_URL" ]; then
     echo "Patching OpenSpeedTest to send results to: $SAVE_DATA_URL"
