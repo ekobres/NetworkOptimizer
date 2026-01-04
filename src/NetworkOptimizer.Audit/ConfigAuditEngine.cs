@@ -46,6 +46,7 @@ public class ConfigAuditEngine
         public List<SwitchInfo> Switches { get; set; } = [];
         public List<WirelessClientInfo> WirelessClients { get; set; } = [];
         public List<OfflineClientInfo> OfflineClients { get; set; } = [];
+        public Dictionary<string, string?> ApNameToModel { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<AuditIssue> AllIssues { get; } = [];
         public List<string> HardeningMeasures { get; set; } = [];
         public DnsSecurityResult? DnsSecurityResult { get; set; }
@@ -302,6 +303,13 @@ public class ConfigAuditEngine
     {
         _logger.LogInformation("Phase 3b: Analyzing wireless clients");
         var apLookup = ctx.SecurityEngine.ExtractAccessPointInfoLookup(ctx.DeviceData);
+
+        // Store AP name-to-model lookup for offline client analysis
+        ctx.ApNameToModel = apLookup.Values
+            .Where(ap => !string.IsNullOrEmpty(ap.Name))
+            .GroupBy(ap => ap.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().ModelName, StringComparer.OrdinalIgnoreCase);
+
         ctx.WirelessClients = ctx.SecurityEngine.ExtractWirelessClients(ctx.Clients, ctx.Networks, apLookup);
         var wirelessIssues = ctx.SecurityEngine.AnalyzeWirelessClients(ctx.WirelessClients, ctx.Networks);
         ctx.AllIssues.AddRange(wirelessIssues);
@@ -374,9 +382,12 @@ public class ConfigAuditEngine
             if (lastNetwork == null)
                 continue;
 
-            // Look up the AP/switch model from the uplink name
-            var lastUplinkModelName = ctx.Switches
-                .FirstOrDefault(s => s.Name == historyClient.LastUplinkName)?.ModelName;
+            // Look up the AP model from the uplink name
+            string? lastUplinkModelName = null;
+            if (!string.IsNullOrEmpty(historyClient.LastUplinkName))
+            {
+                ctx.ApNameToModel.TryGetValue(historyClient.LastUplinkName, out lastUplinkModelName);
+            }
 
             // Add to offline clients list
             ctx.OfflineClients.Add(new OfflineClientInfo

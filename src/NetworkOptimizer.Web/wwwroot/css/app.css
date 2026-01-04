@@ -3647,4 +3647,13 @@ td .btn + .btn {
         padding: 1rem 1rem;
         min-width: 70px;
     }
+
+    /* Audit timestamp - hide label, reduce font size */
+    .audit-timestamp {
+        font-size: 0.75rem;
+    }
+
+    .audit-timestamp .timestamp-label {
+        display: none;
+    }
 }
