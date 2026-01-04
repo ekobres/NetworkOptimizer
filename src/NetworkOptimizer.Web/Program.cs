@@ -502,23 +502,22 @@ app.MapPost("/api/public/speedtest/results", async (HttpContext context, ClientS
     });
 }).RequireCors("SpeedTestCors");
 
-// Authenticated endpoints for viewing client speed test results
-app.MapGet("/api/speedtest/results", async (ClientSpeedTestService service, int count = 50) =>
+// Authenticated endpoint for viewing client speed test results
+app.MapGet("/api/speedtest/results", async (ClientSpeedTestService service, string? ip = null, string? mac = null, int count = 50) =>
 {
     if (count < 1) count = 1;
     if (count > 1000) count = 1000;
+
+    // Filter by IP if provided
+    if (!string.IsNullOrWhiteSpace(ip))
+        return Results.Ok(await service.GetResultsByIpAsync(ip, count));
+
+    // Filter by MAC if provided
+    if (!string.IsNullOrWhiteSpace(mac))
+        return Results.Ok(await service.GetResultsByMacAsync(mac, count));
+
+    // Return all results
     return Results.Ok(await service.GetResultsAsync(count));
-});
-
-app.MapGet("/api/speedtest/results/ip/{clientIp}", async (string clientIp, ClientSpeedTestService service, int count = 20) =>
-{
-    if (string.IsNullOrWhiteSpace(clientIp))
-        return Results.BadRequest(new { error = "Invalid client IP" });
-
-    if (count < 1) count = 1;
-    if (count > 1000) count = 1000;
-
-    return Results.Ok(await service.GetResultsByIpAsync(clientIp, count));
 });
 
 // Auth API endpoints
