@@ -344,6 +344,15 @@ public class FingerprintDetector
         if (name.Contains("voip") || name.Contains("sip phone") || name.Contains("ip phone"))
             return ClientDeviceCategory.VoIP;
 
+        // Smartphones (iPhones, Android phones, etc.)
+        if (name.Contains("iphone") || name.Contains("galaxy") || name.Contains("pixel") ||
+            name.Contains("android") || name.Contains("smartphone"))
+            return ClientDeviceCategory.Smartphone;
+
+        // Tablets
+        if (name.Contains("ipad") || name.Contains("tablet") || name.Contains("galaxy tab"))
+            return ClientDeviceCategory.Tablet;
+
         return ClientDeviceCategory.Unknown;
     }
 
