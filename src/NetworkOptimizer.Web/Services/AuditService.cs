@@ -136,15 +136,18 @@ public class AuditService
             var allStreaming = await _settingsService.GetAsync("audit:allowAllStreamingOnMainNetwork");
             var nameBrandTVs = await _settingsService.GetAsync("audit:allowNameBrandTVsOnMainNetwork");
             var allTVs = await _settingsService.GetAsync("audit:allowAllTVsOnMainNetwork");
+            var printers = await _settingsService.GetAsync("audit:allowPrintersOnMainNetwork");
 
             options.AllowAppleStreamingOnMainNetwork = appleStreaming?.ToLower() == "true";
             options.AllowAllStreamingOnMainNetwork = allStreaming?.ToLower() == "true";
             options.AllowNameBrandTVsOnMainNetwork = nameBrandTVs?.ToLower() == "true";
             options.AllowAllTVsOnMainNetwork = allTVs?.ToLower() == "true";
+            // Printers default to true (allowed) if not set
+            options.AllowPrintersOnMainNetwork = printers == null || printers.ToLower() == "true";
 
-            _logger.LogDebug("Loaded audit settings: AllowApple={Apple}, AllowAllStreaming={AllStreaming}, AllowNameBrandTVs={NameBrandTVs}, AllowAllTVs={AllTVs}",
+            _logger.LogDebug("Loaded audit settings: AllowApple={Apple}, AllowAllStreaming={AllStreaming}, AllowNameBrandTVs={NameBrandTVs}, AllowAllTVs={AllTVs}, AllowPrinters={Printers}",
                 options.AllowAppleStreamingOnMainNetwork, options.AllowAllStreamingOnMainNetwork,
-                options.AllowNameBrandTVsOnMainNetwork, options.AllowAllTVsOnMainNetwork);
+                options.AllowNameBrandTVsOnMainNetwork, options.AllowAllTVsOnMainNetwork, options.AllowPrintersOnMainNetwork);
         }
         catch (Exception ex)
         {
@@ -590,7 +593,8 @@ public class AuditService
                 AllowAppleStreamingOnMainNetwork = options.AllowAppleStreamingOnMainNetwork,
                 AllowAllStreamingOnMainNetwork = options.AllowAllStreamingOnMainNetwork,
                 AllowNameBrandTVsOnMainNetwork = options.AllowNameBrandTVsOnMainNetwork,
-                AllowAllTVsOnMainNetwork = options.AllowAllTVsOnMainNetwork
+                AllowAllTVsOnMainNetwork = options.AllowAllTVsOnMainNetwork,
+                AllowPrintersOnMainNetwork = options.AllowPrintersOnMainNetwork
             };
 
             // Run the audit engine with all available data for comprehensive analysis
@@ -1056,6 +1060,7 @@ public class AuditOptions
     public bool AllowAllStreamingOnMainNetwork { get; set; } = false;
     public bool AllowNameBrandTVsOnMainNetwork { get; set; } = false;
     public bool AllowAllTVsOnMainNetwork { get; set; } = false;
+    public bool AllowPrintersOnMainNetwork { get; set; } = true;
 }
 
 public class AuditResult
