@@ -80,7 +80,7 @@ public class UniFiDiscovery
                 UplinkType = d.Uplink?.Type,
                 CpuUsage = d.SystemStats?.Cpu,
                 MemoryUsage = d.SystemStats?.Mem,
-                LoadAverage = d.SystemStats?.LoadAvg1,
+                LoadAverage = d.SystemStats?.LoadAvg1?.ToString("F2"),
                 TxBytes = d.Stats?.TxBytes ?? 0,
                 RxBytes = d.Stats?.RxBytes ?? 0,
                 PortCount = d.PortTable?.Count ?? 0
