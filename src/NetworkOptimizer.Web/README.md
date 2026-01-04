@@ -93,7 +93,7 @@ NetworkOptimizer.Web/
 
 ## Technology Stack
 
-- **Framework**: ASP.NET Core 9.0
+- **Framework**: ASP.NET Core 10.0
 - **UI**: Blazor Server with Interactive Server components
 - **Styling**: Custom CSS with dark mode design
 - **Dependencies**:
