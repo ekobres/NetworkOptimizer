@@ -107,6 +107,13 @@ Current limitation: LAN speed tests require SSH access to target devices (UniFi 
 
 ## General
 
+### Database Normalization Review
+- Review SQLite schema for proper normal form (1NF, 2NF, 3NF)
+- Ensure proper use of primary keys, foreign keys, and indices
+- Audit table relationships and consider splitting denormalized data
+- JSON columns are intentional for flexible nested data (e.g., PathAnalysisJson, RawJson)
+- Consider: Separate Clients table with FK references instead of storing ClientMac/ClientName inline
+
 ### Replace Severity String Constants with Enums
 - Current: Severity comparisons use string literals like `"Critical"`, `"Recommended"`, `"Informational"`
 - Example: `i.Severity == "Critical"` scattered throughout codebase

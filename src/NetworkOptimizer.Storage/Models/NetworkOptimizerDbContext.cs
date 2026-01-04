@@ -27,7 +27,6 @@ public class NetworkOptimizerDbContext : DbContext
     public DbSet<UniFiConnectionSettings> UniFiConnectionSettings { get; set; }
     public DbSet<SqmWanConfiguration> SqmWanConfigurations { get; set; }
     public DbSet<AdminSettings> AdminSettings { get; set; }
-    public DbSet<ClientSpeedTestResult> ClientSpeedTestResults { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,7 +94,9 @@ public class NetworkOptimizerDbContext : DbContext
             entity.ToTable("Iperf3Results");
             entity.HasIndex(e => e.DeviceHost);
             entity.HasIndex(e => e.TestTime);
+            entity.HasIndex(e => e.Direction);
             entity.HasIndex(e => new { e.DeviceHost, e.TestTime });
+            entity.Property(e => e.Direction).HasConversion<int>();
         });
 
         // UniFiSshSettings configuration (singleton - only one row)
@@ -141,21 +142,6 @@ public class NetworkOptimizerDbContext : DbContext
         modelBuilder.Entity<AdminSettings>(entity =>
         {
             entity.ToTable("AdminSettings");
-        });
-
-        // ClientSpeedTestResult configuration
-        modelBuilder.Entity<ClientSpeedTestResult>(entity =>
-        {
-            entity.ToTable("ClientSpeedTestResults");
-            entity.HasIndex(e => e.ClientIp);
-            entity.HasIndex(e => e.ClientMac);
-            entity.HasIndex(e => e.TestTime);
-            entity.HasIndex(e => e.Source);
-            entity.HasIndex(e => new { e.ClientIp, e.TestTime });
-            // Store enum as string
-            entity.Property(e => e.Source)
-                .HasConversion<string>()
-                .HasMaxLength(50);
         });
     }
 }

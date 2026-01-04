@@ -487,8 +487,8 @@ app.MapPost("/api/speedtest/results", async (HttpContext context, ClientSpeedTes
     return Results.Ok(new {
         success = true,
         id = result.Id,
-        clientIp = result.ClientIp,
-        clientName = result.ClientName,
+        clientIp = result.DeviceHost,
+        clientName = result.DeviceName,
         download = result.DownloadMbps,
         upload = result.UploadMbps
     });

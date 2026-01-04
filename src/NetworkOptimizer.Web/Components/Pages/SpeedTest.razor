@@ -21,15 +21,30 @@
 <div class="page-header">
     <h1>LAN Speed Test</h1>
     <p class="page-description">Test network bandwidth using iperf3</p>
-    <a href="/client-speedtest" class="client-speedtest-link">
-        Test from phones, tablets & other devices →
-    </a>
     @if (localIperf3Status != null && localIperf3Status.IsAvailable)
     {
         <div class="iperf3-version-badge">
             <span class="status-badge status-connected">@localIperf3Status.Version</span>
         </div>
     }
+</div>
+
+<!-- Client Speed Test Promotion -->
+<div class="card client-speedtest-card">
+    <div class="card-body">
+        <div class="client-speedtest-promo">
+            <div class="promo-content">
+                <h3>Test from Any Device</h3>
+                <p>
+                    Run speed tests from phones, tablets, laptops, or any device on your network.
+                    No SSH required — just open a browser or use iperf3.
+                </p>
+            </div>
+            <a href="/client-speedtest" class="btn btn-primary">
+                Client Speed Test →
+            </a>
+        </div>
+    </div>
 </div>
 
 @if (localIperf3Status != null && !localIperf3Status.IsAvailable)
@@ -897,6 +912,51 @@
         background: rgba(0, 0, 0, 0.1);
         padding: 0.125rem 0.375rem;
         border-radius: 4px;
+    }
+
+    /* Client speed test promotion card */
+    .client-speedtest-card {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+        border: 1px solid var(--accent-color);
+        margin-bottom: 1.5rem;
+    }
+
+    .client-speedtest-promo {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .promo-content h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.125rem;
+        color: var(--accent-color);
+    }
+
+    .promo-content p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        max-width: 600px;
+    }
+
+    .client-speedtest-promo .btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    @@media (max-width: 600px) {
+        .client-speedtest-promo {
+            flex-direction: column;
+            align-items: stretch;
+            text-align: center;
+        }
+
+        .client-speedtest-promo .btn {
+            align-self: center;
+        }
     }
 
     /* Locked out state */
