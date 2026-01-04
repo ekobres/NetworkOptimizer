@@ -99,6 +99,10 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
         {
             _logger.LogWarning(ex, "Error loading UniFi configuration from database");
         }
+        finally
+        {
+            IsInitialized = true;
+        }
     }
 
     /// <summary>
@@ -115,6 +119,7 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
     }
 
     public bool IsConnected => _isConnected && _client != null;
+    public bool IsInitialized { get; private set; }
     public string? LastError => _lastError;
     public DateTime? LastConnectedAt => _lastConnectedAt;
     public bool IsUniFiOs => _client?.IsUniFiOs ?? false;

@@ -30,7 +30,7 @@
     </div>
 }
 
-@if (!ConnectionService.IsConnected)
+@if (!ConnectionService.IsConnected && ConnectionService.IsInitialized)
 {
     <div class="connection-banner">
         <div class="banner-content">
