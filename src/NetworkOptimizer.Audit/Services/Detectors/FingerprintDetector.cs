@@ -336,8 +336,8 @@ public class FingerprintDetector
         if (name.Contains("nas") || name.Contains("synology") || name.Contains("qnap"))
             return ClientDeviceCategory.NAS;
 
-        // VoIP
-        if (name.Contains("voip") || name.Contains("phone") && !name.Contains("smart"))
+        // VoIP (only explicit voip keywords, not generic "phone")
+        if (name.Contains("voip") || name.Contains("sip phone") || name.Contains("ip phone"))
             return ClientDeviceCategory.VoIP;
 
         return ClientDeviceCategory.Unknown;

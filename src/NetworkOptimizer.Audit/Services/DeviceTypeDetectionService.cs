@@ -452,6 +452,24 @@ public class DeviceTypeDetectionService
             };
         }
 
+        // iPhone - explicitly smartphone (may be misdetected due to fingerprint issues)
+        if (nameLower.Contains("iphone"))
+        {
+            return new DeviceDetectionResult
+            {
+                Category = ClientDeviceCategory.Smartphone,
+                Source = DetectionSource.DeviceName,
+                ConfidenceScore = NameOverrideConfidence,
+                VendorName = "Apple",
+                RecommendedNetwork = NetworkPurpose.Corporate,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["override_reason"] = "iPhone is a smartphone",
+                    ["matched_name"] = checkName
+                }
+            };
+        }
+
         // VR headsets (Quest, Oculus, etc.) - often misdetected as Smartphone
         if (IsVRHeadsetName(nameLower))
         {

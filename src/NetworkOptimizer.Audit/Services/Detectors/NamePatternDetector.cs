@@ -89,7 +89,7 @@ public class NamePatternDetector
             ClientDeviceCategory.SmartLighting, 90),
         (new[] { "lutron", "caseta" },
             ClientDeviceCategory.SmartLighting, 85),
-        (new[] { "smart bulb", "smart light", "led strip", "string lights", "rail lights" },
+        (new[] { "smart bulb", "led strip", "light" },
             ClientDeviceCategory.SmartLighting, 75),
 
         // Smart Plugs
