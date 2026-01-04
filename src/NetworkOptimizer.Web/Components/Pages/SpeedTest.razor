@@ -36,8 +36,8 @@
             <div class="promo-content">
                 <h3>Test from Any Device</h3>
                 <p>
-                    Run speed tests from phones, tablets, laptops, or any device on your network.
-                    No SSH required — just open a browser or use iperf3.
+                    Run speed tests from phones, tablets, laptops, or any device on your network...
+                    no SSH required, just open a browser or use iperf3.
                 </p>
             </div>
             <a href="/client-speedtest" class="btn btn-primary">
@@ -924,9 +924,13 @@
     .client-speedtest-promo {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 1.5rem;
         flex-wrap: wrap;
+    }
+
+    .promo-content {
+        flex: 1;
+        min-width: 250px;
     }
 
     .promo-content h3 {
@@ -939,7 +943,6 @@
         margin: 0;
         color: var(--text-secondary);
         font-size: 0.875rem;
-        max-width: 600px;
     }
 
     .client-speedtest-promo .btn {
