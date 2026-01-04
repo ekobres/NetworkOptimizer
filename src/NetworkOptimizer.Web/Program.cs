@@ -292,8 +292,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 // Host enforcement: redirect to canonical host if configured
-// Priority: REVERSE_PROXIED_HOST_NAME (https) > HOST_NAME (http:8042) > HOST_IP (http:8042)
-// If none configured, accept any host
+// Only REVERSE_PROXIED_HOST_NAME or HOST_NAME trigger redirects
+// HOST_IP alone does NOT redirect (allows users to access via any hostname)
 var canonicalHost = builder.Configuration["REVERSE_PROXIED_HOST_NAME"];
 var canonicalScheme = "https";
 var canonicalPort = (string?)null; // No port for reverse proxy (443 implied)
@@ -304,12 +304,7 @@ if (string.IsNullOrEmpty(canonicalHost))
     canonicalScheme = "http";
     canonicalPort = "8042";
 }
-if (string.IsNullOrEmpty(canonicalHost))
-{
-    canonicalHost = builder.Configuration["HOST_IP"];
-    canonicalScheme = "http";
-    canonicalPort = "8042";
-}
+// Note: HOST_IP intentionally NOT used for redirects
 
 if (!string.IsNullOrEmpty(canonicalHost))
 {

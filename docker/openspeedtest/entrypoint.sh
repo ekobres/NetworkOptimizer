@@ -59,7 +59,8 @@ if [ -f "$NGINX_CONF" ]; then
     sed -i 's/add_header Cache-Control public;/add_header Cache-Control "no-cache, no-store, must-revalidate";/' "$NGINX_CONF"
     echo "Disabled aggressive caching"
 
-    # Enforce canonical host via 302 redirect (same priority as UI display: HOST_NAME > HOST_IP)
+    # Enforce canonical host via 302 redirect (HOST_NAME or HOST_IP)
+    # Required for CORS - browser origin must match what's configured for result reporting
     CANONICAL_HOST=""
     if [ -n "$HOST_NAME" ]; then
         CANONICAL_HOST="$HOST_NAME"
