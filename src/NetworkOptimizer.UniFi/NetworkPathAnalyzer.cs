@@ -572,7 +572,8 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                     name.Contains("hyper-v") || desc.Contains("hyper-v") ||
                     name.Contains("virtualbox") || desc.Contains("virtualbox") ||
                     name.StartsWith("veth") || name.StartsWith("cni") ||
-                    name.StartsWith("gre") || name.StartsWith("ifb"))
+                    name.StartsWith("gre") || name.StartsWith("ifb") ||
+                    name.StartsWith("wg"))  // WireGuard
                     continue;
 
                 // Assign priority: lower = better
