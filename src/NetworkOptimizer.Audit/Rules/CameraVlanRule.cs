@@ -94,10 +94,13 @@ public class CameraVlanRule : AuditRuleBase
         string deviceName;
         if (isOfflineDevice)
         {
-            // Offline device: use port name or port number with switch context
-            deviceName = !string.IsNullOrEmpty(port.Name)
+            // Offline device: use custom port name if set, otherwise detected category
+            // Default port names like "Port 5" should fall back to detection
+            var hasCustomPortName = !string.IsNullOrEmpty(port.Name) &&
+                !System.Text.RegularExpressions.Regex.IsMatch(port.Name, @"^Port \d+$");
+            deviceName = hasCustomPortName
                 ? $"{port.Name} on {port.Switch.Name}"
-                : $"Port {port.PortIndex} on {port.Switch.Name}";
+                : $"{detection.CategoryName} on {port.Switch.Name}";
         }
         else
         {
