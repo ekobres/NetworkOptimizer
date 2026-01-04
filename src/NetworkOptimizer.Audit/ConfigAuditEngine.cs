@@ -374,12 +374,17 @@ public class ConfigAuditEngine
             if (lastNetwork == null)
                 continue;
 
+            // Look up the AP/switch model from the uplink name
+            var lastUplinkModelName = ctx.Switches
+                .FirstOrDefault(s => s.Name == historyClient.LastUplinkName)?.ModelName;
+
             // Add to offline clients list
             ctx.OfflineClients.Add(new OfflineClientInfo
             {
                 HistoryClient = historyClient,
                 LastNetwork = lastNetwork,
-                Detection = detection
+                Detection = detection,
+                LastUplinkModelName = lastUplinkModelName
             });
 
             // Check if IoT device on wrong VLAN

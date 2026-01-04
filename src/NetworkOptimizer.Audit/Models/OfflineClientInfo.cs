@@ -64,6 +64,11 @@ public class OfflineClientInfo
     public string? LastUplinkName => HistoryClient.LastUplinkName;
 
     /// <summary>
+    /// Model name of the AP or switch the client was last connected to (e.g., "UniFi 6 Pro")
+    /// </summary>
+    public string? LastUplinkModelName { get; init; }
+
+    /// <summary>
     /// Friendly display of how long ago the device was seen
     /// </summary>
     public string LastSeenDisplay

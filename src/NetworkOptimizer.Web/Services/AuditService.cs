@@ -751,6 +751,7 @@ public class AuditService
                 DisplayName = oc.DisplayName,
                 Mac = oc.Mac,
                 LastUplinkName = oc.LastUplinkName,
+                LastUplinkModelName = oc.LastUplinkModelName,
                 LastNetwork = oc.LastNetwork,
                 DeviceCategory = oc.Detection.CategoryName,
                 LastSeenDisplay = oc.LastSeenDisplay,
@@ -1218,6 +1219,7 @@ public class OfflineClientReference
     public string DisplayName { get; set; } = "";
     public string? Mac { get; set; }
     public string? LastUplinkName { get; set; }
+    public string? LastUplinkModelName { get; set; }
     public NetworkOptimizer.Audit.Models.NetworkInfo? LastNetwork { get; set; }
     public string DeviceCategory { get; set; } = "";
     public string LastSeenDisplay { get; set; } = "";

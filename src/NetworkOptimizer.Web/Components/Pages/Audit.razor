@@ -529,7 +529,7 @@
                 <div class="card-body">
                     @foreach (var group in offlineGroups)
                     {
-                        var apModel = lastResult.Switches.FirstOrDefault(s => s.Name == group.Key)?.ModelName;
+                        var apModel = group.FirstOrDefault()?.LastUplinkModelName;
                         <div class="ap-section">
                             <h3 class="ap-title">
                                 <DeviceIcon Model="@apModel" Size="lg" />

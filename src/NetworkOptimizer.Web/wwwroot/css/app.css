@@ -3056,6 +3056,7 @@ td .btn + .btn {
     flex-wrap: wrap;
     align-items: center;
     gap: 3rem;
+    place-content: center;
 }
 
 .summary-score {
