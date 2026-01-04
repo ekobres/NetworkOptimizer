@@ -184,8 +184,10 @@ public class PortSecurityAnalyzer
     }
 
     /// <summary>
-    /// Build lookup table for wired client history by switch MAC + port index.
+    /// Build lookup table for client history by switch MAC + port index.
     /// Returns most recently seen client per port for offline device correlation.
+    /// Note: We check for LastUplinkRemotePort, not IsWired, because some devices
+    /// that connected via switch have is_wired=false (e.g., devices capable of both).
     /// </summary>
     private Dictionary<(string, int), UniFiClientHistoryResponse> BuildClientHistoryPortLookup(List<UniFiClientHistoryResponse>? clientHistory)
     {
@@ -196,11 +198,8 @@ public class PortSecurityAnalyzer
 
         foreach (var client in clientHistory)
         {
-            // Only wired clients have switch/port info
-            if (!client.IsWired)
-                continue;
-
-            // Need switch MAC and port number
+            // Need switch MAC and port number - this indicates a switch port connection
+            // regardless of IsWired flag (some devices report is_wired=false even when wired)
             if (string.IsNullOrEmpty(client.LastUplinkMac) || !client.LastUplinkRemotePort.HasValue)
                 continue;
 
