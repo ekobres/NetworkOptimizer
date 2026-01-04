@@ -62,7 +62,7 @@
                             </button>
                         </div>
                         <p class="form-help browser-tip">
-                            <strong>Tip:</strong> For &gt;2.5 GbE LANs, Chrome gives the fastest results.
+                            <strong>Tip:</strong> For &gt; 2.5 GbE LANs, Chrome gives the fastest results.
                             Firefox limits performance, especially on uploads.
                         </p>
                     }
@@ -98,7 +98,7 @@
                         </div>
                         <p class="form-help">
                             Install iperf3:<br />
-                            <code>apt install iperf3</code> (Linux)<br />
+                            <code>sudo apt install iperf3</code> (Linux)<br />
                             <code>brew install iperf3</code> (Mac)<br />
                             <a href="https://iperf.fr/iperf-download.php" target="_blank">iperf.fr</a> (Windows)
                         </p>
@@ -352,6 +352,10 @@
         padding: 0.5rem;
         background: var(--bg-primary);
         border-radius: var(--border-radius);
+    }
+
+    .browser-tip {
+        margin-top: 1rem;
     }
 
     .url-display {
