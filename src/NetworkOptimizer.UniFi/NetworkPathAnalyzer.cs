@@ -403,10 +403,6 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
         else
         {
             result.Insights.Add("Path analysis unavailable - cannot grade performance");
-            if (!string.IsNullOrEmpty(path.ErrorMessage))
-            {
-                result.Insights.Add(path.ErrorMessage);
-            }
         }
 
         return result;
