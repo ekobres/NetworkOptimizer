@@ -477,6 +477,9 @@ public class AuditService
     {
         _logger.LogInformation("Running security audit with options: {@Options}", options);
 
+        // Invalidate device cache to ensure fresh data for audit
+        _connectionService.InvalidateDeviceCache();
+
         if (!_connectionService.IsConnected || _connectionService.Client == null)
         {
             _logger.LogWarning("Cannot run audit: UniFi controller not connected");
