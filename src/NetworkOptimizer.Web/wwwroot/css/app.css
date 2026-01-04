@@ -1623,7 +1623,8 @@ td .btn + .btn {
     border-left-color: var(--danger-color);
 }
 
-.issue-item.issue-warning {
+.issue-item.issue-warning,
+.issue-item.issue-recommended {
     border-left-color: var(--warning-color);
 }
 
@@ -1642,7 +1643,8 @@ td .btn + .btn {
     color: var(--danger-color);
 }
 
-.issue-item.issue-warning .issue-icon {
+.issue-item.issue-warning .issue-icon,
+.issue-item.issue-recommended .issue-icon {
     color: var(--warning-color);
 }
 
@@ -1676,7 +1678,8 @@ td .btn + .btn {
     color: var(--danger-color);
 }
 
-.issue-warning .issue-severity {
+.issue-warning .issue-severity,
+.issue-recommended .issue-severity {
     background: rgba(245, 158, 11, 0.15);
     color: var(--warning-color);
 }
@@ -1702,23 +1705,16 @@ td .btn + .btn {
     opacity: 1;
 }
 
-.issue-settings-link {
-    display: inline-flex;
-    align-items: center;
+.issue-settings-icon {
+    width: 18px;
+    height: 18px;
     margin-left: 0.5rem;
-    color: var(--text-muted);
-    opacity: 0.7;
-    transition: all 0.2s ease;
+    background: transparent;
 }
 
-.issue-settings-link:hover {
-    color: var(--primary-color);
-    opacity: 1;
-}
-
-.issue-settings-link .settings-icon {
-    width: 14px;
-    height: 14px;
+.issue-settings-icon svg {
+    width: 12px;
+    height: 12px;
 }
 
 .issue-title {
@@ -3191,7 +3187,8 @@ td .btn + .btn {
     color: var(--danger-color);
 }
 
-.issue-count.warning .count {
+.issue-count.warning .count,
+.issue-count.recommended .count {
     color: var(--warning-color);
 }
 

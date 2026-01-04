@@ -16,7 +16,7 @@ public class AuditService
 {
     // Severity level constants for consistent string comparisons
     private const string SeverityCritical = "Critical";
-    private const string SeverityWarning = "Warning";
+    private const string SeverityRecommended = "Recommended";
     private const string SeverityInfo = "Info";
 
     // Cache keys for IMemoryCache
@@ -250,10 +250,10 @@ public class AuditService
         GetActiveIssues().Count(i => i.Severity == SeverityCritical);
 
     /// <summary>
-    /// Get count of active warning issues
+    /// Get count of active recommended issues
     /// </summary>
-    public int ActiveWarningCount =>
-        GetActiveIssues().Count(i => i.Severity == SeverityWarning);
+    public int ActiveRecommendedCount =>
+        GetActiveIssues().Count(i => i.Severity == SeverityRecommended);
 
     /// <summary>
     /// Clear all dismissed issues (removes from database too)
@@ -384,7 +384,7 @@ public class AuditService
             {
                 Score = cachedResult.Score,
                 CriticalCount = activeIssues.Count(i => i.Severity == SeverityCritical),
-                WarningCount = activeIssues.Count(i => i.Severity == SeverityWarning),
+                WarningCount = activeIssues.Count(i => i.Severity == SeverityRecommended),
                 LastAuditTime = cachedTime.Value,
                 RecentIssues = activeIssues.Take(5).ToList()
             };
@@ -689,7 +689,7 @@ public class AuditService
         var severityCounts = issues.GroupBy(i => i.Severity)
             .ToDictionary(g => g.Key, g => g.Count());
         var criticalCount = severityCounts.GetValueOrDefault(SeverityCritical, 0);
-        var warningCount = severityCounts.GetValueOrDefault(SeverityWarning, 0);
+        var warningCount = severityCounts.GetValueOrDefault(SeverityRecommended, 0);
         var infoCount = severityCounts.GetValueOrDefault(SeverityInfo, 0);
 
         // Recalculate score based on FILTERED issues only (excluded features don't affect score)
@@ -919,7 +919,7 @@ public class AuditService
     private static string ConvertSeverity(AuditModels.AuditSeverity severity) => severity switch
     {
         AuditModels.AuditSeverity.Critical => "Critical",
-        AuditModels.AuditSeverity.Recommended => "Warning",
+        AuditModels.AuditSeverity.Recommended => "Recommended",
         AuditModels.AuditSeverity.Informational => "Info",
         _ => "Info"
     };
