@@ -2490,8 +2490,8 @@ td .btn + .btn {
 
 /* Color variables for speed test */
 :root {
-    --speed-upload-color: #24bc70;    /* green - To Device (matches success-color) */
-    --speed-download-color: #0ea5e9;  /* blue - From Device */
+    --speed-upload-color: var(--success-color);    /* green - To Device */
+    --speed-download-color: var(--primary-hover);  /* blue - From Device */
 }
 
 .speed-results {
