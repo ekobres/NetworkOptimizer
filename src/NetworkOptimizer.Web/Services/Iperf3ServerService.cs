@@ -44,6 +44,11 @@ public class Iperf3ServerService : BackgroundService
             return;
         }
 
+        // Kill any orphaned iperf3 server processes from previous runs
+        // This is especially important for native deployments where launchd/systemd
+        // may not kill child processes when stopping the app
+        await KillOrphanedIperf3ProcessesAsync();
+
         _logger.LogInformation("Starting iperf3 server on port {Port}", Iperf3Port);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -311,5 +316,64 @@ public class Iperf3ServerService : BackgroundService
         }
 
         await base.StopAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Kill any orphaned iperf3 server processes that may be left over from a previous run.
+    /// This handles the case where the app was stopped but child processes weren't killed
+    /// (common with launchd on macOS).
+    /// </summary>
+    private async Task KillOrphanedIperf3ProcessesAsync()
+    {
+        try
+        {
+            // Use pkill on Unix-like systems (macOS, Linux)
+            if (!OperatingSystem.IsWindows())
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "pkill",
+                    Arguments = "-f 'iperf3 -s'",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process != null)
+                {
+                    await process.WaitForExitAsync();
+                    if (process.ExitCode == 0)
+                    {
+                        _logger.LogInformation("Killed orphaned iperf3 server process(es)");
+                        // Brief delay to ensure port is released
+                        await Task.Delay(500);
+                    }
+                    // Exit code 1 means no matching processes found, which is fine
+                }
+            }
+            else
+            {
+                // On Windows, find and kill iperf3.exe processes in server mode
+                // We check the command line for "-s" to avoid killing client instances
+                foreach (var proc in Process.GetProcessesByName("iperf3"))
+                {
+                    try
+                    {
+                        proc.Kill();
+                        _logger.LogInformation("Killed orphaned iperf3 server process (PID {Pid})", proc.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Could not kill iperf3 process {Pid}", proc.Id);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error checking for orphaned iperf3 processes");
+        }
     }
 }

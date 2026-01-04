@@ -186,9 +186,8 @@ launchctl unload ~/Library/LaunchAgents/com.networkoptimizer.app.plist
 # Start service
 launchctl load ~/Library/LaunchAgents/com.networkoptimizer.app.plist
 
-# Restart service (includes killing orphaned iperf3)
+# Restart service
 launchctl unload ~/Library/LaunchAgents/com.networkoptimizer.app.plist && \
-pkill -f 'iperf3 -s' 2>/dev/null; \
 launchctl load ~/Library/LaunchAgents/com.networkoptimizer.app.plist
 
 # View logs
@@ -197,8 +196,6 @@ tail -f ~/network-optimizer/logs/stdout.log
 # Check status
 launchctl list | grep networkoptimizer && curl -s http://localhost:8042/api/health
 ```
-
-**Note:** The `pkill -f 'iperf3 -s'` is important. When launchd stops the app, the iperf3 child process becomes orphaned and keeps port 5201 bound. Without killing it, the new instance can't start its own iperf3 server.
 
 ### Data Location
 
@@ -210,9 +207,8 @@ Network Optimizer stores data in:
 ### Updating
 
 ```bash
-# Stop service and kill orphaned iperf3
+# Stop service
 launchctl unload ~/Library/LaunchAgents/com.networkoptimizer.app.plist
-pkill -f 'iperf3 -s' 2>/dev/null
 
 # Backup database (optional)
 cp ~/Library/Application\ Support/NetworkOptimizer/network_optimizer.db ~/network_optimizer.db.backup
@@ -626,20 +622,6 @@ Change the port in your startup script:
 ```bash
 export ASPNETCORE_URLS="http://0.0.0.0:8080"  # Use different port
 ```
-
-### macOS: iperf3 Server Not Working After Restart
-
-If iperf3 results aren't being captured after a restart, check for orphaned iperf3 processes:
-
-```bash
-# Check if iperf3 is running outside the app
-ps aux | grep 'iperf3 -s'
-
-# If you see an old process, kill it
-pkill -f 'iperf3 -s'
-```
-
-When launchd stops the app, child processes (like iperf3) become orphaned and keep running. Always include `pkill -f 'iperf3 -s'` in your restart commands (see [Service Management](#service-management)).
 
 ### Check Application Logs
 
