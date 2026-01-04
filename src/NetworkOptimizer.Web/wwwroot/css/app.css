@@ -1894,17 +1894,6 @@ td .btn + .btn {
         font-size: 0.7rem;
     }
 
-    /* Issue counts - reduce padding and allow wrap on mobile */
-    .issue-counts {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-
-    .issue-count {
-        padding: 1rem 1rem;
-        min-width: 70px;
-    }
-
     /* Alert items - icon inline with title on mobile */
     .alert-item {
         display: grid;
@@ -3641,4 +3630,20 @@ td .btn + .btn {
     display: block;
     margin: 0 auto;
     margin-right: -0.5rem;
+}
+
+/* ============================================
+   MOBILE OVERRIDES (must come after base styles)
+   ============================================ */
+@media (max-width: 768px) {
+    /* Issue counts - reduce gap and padding on mobile */
+    .issue-counts {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .issue-count {
+        padding: 1rem 1rem;
+        min-width: 70px;
+    }
 }

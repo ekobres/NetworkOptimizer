@@ -529,8 +529,10 @@
                 <div class="card-body">
                     @foreach (var group in offlineGroups)
                     {
+                        var apModel = lastResult.Switches.FirstOrDefault(s => s.Name == group.Key)?.ModelName;
                         <div class="ap-section">
                             <h3 class="ap-title">
+                                <DeviceIcon Model="@apModel" Size="lg" />
                                 @group.Key <span class="client-count">(@group.Count() clients)</span>
                             </h3>
                             <div class="table-responsive">
