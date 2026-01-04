@@ -76,19 +76,21 @@
                     {
                         <div class="code-block">
                             <code>
-                                <span class="code-comment"># Test upload speed (client to server)</span><br />
-                                iperf3 -c @serverHost -p 5201<br />
+                                <span class="code-comment"># Test upload speed (client to server, 4 streams)</span><br />
+                                iperf3 -c @serverHost -P 4<br />
                                 <br />
-                                <span class="code-comment"># Test download speed (server to client)</span><br />
-                                iperf3 -c @serverHost -p 5201 -R<br />
+                                <span class="code-comment"># Test download speed (server to client, 4 streams)</span><br />
+                                iperf3 -c @serverHost -P 4 -R<br />
                                 <br />
-                                <span class="code-comment"># Full bidirectional test</span><br />
-                                iperf3 -c @serverHost -p 5201 --bidir
+                                <span class="code-comment"># Full bidirectional test (runs both directions simultaneously)</span><br />
+                                iperf3 -c @serverHost -P 4 --bidir
                             </code>
                         </div>
                         <p class="form-help">
-                            Install iperf3: <code>apt install iperf3</code> (Linux), <code>brew install iperf3</code> (Mac),
-                            or download from <a href="https://iperf.fr/iperf-download.php" target="_blank">iperf.fr</a> (Windows)
+                            Install iperf3:<br />
+                            <code>apt install iperf3</code> (Linux)<br />
+                            <code>brew install iperf3</code> (Mac)<br />
+                            <a href="https://iperf.fr/iperf-download.php" target="_blank">iperf.fr</a> (Windows)
                         </p>
                     }
                     else
