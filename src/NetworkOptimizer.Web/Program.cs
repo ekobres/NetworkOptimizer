@@ -71,8 +71,13 @@ builder.Services.AddDbContext<NetworkOptimizerDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}")
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
-// Also register DbContextFactory for singletons that need database access (ClientSpeedTestService)
-// Use custom factory with separate options instance to avoid DI lifetime conflict with scoped DbContext
+// Register DbContextFactory for singleton services (ClientSpeedTestService, Iperf3ServerService)
+// that need database access but can't inject scoped DbContext.
+//
+// Why custom factory? AddDbContext registers DbContextOptions as Scoped, but AddDbContextFactory
+// registers it as Singleton. Using both causes DI validation errors in Development mode:
+// "Cannot consume scoped service from singleton". Our custom factory owns its own options instance,
+// avoiding the conflict entirely.
 var factoryOptions = new DbContextOptionsBuilder<NetworkOptimizerDbContext>()
     .UseSqlite($"Data Source={dbPath}")
     .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))

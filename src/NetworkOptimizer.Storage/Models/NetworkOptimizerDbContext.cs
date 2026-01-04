@@ -147,9 +147,14 @@ public class NetworkOptimizerDbContext : DbContext
 }
 
 /// <summary>
-/// Simple DbContext factory for singleton services that need database access.
-/// Creates new DbContext instances with pre-configured options.
+/// Custom DbContext factory for singleton services that need database access.
 /// </summary>
+/// <remarks>
+/// This exists to work around a DI lifetime conflict: AddDbContext registers DbContextOptions
+/// as Scoped, but AddDbContextFactory needs Singleton options. Using both causes validation
+/// errors in Development mode. This factory owns its own options instance, avoiding the conflict.
+/// See Program.cs registration for details.
+/// </remarks>
 public class NetworkOptimizerDbContextFactory : IDbContextFactory<NetworkOptimizerDbContext>
 {
     private readonly DbContextOptions<NetworkOptimizerDbContext> _options;
