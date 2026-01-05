@@ -3,6 +3,7 @@ using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Audit.Rules;
 using NetworkOptimizer.Audit.Services;
 using NetworkOptimizer.Core.Enums;
+using NetworkOptimizer.Core.Models;
 using NetworkOptimizer.UniFi.Models;
 using Xunit;
 
@@ -326,6 +327,83 @@ public class CameraVlanRuleTests
         // Assert
         result.Should().NotBeNull();
         result!.DeviceName.Should().Contain("Outdoor Switch");
+    }
+
+    [Fact]
+    public void Evaluate_ProtectCamera_DeviceNameUsesProductName()
+    {
+        // Arrange - Protect camera detected by MAC with no client name, should use ProductName from detection
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var protectCameras = new ProtectCameraCollection();
+        protectCameras.Add("00:11:22:33:44:55", "G6 Pro Bullet");
+        _detectionService.SetProtectCameras(protectCameras);
+
+        var switchInfo = new SwitchInfo { Name = "Outdoor Switch", Model = "USW-24", Type = "usw" };
+        var connectedClient = new UniFiClientResponse
+        {
+            Mac = "00:11:22:33:44:55",
+            Name = null,        // No name
+            Hostname = null,    // No hostname
+            IsWired = true,
+            NetworkId = corpNetwork.Id
+        };
+
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Port 1",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = connectedClient
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Device name should use ProductName from Protect detection
+        result.Should().NotBeNull();
+        result!.DeviceName.Should().Be("G6 Pro Bullet on Outdoor Switch");
+    }
+
+    [Fact]
+    public void Evaluate_ClientWithNoName_FallsBackToOuiAndMac()
+    {
+        // Arrange - Client with no name but with OUI should fallback to "OUI (XX:XX)" format
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Outdoor Switch", Model = "USW-24", Type = "usw" };
+
+        // Amcrest camera OUI (9C:8E:CD) without a name
+        var connectedClient = new UniFiClientResponse
+        {
+            Mac = "9C:8E:CD:11:22:33",
+            Name = null,        // No name
+            Hostname = null,    // No hostname
+            Oui = "Amcrest",    // Manufacturer
+            IsWired = true,
+            NetworkId = corpNetwork.Id
+        };
+
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Camera Port",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = connectedClient
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Device name should use OUI + MAC suffix format
+        result.Should().NotBeNull();
+        result!.DeviceName.Should().Be("Amcrest (22:33) on Outdoor Switch");
     }
 
     #endregion

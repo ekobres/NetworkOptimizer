@@ -214,8 +214,9 @@
                         {
                             var groupCount = issueTypeGroup.Count();
                             var isSingleItem = groupCount == 1;
-                            var isExpanded = isSingleItem || expandedIssueTypes.Contains(issueTypeGroup.Key);
-                            var highestSeverity = GetIssueTypeHighestSeverity(issueTypeGroup);
+                            var groupKey = $"{issueTypeGroup.Key.Title}|{issueTypeGroup.Key.Severity}";
+                            var isExpanded = isSingleItem || expandedIssueTypes.Contains(groupKey);
+                            var highestSeverity = issueTypeGroup.Key.Severity.ToLower();
                             var firstIssue = issueTypeGroup.First();
 
                             @if (isSingleItem)
@@ -296,13 +297,13 @@
                                 // Multiple items: render as collapsible group
                                 <div class="issue-type-group">
                                     <div class="issue-type-header issue-type-@highestSeverity @(isExpanded ? "expanded" : "")"
-                                         @onclick="() => ToggleIssueType(issueTypeGroup.Key)">
+                                         @onclick="() => ToggleIssueType(groupKey)">
                                         <div class="issue-type-icon">
                                             @((MarkupString)GetSeverityIcon(highestSeverity))
                                         </div>
                                         <span class="issue-type-chevron">@(isExpanded ? "▼" : "▶")</span>
-                                        <span class="issue-type-name">@issueTypeGroup.Key</span>
-                                        <span class="issue-type-count">(@groupCount)</span>
+                                        <span class="issue-type-name">@issueTypeGroup.Key.Title</span>
+                                        <span class="issue-type-count">(@groupCount @issueTypeGroup.Key.Severity)</span>
                                         @if (!string.IsNullOrEmpty(firstIssue.ConfigurableSetting))
                                         {
                                             <span class="tooltip-wrapper">
@@ -1137,21 +1138,23 @@
         return issues.Where(i => i.Severity.ToLower() == selectedFilter);
     }
 
-    private IEnumerable<IGrouping<string, Services.AuditIssue>> GetGroupedFilteredIssues()
+    private IEnumerable<IGrouping<(string Title, string Severity), Services.AuditIssue>> GetGroupedFilteredIssues()
     {
-        // Group by exact issue type (Title), so all "Missing MAC Restriction" issues are together
+        // Group by both issue type (Title) AND severity, so Critical/Recommended/Info are separate groups
         return GetFilteredIssues()
-            .GroupBy(i => i.Title)
-            .OrderBy(g => GetIssueTypeSeverityOrder(g))
-            .ThenBy(g => g.Key);
+            .GroupBy(i => (i.Title, i.Severity))
+            .OrderBy(g => GetSeverityOrder(g.Key.Severity))
+            .ThenBy(g => g.Key.Title);
     }
 
-    private int GetIssueTypeSeverityOrder(IGrouping<string, Services.AuditIssue> group)
+    private int GetSeverityOrder(string severity)
     {
-        // Sort by highest severity in the group: Critical first, then Recommended, then Info
-        if (group.Any(i => i.Severity == "Critical")) return 1;
-        if (group.Any(i => i.Severity == "Recommended")) return 2;
-        return 3;
+        return severity switch
+        {
+            "Critical" => 1,
+            "Recommended" => 2,
+            _ => 3
+        };
     }
 
     private void ToggleIssueType(string issueType)
@@ -1160,27 +1163,6 @@
             expandedIssueTypes.Remove(issueType);
         else
             expandedIssueTypes.Add(issueType);
-    }
-
-    private string GetIssueTypeSeveritySummary(IGrouping<string, Services.AuditIssue> issueGroup)
-    {
-        var criticals = issueGroup.Count(i => i.Severity == "Critical");
-        var recommended = issueGroup.Count(i => i.Severity == "Recommended");
-        var infos = issueGroup.Count(i => i.Severity == "Info" || i.Severity == "Informational");
-
-        var parts = new List<string>();
-        if (criticals > 0) parts.Add($"{criticals} Critical");
-        if (recommended > 0) parts.Add($"{recommended} Recommended");
-        if (infos > 0) parts.Add($"{infos} Info");
-
-        return string.Join(", ", parts);
-    }
-
-    private string GetIssueTypeHighestSeverity(IGrouping<string, Services.AuditIssue> issueGroup)
-    {
-        if (issueGroup.Any(i => i.Severity == "Critical")) return "critical";
-        if (issueGroup.Any(i => i.Severity == "Recommended")) return "recommended";
-        return "info";
     }
 
     private string GetSeverityIcon(string severity)
