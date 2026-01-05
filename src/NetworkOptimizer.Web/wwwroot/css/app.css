@@ -1810,6 +1810,24 @@ select.form-control {
     border-radius: var(--border-radius) var(--border-radius) 0 0;
 }
 
+.issue-type-group .expand-wrapper.expanded .expand-content {
+    background: var(--bg-primary);
+    border-left: 4px solid var(--border-color);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+.issue-type-group.issue-critical .expand-wrapper.expanded .expand-content {
+    border-left-color: var(--danger-color);
+}
+
+.issue-type-group.issue-recommended .expand-wrapper.expanded .expand-content {
+    border-left-color: var(--warning-color);
+}
+
+.issue-type-group.issue-info .expand-wrapper.expanded .expand-content {
+    border-left-color: var(--info-color);
+}
+
 /* Issue type group severity colors - uses same classes as issue-item */
 .issue-type-group.issue-critical .issue-type-header {
     border-left-color: var(--danger-color);
