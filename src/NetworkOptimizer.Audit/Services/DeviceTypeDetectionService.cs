@@ -128,7 +128,7 @@ public class DeviceTypeDetectionService
 
         // Priority 0: Check for obvious name keywords that should OVERRIDE fingerprint
         // This handles cases where vendor fingerprint is wrong (e.g., Cync plugs detected as cameras)
-        var obviousNameResult = CheckObviousNameOverride(client?.Name, client?.Hostname);
+        var obviousNameResult = CheckObviousNameOverride(client?.Name, client?.Hostname, client?.Oui);
         if (obviousNameResult != null)
         {
             _logger?.LogDebug("[Detection] '{DisplayName}': Name override → {Category} (name clearly indicates device type)",
@@ -271,6 +271,31 @@ public class DeviceTypeDetectionService
             .ThenByDescending(r => r.ConfidenceScore)
             .First();
 
+        // Post-processing: Override Camera to CloudCamera for cloud camera vendors
+        // This handles cases where fingerprint returns Camera but OUI indicates a cloud vendor
+        if (best.Category == ClientDeviceCategory.Camera && !string.IsNullOrEmpty(client?.Oui))
+        {
+            var ouiLower = client.Oui.ToLowerInvariant();
+            if (IsCloudCameraVendor(ouiLower))
+            {
+                _logger?.LogDebug("[Detection] Overriding Camera → CloudCamera for cloud vendor OUI '{Oui}'", client.Oui);
+                best = new DeviceDetectionResult
+                {
+                    Category = ClientDeviceCategory.CloudCamera,
+                    Source = best.Source,
+                    ConfidenceScore = best.ConfidenceScore,
+                    VendorName = best.VendorName ?? client.Oui,
+                    ProductName = best.ProductName,
+                    RecommendedNetwork = NetworkPurpose.IoT,
+                    Metadata = new Dictionary<string, object>(best.Metadata ?? new Dictionary<string, object>())
+                    {
+                        ["cloud_vendor_override"] = true,
+                        ["oui"] = client.Oui
+                    }
+                };
+            }
+        }
+
         // If multiple sources agree, boost confidence
         if (results.Count > 1)
         {
@@ -336,10 +361,12 @@ public class DeviceTypeDetectionService
         if (name.Contains("samsung") && name.Contains("smart")) return CreateOuiResult(ClientDeviceCategory.SmartAppliance, ouiName, OuiLowestConfidence);
         if (name.Contains("lg") && name.Contains("smart")) return CreateOuiResult(ClientDeviceCategory.SmartAppliance, ouiName, OuiLowestConfidence);
 
-        // Security cameras (note: Wyze/Cync handled earlier in CheckVendorDefaultOverride)
-        if (name.Contains("ring")) return CreateOuiResult(ClientDeviceCategory.Camera, ouiName, OuiMediumConfidence);
-        if (name.Contains("arlo")) return CreateOuiResult(ClientDeviceCategory.Camera, ouiName, OuiHighConfidence);
-        if (name.Contains("blink")) return CreateOuiResult(ClientDeviceCategory.Camera, ouiName, OuiMediumConfidence);
+        // Cloud cameras (require internet/cloud services) - note: Wyze handled in CheckVendorDefaultOverride
+        if (name.Contains("ring")) return CreateOuiResult(ClientDeviceCategory.CloudCamera, ouiName, OuiMediumConfidence);
+        if (name.Contains("arlo")) return CreateOuiResult(ClientDeviceCategory.CloudCamera, ouiName, OuiHighConfidence);
+        if (name.Contains("blink")) return CreateOuiResult(ClientDeviceCategory.CloudCamera, ouiName, OuiMediumConfidence);
+
+        // Self-hosted cameras (local storage/NVR)
         if (name.Contains("reolink")) return CreateOuiResult(ClientDeviceCategory.Camera, ouiName, OuiHighConfidence);
         if (name.Contains("hikvision") || name.Contains("dahua") || name.Contains("amcrest")) return CreateOuiResult(ClientDeviceCategory.Camera, ouiName, OuiHighConfidence);
         if (name.Contains("eufy")) return CreateOuiResult(ClientDeviceCategory.Camera, ouiName, OuiStandardConfidence);
@@ -373,7 +400,7 @@ public class DeviceTypeDetectionService
     /// This catches cases where the vendor fingerprint is wrong (e.g., Cync plugs detected as cameras).
     /// Only returns a result for VERY obvious cases where we're confident.
     /// </summary>
-    private DeviceDetectionResult? CheckObviousNameOverride(string? name, string? hostname)
+    private DeviceDetectionResult? CheckObviousNameOverride(string? name, string? hostname, string? oui = null)
     {
         var checkName = name ?? hostname;
         if (string.IsNullOrEmpty(checkName))
@@ -507,16 +534,23 @@ public class DeviceTypeDetectionService
         // Obvious camera/doorbell keywords - overrides vendor OUI (e.g., Nest cameras misdetected as thermostats)
         if (IsCameraName(nameLower))
         {
+            // Check if this is a cloud camera vendor (requires internet/cloud services)
+            // Check both device name and OUI for cloud camera vendors
+            var ouiLower = oui?.ToLowerInvariant() ?? "";
+            var isCloudCamera = IsCloudCameraVendor(nameLower) || IsCloudCameraVendor(ouiLower);
             return new DeviceDetectionResult
             {
-                Category = ClientDeviceCategory.Camera,
+                Category = isCloudCamera ? ClientDeviceCategory.CloudCamera : ClientDeviceCategory.Camera,
                 Source = DetectionSource.DeviceName,
                 ConfidenceScore = NameOverrideConfidence,
-                RecommendedNetwork = NetworkPurpose.Security,
+                RecommendedNetwork = isCloudCamera ? NetworkPurpose.IoT : NetworkPurpose.Security,
                 Metadata = new Dictionary<string, object>
                 {
-                    ["override_reason"] = "Name contains camera/doorbell keyword - overrides vendor OUI",
-                    ["matched_name"] = checkName
+                    ["override_reason"] = isCloudCamera
+                        ? "Camera detected from cloud vendor (Nest/Google/Ring/etc.)"
+                        : "Name contains camera/doorbell keyword - overrides vendor OUI",
+                    ["matched_name"] = checkName,
+                    ["is_cloud_camera"] = isCloudCamera
                 }
             };
         }
@@ -571,6 +605,20 @@ public class DeviceTypeDetectionService
                nameLower.Contains("security") ||
                nameLower.Contains("nvr") ||
                nameLower.Contains("ptz");
+    }
+
+    /// <summary>
+    /// Check if a name or OUI indicates a cloud camera vendor (requires internet/cloud services).
+    /// Cloud cameras should go on IoT VLAN, not Security VLAN.
+    /// </summary>
+    private static bool IsCloudCameraVendor(string nameLower)
+    {
+        return nameLower.Contains("ring") ||
+               nameLower.Contains("nest") ||
+               nameLower.Contains("google") || // Google Nest cameras
+               nameLower.Contains("wyze") ||
+               nameLower.Contains("blink") ||
+               nameLower.Contains("arlo");
     }
 
     /// <summary>

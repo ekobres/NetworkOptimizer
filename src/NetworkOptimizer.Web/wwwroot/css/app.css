@@ -1783,6 +1783,85 @@ select.form-control {
     color: var(--text-muted);
 }
 
+/* Collapsible Issue Categories */
+.issue-category-group {
+    margin-bottom: 0.75rem;
+}
+
+.issue-category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-left: 4px solid var(--border-color);
+}
+
+.issue-category-header:hover {
+    background: var(--bg-hover);
+}
+
+.issue-category-header.expanded {
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.issue-category-critical {
+    border-left-color: var(--danger-color);
+}
+
+.issue-category-recommended {
+    border-left-color: var(--warning-color);
+}
+
+.issue-category-info {
+    border-left-color: var(--info-color);
+}
+
+.category-chevron {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    width: 1rem;
+    flex-shrink: 0;
+}
+
+.category-name {
+    font-weight: 600;
+}
+
+.category-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.category-severity-summary {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.category-issues-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--bg-tertiary);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    border-top: 1px solid var(--border-color);
+}
+
+.category-issues-list .issue-item {
+    background: var(--bg-primary);
+}
+
 /* Footer */
 .app-footer {
     padding: 1.5rem 2rem;

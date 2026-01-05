@@ -6,14 +6,15 @@ using AuditSeverity = NetworkOptimizer.Audit.Models.AuditSeverity;
 namespace NetworkOptimizer.Audit.Rules;
 
 /// <summary>
-/// Detects security cameras not on a dedicated security VLAN
-/// Uses enhanced detection: fingerprint > MAC OUI > port name patterns
+/// Detects self-hosted security cameras not on a dedicated security VLAN.
+/// Uses enhanced detection: fingerprint > MAC OUI > port name patterns.
+/// Note: Cloud cameras (Ring, Nest, Wyze, Blink, Arlo) are handled by IoT VLAN rules instead.
 /// </summary>
 public class CameraVlanRule : AuditRuleBase
 {
     public override string RuleId => "CAMERA-VLAN-001";
     public override string RuleName => "Camera VLAN Placement";
-    public override string Description => "Security cameras should be on dedicated security/camera VLANs";
+    public override string Description => "Self-hosted security cameras should be on dedicated security/camera VLANs";
     public override AuditSeverity Severity => AuditSeverity.Critical;
     public override int ScoreImpact => 8;
 
@@ -56,8 +57,13 @@ public class CameraVlanRule : AuditRuleBase
             return null;
         }
 
-        // Check if this is a surveillance/security device
+        // Check if this is a surveillance/security device (but not cloud cameras)
+        // Cloud cameras (Ring, Nest, Wyze, Blink, Arlo) are handled by IoT VLAN rules
         if (!detection.Category.IsSurveillance())
+            return null;
+
+        // Skip cloud cameras - they should go on IoT VLAN, not Security VLAN
+        if (detection.Category.IsCloudCamera())
             return null;
 
         // Get the network this port is on

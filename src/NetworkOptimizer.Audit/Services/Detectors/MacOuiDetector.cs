@@ -16,12 +16,12 @@ public class MacOuiDetector
     /// </summary>
     private static readonly Dictionary<string, (string Vendor, ClientDeviceCategory Category, int Confidence)> OuiMappings = new(StringComparer.OrdinalIgnoreCase)
     {
-        // Ring devices (cameras, doorbells)
-        { "0C:47:C9", ("Ring", ClientDeviceCategory.Camera, 85) },
-        { "34:1F:4F", ("Ring", ClientDeviceCategory.Camera, 85) },
-        { "44:73:D6", ("Ring", ClientDeviceCategory.Camera, 85) },
-        { "A4:DA:22", ("Ring", ClientDeviceCategory.Camera, 85) },
-        { "90:48:9A", ("Ring", ClientDeviceCategory.Camera, 85) },
+        // Ring devices (cloud cameras, doorbells) - require cloud services
+        { "0C:47:C9", ("Ring", ClientDeviceCategory.CloudCamera, 85) },
+        { "34:1F:4F", ("Ring", ClientDeviceCategory.CloudCamera, 85) },
+        { "44:73:D6", ("Ring", ClientDeviceCategory.CloudCamera, 85) },
+        { "A4:DA:22", ("Ring", ClientDeviceCategory.CloudCamera, 85) },
+        { "90:48:9A", ("Ring", ClientDeviceCategory.CloudCamera, 85) },
 
         // Nest/Google Home
         { "18:B4:30", ("Nest", ClientDeviceCategory.SmartThermostat, 80) },
@@ -125,12 +125,12 @@ public class MacOuiDetector
         { "68:FF:7B", ("TP-Link", ClientDeviceCategory.SmartPlug, 70) },
         { "54:AF:97", ("TP-Link", ClientDeviceCategory.SmartPlug, 70) },
 
-        // Wyze
-        { "2C:AA:8E", ("Wyze", ClientDeviceCategory.Camera, 85) },
-        { "D0:3F:27", ("Wyze", ClientDeviceCategory.Camera, 85) },
+        // Wyze (cloud cameras) - require cloud services
+        { "2C:AA:8E", ("Wyze", ClientDeviceCategory.CloudCamera, 85) },
+        { "D0:3F:27", ("Wyze", ClientDeviceCategory.CloudCamera, 85) },
 
-        // Arlo
-        { "4C:77:6D", ("Arlo", ClientDeviceCategory.Camera, 90) },
+        // Arlo (cloud cameras) - require cloud services
+        { "4C:77:6D", ("Arlo", ClientDeviceCategory.CloudCamera, 90) },
 
         // Eufy
         { "8C:85:80", ("Eufy", ClientDeviceCategory.Camera, 85) },
@@ -139,8 +139,8 @@ public class MacOuiDetector
         // Reolink
         { "EC:71:DB", ("Reolink", ClientDeviceCategory.Camera, 90) },
 
-        // Blink
-        { "9C:55:B4", ("Blink", ClientDeviceCategory.Camera, 85) },
+        // Blink (cloud cameras) - require cloud services (Amazon)
+        { "9C:55:B4", ("Blink", ClientDeviceCategory.CloudCamera, 85) },
 
         // Ecobee
         { "44:61:32", ("Ecobee", ClientDeviceCategory.SmartThermostat, 90) },
@@ -220,7 +220,13 @@ public class MacOuiDetector
         ("Panasonic", ClientDeviceCategory.SmartTV, 60),
         ("Toshiba", ClientDeviceCategory.SmartTV, 60),
 
-        // Camera manufacturers
+        // Cloud camera manufacturers (require internet/cloud services)
+        ("Ring", ClientDeviceCategory.CloudCamera, 85),
+        ("Arlo", ClientDeviceCategory.CloudCamera, 90),
+        ("Wyze", ClientDeviceCategory.CloudCamera, 85),
+        ("Blink", ClientDeviceCategory.CloudCamera, 85),
+
+        // Self-hosted camera manufacturers (local storage/NVR)
         ("Hikvision", ClientDeviceCategory.Camera, 90),
         ("Dahua", ClientDeviceCategory.Camera, 90),
         ("Axis Communications", ClientDeviceCategory.Camera, 90),
@@ -229,6 +235,9 @@ public class MacOuiDetector
         ("Hanwha", ClientDeviceCategory.Camera, 90),
         ("Avigilon", ClientDeviceCategory.Camera, 90),
         ("Bosch Security", ClientDeviceCategory.Camera, 90),
+        ("Reolink", ClientDeviceCategory.Camera, 90),
+        ("Amcrest", ClientDeviceCategory.Camera, 90),
+        ("Eufy", ClientDeviceCategory.Camera, 85),
 
         // Printer manufacturers
         ("Hewlett Packard", ClientDeviceCategory.Printer, 75),

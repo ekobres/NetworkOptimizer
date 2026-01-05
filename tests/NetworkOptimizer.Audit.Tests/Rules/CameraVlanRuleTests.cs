@@ -668,6 +668,323 @@ public class CameraVlanRuleTests
 
     #endregion
 
+    #region Cloud Camera Tests - Should Be Skipped By CameraVlanRule
+
+    [Fact]
+    public void Evaluate_CloudCameraDevice_ReturnsNull()
+    {
+        // Arrange - CloudCamera devices should be handled by IoT rules, not Camera rules
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Cloud Camera Port",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "0C:47:C9:11:22:33", // Ring MAC prefix
+                Name = "Ring Doorbell",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Cloud cameras should be skipped (handled by IoT rules)
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_RingCamera_ReturnsNull()
+    {
+        // Arrange - Ring is a cloud camera, should be skipped
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Ring Camera",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "34:1F:4F:11:22:33", // Ring MAC prefix
+                Name = "Ring Cam",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Ring cameras are cloud cameras, should be skipped
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_NestCamera_ReturnsNull()
+    {
+        // Arrange - Nest/Google cameras are cloud cameras, should be skipped
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Nest Camera",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "18:B4:30:11:22:33", // Nest MAC prefix (detected as CloudCamera via name pattern)
+                Name = "Nest Cam Indoor", // Name indicates camera
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Nest cameras are cloud cameras, should be skipped
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_GoogleNestCamera_ByName_ReturnsNull()
+    {
+        // Arrange - Google Nest camera detected by name pattern
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Google Nest Camera",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "AA:BB:CC:11:22:33", // Unknown MAC, but name indicates Nest camera
+                Name = "Nest Hello Doorbell",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Nest identified by name as cloud camera, should be skipped
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_WyzeCamera_ReturnsNull()
+    {
+        // Arrange - Wyze is a cloud camera, should be skipped
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Wyze Cam",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "2C:AA:8E:11:22:33", // Wyze MAC prefix
+                Name = "Wyze Cam v3",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Wyze cameras are cloud cameras, should be skipped
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_BlinkCamera_ReturnsNull()
+    {
+        // Arrange - Blink is a cloud camera (Amazon), should be skipped
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Blink Camera",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "9C:55:B4:11:22:33", // Blink MAC prefix
+                Name = "Blink Outdoor",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Blink cameras are cloud cameras, should be skipped
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_ArloCamera_ReturnsNull()
+    {
+        // Arrange - Arlo is a cloud camera, should be skipped
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Arlo Pro",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "4C:77:6D:11:22:33", // Arlo MAC prefix
+                Name = "Arlo Pro 4",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Arlo cameras are cloud cameras, should be skipped
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Evaluate_SelfHostedCamera_StillDetected()
+    {
+        // Arrange - Self-hosted cameras (e.g., Reolink) should still be flagged
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Reolink Camera",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "EC:71:DB:11:22:33", // Reolink MAC prefix
+                Name = "Reolink RLC-810A",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Reolink is self-hosted, should be flagged
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void Evaluate_UniFiProtectCamera_StillDetected()
+    {
+        // Arrange - UniFi Protect cameras are self-hosted, should be flagged
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "UniFi Camera",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "FC:EC:DA:11:22:33", // UniFi Protect MAC prefix
+                Name = "G4 Doorbell",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - UniFi Protect is self-hosted, should be flagged
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void Evaluate_EufyCamera_StillDetected()
+    {
+        // Arrange - Eufy cameras are self-hosted (local storage), should be flagged
+        var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
+        var switchInfo = new SwitchInfo { Name = "Test Switch", Model = "USW-24", Type = "usw" };
+        var port = new PortInfo
+        {
+            PortIndex = 1,
+            Name = "Eufy Camera",
+            IsUp = true,
+            ForwardMode = "native",
+            NativeNetworkId = corpNetwork.Id,
+            Switch = switchInfo,
+            ConnectedClient = new UniFiClientResponse
+            {
+                Mac = "8C:85:80:11:22:33", // Eufy MAC prefix
+                Name = "Eufy Cam 2C",
+                IsWired = true,
+                NetworkId = corpNetwork.Id
+            }
+        };
+        var networks = CreateNetworkList(corpNetwork);
+
+        // Act
+        var result = _rule.Evaluate(port, networks);
+
+        // Assert - Eufy is self-hosted, should be flagged
+        result.Should().NotBeNull();
+        result!.Severity.Should().Be(AuditSeverity.Critical);
+    }
+
+    #endregion
+
     #region Offline Device 2-Week Scoring Tests
 
     [Fact]
