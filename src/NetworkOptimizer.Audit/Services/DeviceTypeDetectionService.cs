@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Audit.Services.Detectors;
 using NetworkOptimizer.Core.Enums;
+using NetworkOptimizer.Core.Models;
 using NetworkOptimizer.UniFi.Models;
 
 namespace NetworkOptimizer.Audit.Services;
@@ -36,8 +37,8 @@ public class DeviceTypeDetectionService
     // Client history lookup for enhanced offline device detection
     private Dictionary<string, UniFiClientHistoryResponse>? _clientHistoryByMac;
 
-    // UniFi Protect camera MACs (highest priority detection)
-    private HashSet<string>? _protectCameraMacs;
+    // UniFi Protect cameras (highest priority detection)
+    private ProtectCameraCollection? _protectCameras;
 
     public DeviceTypeDetectionService(
         ILogger<DeviceTypeDetectionService>? logger = null,
@@ -71,18 +72,23 @@ public class DeviceTypeDetectionService
     }
 
     /// <summary>
-    /// Set known UniFi Protect device MAC addresses that require Security VLAN.
+    /// Set known UniFi Protect devices that require Security VLAN.
     /// Includes cameras, doorbells, NVRs, and AI processors.
     /// These are detected with 100% confidence, bypassing all other detection methods.
     /// </summary>
-    public void SetProtectCameraMacs(HashSet<string>? protectCameraMacs)
+    public void SetProtectCameras(ProtectCameraCollection? protectCameras)
     {
-        _protectCameraMacs = protectCameraMacs;
-        if (protectCameraMacs != null && protectCameraMacs.Count > 0)
+        _protectCameras = protectCameras;
+        if (protectCameras != null && protectCameras.Count > 0)
         {
-            _logger?.LogInformation("Loaded {Count} UniFi Protect device MACs for priority detection", protectCameraMacs.Count);
+            _logger?.LogInformation("Loaded {Count} UniFi Protect devices for priority detection", protectCameras.Count);
         }
     }
+
+    /// <summary>
+    /// Get the Protect camera name for a MAC address, if known
+    /// </summary>
+    public string? GetProtectCameraName(string? mac) => _protectCameras?.GetName(mac);
 
     /// <summary>
     /// Detect device type from all available signals
@@ -105,23 +111,24 @@ public class DeviceTypeDetectionService
 
         // Priority -1: UniFi Protect device (100% confidence from controller API)
         // Includes cameras, doorbells, NVRs, and AI processors - all require Security VLAN
-        if (_protectCameraMacs != null && !string.IsNullOrEmpty(client?.Mac) &&
-            _protectCameraMacs.Contains(client.Mac.ToLowerInvariant()))
+        if (_protectCameras != null && !string.IsNullOrEmpty(client?.Mac) &&
+            _protectCameras.TryGetName(client.Mac, out var protectCameraName))
         {
-            _logger?.LogDebug("[Detection] '{DisplayName}': UniFi Protect device (confirmed by controller)",
-                displayName);
+            _logger?.LogDebug("[Detection] '{DisplayName}': UniFi Protect device '{CameraName}' (confirmed by controller)",
+                displayName, protectCameraName);
             return new DeviceDetectionResult
             {
                 Category = ClientDeviceCategory.Camera,  // All Protect security devices use Camera category for VLAN rules
                 Source = DetectionSource.UniFiFingerprint,
                 ConfidenceScore = 100,
                 VendorName = "Ubiquiti",
-                ProductName = "UniFi Protect",
+                ProductName = protectCameraName ?? "UniFi Protect",
                 RecommendedNetwork = NetworkPurpose.Security,
                 Metadata = new Dictionary<string, object>
                 {
                     ["detection_method"] = "unifi_protect_api",
-                    ["mac"] = client.Mac
+                    ["mac"] = client.Mac,
+                    ["protect_name"] = protectCameraName ?? ""
                 }
             };
         }

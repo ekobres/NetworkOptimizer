@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using NetworkOptimizer.Core.Models;
 using NetworkOptimizer.UniFi.Models;
 using Polly;
 using Polly.Retry;
@@ -554,11 +555,11 @@ public class UniFiApiClient : IDisposable
 
     /// <summary>
     /// Get UniFi Protect devices that require Security VLAN placement
-    /// Returns a set of MAC addresses for cameras, doorbells, NVRs, and AI processors
+    /// Returns a collection of cameras, doorbells, NVRs, and AI processors with their names
     /// </summary>
-    public async Task<HashSet<string>> GetProtectCameraMacsAsync(CancellationToken cancellationToken = default)
+    public async Task<ProtectCameraCollection> GetProtectCamerasAsync(CancellationToken cancellationToken = default)
     {
-        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new ProtectCameraCollection();
 
         var allDevices = await GetAllDevicesV2Async(cancellationToken);
         if (allDevices?.ProtectDevices == null)
@@ -570,7 +571,9 @@ public class UniFiApiClient : IDisposable
         {
             if (device.RequiresSecurityVlan)
             {
-                result.Add(device.Mac.ToLowerInvariant());
+                var name = !string.IsNullOrEmpty(device.Name) ? device.Name : device.Model ?? "Protect Device";
+                result.Add(device.Mac, name);
+
                 var deviceType = device.IsCamera ? "camera" :
                                  device.IsDoorbell ? "doorbell" :
                                  device.IsNvr ? "NVR" :
