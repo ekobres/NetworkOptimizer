@@ -102,6 +102,39 @@
                     @controllerMessage
                 </div>
             }
+
+            <details class="setup-guide" open="@(!ConnectionService.IsConnected)">
+                <summary>How to Create a UniFi Local Account</summary>
+                <div class="setup-guide-content">
+                    <p>Network Optimizer requires a <strong>Local Access Only</strong> account on your UniFi controller. Ubiquiti SSO accounts will not work.</p>
+
+                    <h4>Quick Setup</h4>
+                    <p>For the easiest setup, create a <strong>Local Access Only</strong> account with <strong>Super Admin</strong> role.</p>
+
+                    <h4>Restricted Setup (Recommended)</h4>
+                    <p>For a more secure, least-privilege configuration:</p>
+                    <ol>
+                        <li>Open UniFi Network: <code>https://&lt;gateway-ip&gt;</code> or <code>https://unifi.ui.com</code></li>
+                        <li>Sign in to your controller</li>
+                        <li>Click <strong>Admin &amp; Users</strong> at the bottom of the side menu</li>
+                        <li>Click <strong>Create New</strong> at the top</li>
+                        <li>Select <strong>Create New User</strong></li>
+                        <li>Enter a name and email for this service account</li>
+                        <li>Check <strong>Admin</strong></li>
+                        <li>Check <strong>Restrict to Local Access Only</strong></li>
+                        <li>Uncheck <strong>Use a Predefined Role</strong></li>
+                        <li>Set permissions:
+                            <ul>
+                                <li><strong>Network:</strong> View Only</li>
+                                <li><strong>Protect:</strong> View Only</li>
+                                <li><strong>User &amp; Account Management:</strong> None</li>
+                            </ul>
+                        </li>
+                        <li>Set a secure password and save</li>
+                    </ol>
+                    <p>Use this username and password in the fields above.</p>
+                </div>
+            </details>
         </div>
     </div>
 

@@ -258,6 +258,9 @@ public class CellularModemService : ICellularModemService
         using var scope = _serviceProvider.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IModemRepository>();
         await repository.DeleteModemConfigurationAsync(id);
+
+        // Clear cached stats since the modem may have been the one producing them
+        _lastStats = null;
     }
 
     private async Task PollAllModemsAsync()

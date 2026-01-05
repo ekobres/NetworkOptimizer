@@ -92,7 +92,10 @@ Open http://localhost:8042
 ### First Run
 
 1. Go to Settings and enter your UniFi controller URL
-2. Create a **Local Access Only** account on your controller with **Network - Full Management** access (don't use your Ubiquiti SSO login)
+2. Create a **Local Access Only** account on your controller (Ubiquiti SSO won't work):
+   - Quick: Super Admin role
+   - Restricted: Network View Only, Protect View Only, User Management None
+   - See the in-app setup guide or [detailed instructions](docker/DEPLOYMENT.md#unifi-account)
 3. Click Connect to authenticate
 4. Navigate to Audit to run your first security scan
 

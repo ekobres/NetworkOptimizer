@@ -3781,3 +3781,93 @@ select.form-control {
         display: none;
     }
 }
+
+/* ============================================
+   SETUP GUIDE - Collapsible help sections
+   ============================================ */
+
+.setup-guide {
+    margin-top: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+}
+
+.setup-guide summary {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-secondary);
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.setup-guide summary::-webkit-details-marker {
+    display: none;
+}
+
+.setup-guide summary::before {
+    content: "▶";
+    font-size: 0.7rem;
+    transition: transform 0.2s ease;
+}
+
+.setup-guide[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.setup-guide summary:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border-radius: 8px 8px 0 0;
+}
+
+.setup-guide:not([open]) summary:hover {
+    border-radius: 8px;
+}
+
+.setup-guide-content {
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.setup-guide-content h4 {
+    color: var(--text-primary);
+    margin: 1rem 0 0.5rem 0;
+    font-size: 0.95rem;
+}
+
+.setup-guide-content h4:first-child {
+    margin-top: 0;
+}
+
+.setup-guide-content p {
+    margin: 0.5rem 0;
+}
+
+.setup-guide-content ol,
+.setup-guide-content ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.setup-guide-content li {
+    margin: 0.35rem 0;
+}
+
+.setup-guide-content ul ul {
+    margin-top: 0.25rem;
+}
+
+.setup-guide-content code {
+    background: var(--bg-tertiary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+}

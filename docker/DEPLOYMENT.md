@@ -532,7 +532,7 @@ docker compose logs network-optimizer
 ### Can't Connect to UniFi Controller
 
 1. Verify the controller URL is correct (include https:// and port if non-standard)
-2. Ensure you're using a **Local Access Only** account with **Network - Full Management** access, not Ubiquiti SSO
+2. Ensure you're using a **Local Access Only** account, not Ubiquiti SSO (see [UniFi Account setup](#unifi-account))
 3. Check network connectivity: `curl -k https://your-controller:443`
 4. For self-signed certificates, enable "Ignore SSL errors" in Settings
 
@@ -593,7 +593,23 @@ Network Optimizer stores UniFi controller credentials and SSH passwords. Limit a
 
 ### UniFi Account
 
-Create a dedicated **Local Access Only** account on your UniFi controller for Network Optimizer with **Network - Full Management** access, rather than using your primary admin account. This allows you to revoke access without affecting other integrations.
+Create a dedicated **Local Access Only** account on your UniFi controller for Network Optimizer. Ubiquiti SSO accounts will not work.
+
+**Quick Setup:** Create a Local Access Only account with **Super Admin** role.
+
+**Restricted Setup (recommended):**
+1. Open UniFi Network: `https://<gateway-ip>` or `https://unifi.ui.com`
+2. Click **Admin & Users** at the bottom of the side menu
+3. Click **Create New** → **Create New User**
+4. Enter a name and email for this service account
+5. Check **Admin** and **Restrict to Local Access Only**
+6. Uncheck **Use a Predefined Role** and set:
+   - **Network:** View Only
+   - **Protect:** View Only
+   - **User & Account Management:** None
+7. Set a secure password and save
+
+Use this username and password in Network Optimizer Settings.
 
 ## Support
 
