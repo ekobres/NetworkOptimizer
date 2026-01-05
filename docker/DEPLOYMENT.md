@@ -638,7 +638,7 @@ Enables SSH access to Cloud Gateways (UCG, UDM, UDM Pro, etc.):
 
 Use `root` as the username and the password you set above.
 
-**For UXG (non-Cloud Gateway):** Use the Device SSH credentials below, since the UXG is a separate device from your controller.
+**For UXG (non-Cloud Gateway):** Enable SSH using the Device SSH steps below, but enter those credentials in Network Optimizer's Gateway SSH settings.
 
 #### Device SSH (UniFi Network 9.5+)
 
