@@ -3871,3 +3871,15 @@ select.form-control {
     border-radius: 4px;
     font-size: 0.85em;
 }
+
+/* Audit page table minimum widths for mobile */
+@media (max-width: 768px) {
+    .port-table {
+        min-width: 800px;
+    }
+
+    .wireless-client-table,
+    .offline-client-table {
+        min-width: 700px;
+    }
+}
