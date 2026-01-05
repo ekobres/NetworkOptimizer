@@ -303,7 +303,8 @@
                                         </div>
                                         <span class="issue-type-chevron">@(isExpanded ? "▼" : "▶")</span>
                                         <span class="issue-type-name">@issueTypeGroup.Key.Title</span>
-                                        <span class="issue-type-count">(@groupCount @issueTypeGroup.Key.Severity)</span>
+                                        <span class="issue-type-count">(@groupCount)</span>
+                                        <span class="issue-@highestSeverity"><span class="issue-severity">@issueTypeGroup.Key.Severity</span></span>
                                         @if (!string.IsNullOrEmpty(firstIssue.ConfigurableSetting))
                                         {
                                             <span class="tooltip-wrapper">
