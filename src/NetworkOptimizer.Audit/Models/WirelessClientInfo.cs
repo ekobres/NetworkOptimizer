@@ -43,11 +43,12 @@ public class WirelessClientInfo
     public string? AccessPointModelName { get; init; }
 
     /// <summary>
-    /// Display name for the client (name, hostname, or MAC)
+    /// Display name for the client (name, hostname, category, or MAC)
     /// </summary>
     public string DisplayName =>
         !string.IsNullOrWhiteSpace(Client.Name) ? Client.Name :
         !string.IsNullOrWhiteSpace(Client.Hostname) ? Client.Hostname :
+        (Detection.Category != Core.Enums.ClientDeviceCategory.Unknown ? Detection.CategoryName : null) ??
         Client.Mac ?? "Unknown";
 
     /// <summary>
