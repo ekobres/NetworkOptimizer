@@ -92,7 +92,7 @@ Open http://localhost:8042
 ### First Run
 
 1. Go to Settings and enter your UniFi controller URL
-2. Create a local admin account on your controller (don't use your Ubiquiti SSO login)
+2. Create a **Local Access Only** account on your controller with **Network - Full Management** access (don't use your Ubiquiti SSO login)
 3. Click Connect to authenticate
 4. Navigate to Audit to run your first security scan
 
