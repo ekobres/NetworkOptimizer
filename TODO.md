@@ -76,6 +76,21 @@
   - Site selector/switcher in UI
   - Aggregate dashboard views across sites (optional)
 
+### Federated Authentication & Identity
+- External IdP integration for enterprise/MSP deployments
+- Protocol support:
+  - **SAML 2.0:** Enterprise SSO (Okta, Azure AD, ADFS, etc.)
+  - **OIDC/OAuth 2.0:** Modern identity providers (Auth0, Keycloak, Google Workspace)
+- Architectural preparation for RBAC (Role-Based Access Control):
+  - Abstract authentication layer to support pluggable identity sources
+  - Claims/roles mapping from IdP to local permissions
+  - Future: Granular permissions per site/tenant (view-only, operator, admin)
+- Considerations:
+  - SP-initiated vs IdP-initiated login flows
+  - Just-in-time (JIT) user provisioning from IdP claims
+  - Session management and token refresh across federated sessions
+  - Fallback local auth for break-glass scenarios
+
 ## Distribution
 
 ### ISO/OVA Image for MSP Deployment
