@@ -1864,12 +1864,14 @@ select.form-control {
 }
 
 .issue-type-chevron {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    font-size: 0.7rem;
+    justify-content: center;
+    font-size: 0.75rem;
     color: var(--text-muted);
-    width: 0.875rem;
+    width: 2rem;
     flex-shrink: 0;
+    margin-left: auto;
 }
 
 .issue-type-name {
