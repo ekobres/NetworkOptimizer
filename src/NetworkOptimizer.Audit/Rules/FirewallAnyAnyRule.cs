@@ -11,17 +11,39 @@ public class FirewallAnyAnyRule
 {
     /// <summary>
     /// Check if a firewall rule is overly permissive (any->any)
+    /// Handles both v2 API format (SourceMatchingTarget) and legacy format (SourceType/Source)
     /// </summary>
     public static bool IsAnyAnyRule(FirewallRule rule)
     {
         if (!rule.Enabled)
             return false;
 
-        var isAnySource = rule.SourceType == "any" || string.IsNullOrEmpty(rule.Source);
-        var isAnyDest = rule.DestinationType == "any" || string.IsNullOrEmpty(rule.Destination);
-        var isAnyProtocol = rule.Protocol == "all" || string.IsNullOrEmpty(rule.Protocol);
+        // v2 API uses SourceMatchingTarget/DestinationMatchingTarget = "ANY"
+        // Legacy API uses SourceType/DestinationType = "any" or empty Source/Destination
+        var isAnySource = IsAnySource(rule);
+        var isAnyDest = IsAnyDestination(rule);
+        var isAnyProtocol = rule.Protocol?.Equals("all", StringComparison.OrdinalIgnoreCase) == true
+            || string.IsNullOrEmpty(rule.Protocol);
 
-        return isAnySource && isAnyDest && isAnyProtocol && rule.Action == "accept";
+        return isAnySource && isAnyDest && isAnyProtocol && rule.ActionType.IsAllowAction();
+    }
+
+    private static bool IsAnySource(FirewallRule rule)
+    {
+        if (!string.IsNullOrEmpty(rule.SourceMatchingTarget))
+            return rule.SourceMatchingTarget.Equals("ANY", StringComparison.OrdinalIgnoreCase);
+
+        return rule.SourceType?.Equals("any", StringComparison.OrdinalIgnoreCase) == true
+            || string.IsNullOrEmpty(rule.Source);
+    }
+
+    private static bool IsAnyDestination(FirewallRule rule)
+    {
+        if (!string.IsNullOrEmpty(rule.DestinationMatchingTarget))
+            return rule.DestinationMatchingTarget.Equals("ANY", StringComparison.OrdinalIgnoreCase);
+
+        return rule.DestinationType?.Equals("any", StringComparison.OrdinalIgnoreCase) == true
+            || string.IsNullOrEmpty(rule.Destination);
     }
 
     /// <summary>

@@ -183,9 +183,12 @@ public class FirewallRuleAnalyzer
                 continue;
 
             // Check for any->any rules
-            var isAnySource = rule.SourceType == "any" || string.IsNullOrEmpty(rule.Source);
-            var isAnyDest = rule.DestinationType == "any" || string.IsNullOrEmpty(rule.Destination);
-            var isAnyProtocol = rule.Protocol == "all" || string.IsNullOrEmpty(rule.Protocol);
+            // v2 API uses SourceMatchingTarget/DestinationMatchingTarget = "ANY"
+            // Legacy API uses SourceType/DestinationType = "any" or empty Source/Destination
+            var isAnySource = IsAnySource(rule);
+            var isAnyDest = IsAnyDestination(rule);
+            var isAnyProtocol = rule.Protocol?.Equals("all", StringComparison.OrdinalIgnoreCase) == true
+                || string.IsNullOrEmpty(rule.Protocol);
 
             if (isAnySource && isAnyDest && isAnyProtocol && rule.ActionType.IsAllowAction())
             {
@@ -543,5 +546,39 @@ public class FirewallRuleAnalyzer
         }
 
         return issues;
+    }
+
+    /// <summary>
+    /// Check if a firewall rule has "any" source (matches all sources)
+    /// Handles both v2 API format (SourceMatchingTarget) and legacy format (SourceType/Source)
+    /// </summary>
+    private static bool IsAnySource(FirewallRule rule)
+    {
+        // v2 API format: SourceMatchingTarget explicitly tells us the matching type
+        if (!string.IsNullOrEmpty(rule.SourceMatchingTarget))
+        {
+            return rule.SourceMatchingTarget.Equals("ANY", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Legacy format: check SourceType or fall back to empty Source
+        return rule.SourceType?.Equals("any", StringComparison.OrdinalIgnoreCase) == true
+            || string.IsNullOrEmpty(rule.Source);
+    }
+
+    /// <summary>
+    /// Check if a firewall rule has "any" destination (matches all destinations)
+    /// Handles both v2 API format (DestinationMatchingTarget) and legacy format (DestinationType/Destination)
+    /// </summary>
+    private static bool IsAnyDestination(FirewallRule rule)
+    {
+        // v2 API format: DestinationMatchingTarget explicitly tells us the matching type
+        if (!string.IsNullOrEmpty(rule.DestinationMatchingTarget))
+        {
+            return rule.DestinationMatchingTarget.Equals("ANY", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Legacy format: check DestinationType or fall back to empty Destination
+        return rule.DestinationType?.Equals("any", StringComparison.OrdinalIgnoreCase) == true
+            || string.IsNullOrEmpty(rule.Destination);
     }
 }
