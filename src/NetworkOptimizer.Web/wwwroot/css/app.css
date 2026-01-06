@@ -1946,7 +1946,7 @@ select.form-control {
 }
 
 .issue-type-recommendation {
-    padding: 0.75rem 1.25rem 1.25rem;
+    padding: 0.75rem 1rem 1.25rem 3.5rem;
     font-size: 0.875rem;
     color: var(--text-secondary);
 }
@@ -2281,6 +2281,11 @@ select.form-control {
     }
 
     .issue-type-items-list {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .issue-type-recommendation {
         padding-left: 1rem;
         padding-right: 1rem;
     }
