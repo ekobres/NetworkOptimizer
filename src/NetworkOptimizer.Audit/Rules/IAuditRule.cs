@@ -269,20 +269,23 @@ public abstract class AuditRuleBase : IAuditRule
     /// </summary>
     private string GetBestDeviceName(PortInfo port)
     {
-        // 1. Try connected client name
-        var clientName = port.ConnectedClient?.Name ?? port.ConnectedClient?.Hostname;
+        // 1. Try connected client name (prefer Name, fall back to Hostname)
+        var clientName = GetFirstNonEmpty(
+            port.ConnectedClient?.Name,
+            port.ConnectedClient?.Hostname);
         if (!string.IsNullOrEmpty(clientName))
             return $"{clientName} on {port.Switch.Name}";
 
         // 2. Try historical client name (for devices that were connected before)
-        var historicalName = port.HistoricalClient?.DisplayName
-            ?? port.HistoricalClient?.Name
-            ?? port.HistoricalClient?.Hostname;
+        var historicalName = GetFirstNonEmpty(
+            port.HistoricalClient?.DisplayName,
+            port.HistoricalClient?.Name,
+            port.HistoricalClient?.Hostname);
         if (!string.IsNullOrEmpty(historicalName))
             return $"{historicalName} on {port.Switch.Name}";
 
         // 3. Try custom port name (not just "Port X" or a bare number)
-        if (!string.IsNullOrEmpty(port.Name) && IsCustomPortName(port.Name))
+        if (!string.IsNullOrWhiteSpace(port.Name) && IsCustomPortName(port.Name))
             return $"{port.Name} on {port.Switch.Name}";
 
         // 4. Fall back to port number
@@ -290,16 +293,36 @@ public abstract class AuditRuleBase : IAuditRule
     }
 
     /// <summary>
-    /// Check if a port name is a custom name (not just "Port X" or a number)
+    /// Get the first non-null, non-empty string from the provided values.
+    /// </summary>
+    private static string? GetFirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrEmpty(value))
+                return value;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Check if a port name is a custom name (not a default port label)
+    /// Default patterns: "8", "Port 8", "SFP+ 2", "SFP28 1", "QSFP28 1"
     /// </summary>
     private static bool IsCustomPortName(string portName)
     {
+        var trimmed = portName.Trim();
+
         // Skip bare numbers like "8"
-        if (int.TryParse(portName.Trim(), out _))
+        if (int.TryParse(trimmed, out _))
             return false;
 
-        // Skip "Port X" patterns
-        if (System.Text.RegularExpressions.Regex.IsMatch(portName, @"^Port\s*\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        // Skip "Port X" patterns (e.g., "Port 1", "Port 8")
+        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^Port\s*\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return false;
+
+        // Skip SFP port patterns (e.g., "SFP+ 2", "SFP28 1", "QSFP28 1", "QSFP+ 1")
+        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^Q?SFP(\+|28|56)?\s*\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             return false;
 
         return true;
