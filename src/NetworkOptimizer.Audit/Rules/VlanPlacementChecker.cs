@@ -104,8 +104,9 @@ public static class VlanPlacementChecker
     }
 
     /// <summary>
-    /// Check if a printer is correctly placed on a Printer or IoT VLAN.
-    /// If a Printer VLAN exists, recommend that. Otherwise recommend IoT.
+    /// Check if a printer is correctly placed.
+    /// If a Printer VLAN exists, printer must be there to be "correctly placed".
+    /// If no Printer VLAN exists, IoT or Security is acceptable.
     /// Respects AllowPrintersOnMainNetwork setting for severity.
     /// </summary>
     /// <param name="currentNetwork">The network the device is currently on</param>
@@ -119,12 +120,6 @@ public static class VlanPlacementChecker
         int defaultScoreImpact,
         DeviceAllowanceSettings? allowanceSettings)
     {
-        // Printers can be on Printer, IoT, or Security networks
-        var isCorrectlyPlaced = currentNetwork != null &&
-            (currentNetwork.Purpose == NetworkPurpose.Printer ||
-             currentNetwork.Purpose == NetworkPurpose.IoT ||
-             currentNetwork.Purpose == NetworkPurpose.Security);
-
         // Find the best network to recommend
         // Priority: Printer VLAN > IoT VLAN
         var printerNetwork = allNetworks
@@ -136,6 +131,23 @@ public static class VlanPlacementChecker
             .Where(n => n.Purpose == NetworkPurpose.IoT)
             .OrderBy(n => n.VlanId)
             .FirstOrDefault();
+
+        // Determine if correctly placed based on available networks:
+        // - If Printer VLAN exists: must be on Printer VLAN
+        // - If no Printer VLAN: IoT or Security is acceptable
+        bool isCorrectlyPlaced;
+        if (printerNetwork != null)
+        {
+            // Printer VLAN exists - printer should be there
+            isCorrectlyPlaced = currentNetwork?.Purpose == NetworkPurpose.Printer;
+        }
+        else
+        {
+            // No Printer VLAN - IoT or Security is acceptable
+            isCorrectlyPlaced = currentNetwork != null &&
+                (currentNetwork.Purpose == NetworkPurpose.IoT ||
+                 currentNetwork.Purpose == NetworkPurpose.Security);
+        }
 
         NetworkInfo? recommendedNetwork;
         string recommendedLabel;
