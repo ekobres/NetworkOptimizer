@@ -40,9 +40,13 @@ public class VlanPlacementCheckerTests
     [InlineData(ClientDeviceCategory.SmartTV, true)]
     [InlineData(ClientDeviceCategory.SmartSpeaker, true)]
     [InlineData(ClientDeviceCategory.GameConsole, true)]
-    [InlineData(ClientDeviceCategory.SmartThermostat, false)]
-    [InlineData(ClientDeviceCategory.SmartLock, false)]
-    [InlineData(ClientDeviceCategory.SmartHub, false)]
+    [InlineData(ClientDeviceCategory.SmartThermostat, true)]  // Thermostats are low-risk (convenience, not security)
+    [InlineData(ClientDeviceCategory.SmartLock, false)]       // Locks are high-risk (security/access control)
+    [InlineData(ClientDeviceCategory.SmartHub, false)]        // Hubs are high-risk (control many devices)
+    [InlineData(ClientDeviceCategory.SmartSensor, false)]     // Sensors are high-risk (presence detection)
+    [InlineData(ClientDeviceCategory.Camera, false)]          // Cameras are high-risk (security)
+    [InlineData(ClientDeviceCategory.CloudCamera, false)]     // Cloud cameras are high-risk (security)
+    [InlineData(ClientDeviceCategory.IoTGeneric, true)]       // Generic IoT is low-risk
     public void CheckIoTPlacement_DetectsLowRiskDevices(ClientDeviceCategory category, bool expectedLowRisk)
     {
         var network = new NetworkInfo { Id = "corp", Name = "Corporate", VlanId = 1, Purpose = NetworkPurpose.Corporate };

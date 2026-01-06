@@ -232,22 +232,25 @@ public static class ClientDeviceCategoryExtensions
         ClientDeviceCategory.SmartPlug => true,
         ClientDeviceCategory.SmartSpeaker => true,
         ClientDeviceCategory.SmartAppliance => true,
+        ClientDeviceCategory.SmartThermostat => true,  // Convenience device, not security
         ClientDeviceCategory.RoboticVacuum => true,
+        ClientDeviceCategory.IoTGeneric => true,       // Generic IoT (scales, washers, etc)
         _ => false
     };
 
     /// <summary>
     /// Check if the category is a high-risk IoT device.
-    /// High-risk devices control home security, access, or critical infrastructure.
-    /// These should always be isolated on an IoT VLAN.
+    /// High-risk: cameras, locks (security), hubs (control many devices), sensors (presence detection)
+    /// These should always be isolated and get Critical severity when misplaced.
     /// </summary>
     public static bool IsHighRiskIoT(this ClientDeviceCategory category) => category switch
     {
-        ClientDeviceCategory.SmartThermostat => true,
         ClientDeviceCategory.SmartLock => true,
+        ClientDeviceCategory.Camera => true,
+        ClientDeviceCategory.CloudCamera => true,
+        ClientDeviceCategory.SecuritySystem => true,
         ClientDeviceCategory.SmartHub => true,
         ClientDeviceCategory.SmartSensor => true,
-        ClientDeviceCategory.SmartAppliance => true,
         _ => false
     };
 

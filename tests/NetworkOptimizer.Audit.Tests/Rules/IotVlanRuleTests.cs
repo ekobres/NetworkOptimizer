@@ -240,9 +240,9 @@ public class IotVlanRuleTests
     }
 
     [Fact]
-    public void Evaluate_SmartThermostatOnCorporateVlan_ReturnsCriticalIssue()
+    public void Evaluate_SmartThermostatOnCorporateVlan_ReturnsRecommendedIssue()
     {
-        // Arrange - SmartThermostat is high-risk (control device)
+        // Arrange - SmartThermostat is low-risk (convenience, not security)
         var corpNetwork = new NetworkInfo { Id = "corp-net", Name = "Corporate", VlanId = 10, Purpose = NetworkPurpose.Corporate };
         var port = CreatePort(portName: "Thermostat", deviceCategory: ClientDeviceCategory.SmartThermostat, networkId: corpNetwork.Id);
         var networks = CreateNetworkList(corpNetwork);
@@ -253,8 +253,8 @@ public class IotVlanRuleTests
         // Assert
         result.Should().NotBeNull();
         result!.Type.Should().Be("IOT-VLAN-001");
-        result.Severity.Should().Be(AuditSeverity.Critical);
-        result.ScoreImpact.Should().Be(10);
+        result.Severity.Should().Be(AuditSeverity.Recommended);
+        result.ScoreImpact.Should().Be(3); // LowRiskIoTImpact
     }
 
     [Fact]

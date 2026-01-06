@@ -152,9 +152,9 @@ public class WirelessIotVlanRuleTests
         // Act
         var result = _rule.Evaluate(client, networks);
 
-        // Assert
+        // Assert - SmartThermostat is low-risk (convenience device)
         result.Should().NotBeNull();
-        result!.Severity.Should().Be(AuditSeverity.Critical);
+        result!.Severity.Should().Be(AuditSeverity.Recommended);
     }
 
     #endregion
