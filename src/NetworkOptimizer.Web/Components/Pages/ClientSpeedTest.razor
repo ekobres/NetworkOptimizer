@@ -131,7 +131,7 @@
         <div class="card-header">
             <h2 class="card-title">Test History</h2>
             <div class="header-actions">
-                <button class="btn btn-sm btn-secondary" @onclick="LoadHistory" disabled="@loading">
+                <button class="btn btn-sm btn-secondary" @onclick="() => LoadHistory()" disabled="@loading">
                     @if (loading)
                     {
                         <span class="spinner"></span>
@@ -608,13 +608,13 @@
         {
             await InvokeAsync(async () =>
             {
-                await LoadHistory();
+                await LoadHistory(resetPage: false);
                 StateHasChanged();
             });
         }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
     }
 
-    private async Task LoadHistory()
+    private async Task LoadHistory(bool resetPage = true)
     {
         loading = true;
         StateHasChanged();
@@ -622,7 +622,10 @@
         try
         {
             testHistory = await ClientSpeedTestService.GetResultsAsync(100);
-            historyPage = 1;
+            if (resetPage)
+            {
+                historyPage = 1;
+            }
         }
         catch (Exception)
         {
