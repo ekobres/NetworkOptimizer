@@ -1053,6 +1053,135 @@ public class FirewallRuleAnalyzerTests
         issues.Should().NotContain(i => i.RuleId == "FW-ISOLATION-BYPASS");
     }
 
+    [Fact]
+    public void CheckInterVlanIsolation_CorporateToManagement_NoBlockRule_FlaggedAsCritical()
+    {
+        // Corporate to Management without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+        issues.First(i => i.Type == "MISSING_ISOLATION").Message.Should().Contain("Corporate").And.Contain("Management");
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_HomeToManagement_NoBlockRule_FlaggedAsCritical()
+    {
+        // Home to Management without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Home", NetworkPurpose.Home, id: "home-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_SecurityToManagement_NoBlockRule_FlaggedAsCritical()
+    {
+        // Security to Management without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_GuestToCorporate_NoBlockRule_FlaggedAsCritical()
+    {
+        // Guest to Corporate without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Guest WiFi", NetworkPurpose.Guest, id: "guest-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id")
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_IoTToCorporate_NoBlockRule_FlaggedAsRecommended()
+    {
+        // IoT to Corporate without block rule should be Recommended (not Critical)
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT Devices", NetworkPurpose.IoT, id: "iot-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id")
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Recommended);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_AllowRuleCorporateToManagement_FlaggedAsCritical()
+    {
+        // ALLOW rule from Corporate to Management should be flagged as Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id")
+        };
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "allow-corp-to-mgmt",
+                Name = "Allow Corporate to Management",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "corp-net-id" },
+                DestinationMatchingTarget = "NETWORK",
+                DestinationNetworkIds = new List<string> { "mgmt-net-id" }
+            }
+        };
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "ISOLATION_BYPASSED" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_ManagementWithSystemIsolation_NotChecked()
+    {
+        // Management network WITH system isolation enabled should NOT be checked
+        // (UniFi's "Isolated Networks" feature handles it)
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: true) // System isolation ON
+        };
+        var rules = new List<FirewallRule>(); // No manual rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should NOT flag missing isolation because system isolation handles it
+        issues.Should().NotContain(i => i.Type == "MISSING_ISOLATION" && i.Message.Contains("Management"));
+    }
+
     #endregion
 
     #endregion
