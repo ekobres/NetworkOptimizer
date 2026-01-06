@@ -26,6 +26,7 @@ public static class IssueTypes
     public const string WifiIotVlan = "WIFI-IOT-VLAN-001";
     public const string CameraVlan = "CAMERA-VLAN-001";
     public const string WifiCameraVlan = "WIFI-CAMERA-VLAN-001";
+    public const string InfraNotOnMgmt = "INFRA_NOT_ON_MGMT";
     public const string DnsLeakage = "DNS_LEAKAGE";
     public const string RoutingEnabled = "ROUTING_ENABLED";
     public const string MgmtDhcpEnabled = "MGMT_DHCP_ENABLED";

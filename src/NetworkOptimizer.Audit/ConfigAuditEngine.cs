@@ -548,15 +548,17 @@ public class ConfigAuditEngine
         var mgmtDhcpIssues = _vlanAnalyzer.AnalyzeManagementVlanDhcp(ctx.Networks, gatewayName);
         var networkIsolationIssues = _vlanAnalyzer.AnalyzeNetworkIsolation(ctx.Networks, gatewayName);
         var internetAccessIssues = _vlanAnalyzer.AnalyzeInternetAccess(ctx.Networks, gatewayName);
+        var infraVlanIssues = _vlanAnalyzer.AnalyzeInfrastructureVlanPlacement(ctx.DeviceData, ctx.Networks, gatewayName);
 
         ctx.AllIssues.AddRange(dnsIssues);
         ctx.AllIssues.AddRange(gatewayIssues);
         ctx.AllIssues.AddRange(mgmtDhcpIssues);
         ctx.AllIssues.AddRange(networkIsolationIssues);
         ctx.AllIssues.AddRange(internetAccessIssues);
+        ctx.AllIssues.AddRange(infraVlanIssues);
 
-        _logger.LogInformation("Found {DnsIssues} DNS issues, {GatewayIssues} gateway issues, {MgmtIssues} management VLAN issues, {IsolationIssues} network isolation issues, {InternetIssues} internet access issues",
-            dnsIssues.Count, gatewayIssues.Count, mgmtDhcpIssues.Count, networkIsolationIssues.Count, internetAccessIssues.Count);
+        _logger.LogInformation("Found {DnsIssues} DNS issues, {GatewayIssues} gateway issues, {MgmtIssues} management VLAN issues, {IsolationIssues} network isolation issues, {InternetIssues} internet access issues, {InfraIssues} infrastructure VLAN issues",
+            dnsIssues.Count, gatewayIssues.Count, mgmtDhcpIssues.Count, networkIsolationIssues.Count, internetAccessIssues.Count, infraVlanIssues.Count);
     }
 
     private void ExecutePhase5_AnalyzeFirewallRules(AuditContext ctx)

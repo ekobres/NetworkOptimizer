@@ -892,6 +892,7 @@ public class AuditService
         // Device placement (wrong VLAN) - controlled by VLAN Security checkbox
         Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan or "OFFLINE-IOT-VLAN" => "VLAN Security",
         Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" => "VLAN Security",
+        Audit.IssueTypes.InfraNotOnMgmt => "VLAN Security",
 
         // Port security issues
         Audit.IssueTypes.MacRestriction or Audit.IssueTypes.UnusedPort or Audit.IssueTypes.PortIsolation or "PORT_SECURITY" => "Port Security",
@@ -954,6 +955,7 @@ public class AuditService
                     : (isInformational ? "IoT Device Possibly on Wrong VLAN" : "IoT Device on Wrong VLAN"),
             Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" =>
                 isInformational ? "Camera Possibly on Wrong VLAN" : "Camera on Wrong VLAN",
+            Audit.IssueTypes.InfraNotOnMgmt => "Infrastructure Device on Wrong VLAN",
 
             // Port security
             Audit.IssueTypes.MacRestriction => "Missing MAC Restriction",
@@ -1042,6 +1044,7 @@ public class AuditService
         Audit.IssueTypes.PortIsolation => "Enable port isolation for security devices.",
         Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan => "Move IoT devices to a dedicated IoT VLAN.",
         Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan => "Move cameras to a dedicated Security VLAN.",
+        Audit.IssueTypes.InfraNotOnMgmt => "Move network infrastructure to a dedicated Management VLAN.",
         Audit.IssueTypes.DnsLeakage => "Configure firewall to block direct DNS queries from isolated networks.",
         Audit.IssueTypes.DnsNoDoh => "Configure DoH in Network Settings with a trusted provider like NextDNS or Cloudflare.",
         Audit.IssueTypes.DnsDohAuto => "Set DoH to 'custom' mode with explicit servers for guaranteed encryption.",
