@@ -1814,21 +1814,24 @@ select.form-control {
     border-radius: var(--border-radius) var(--border-radius) 0 0;
 }
 
+.issue-type-group .expand-wrapper .expand-content {
+    border-left: 4px solid var(--border-color);
+}
+
 .issue-type-group .expand-wrapper.expanded .expand-content {
     background: var(--bg-primary);
-    border-left: 4px solid var(--border-color);
     border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
 
-.issue-type-group.issue-critical .expand-wrapper.expanded .expand-content {
+.issue-type-group.issue-critical .expand-wrapper .expand-content {
     border-left-color: var(--danger-color);
 }
 
-.issue-type-group.issue-recommended .expand-wrapper.expanded .expand-content {
+.issue-type-group.issue-recommended .expand-wrapper .expand-content {
     border-left-color: var(--warning-color);
 }
 
-.issue-type-group.issue-info .expand-wrapper.expanded .expand-content {
+.issue-type-group.issue-info .expand-wrapper .expand-content {
     border-left-color: var(--info-color);
 }
 
