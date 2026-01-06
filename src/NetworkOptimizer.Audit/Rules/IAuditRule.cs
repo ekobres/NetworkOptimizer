@@ -246,12 +246,7 @@ public abstract class AuditRuleBase : IAuditRule
     /// </summary>
     protected AuditIssue CreateIssue(string message, PortInfo port, Dictionary<string, object>? metadata = null)
     {
-        // Use connected client name if available, otherwise port name
-        var clientName = port.ConnectedClient?.Name ?? port.ConnectedClient?.Hostname ?? port.Name;
-        // Include switch context: "ClientName on SwitchName"
-        var deviceName = clientName != null && clientName != port.Name
-            ? $"{clientName} on {port.Switch.Name}"
-            : $"{port.Name ?? $"Port {port.PortIndex}"} on {port.Switch.Name}";
+        var deviceName = GetBestDeviceName(port);
 
         return new AuditIssue
         {
@@ -266,5 +261,47 @@ public abstract class AuditRuleBase : IAuditRule
             RuleId = RuleId,
             ScoreImpact = ScoreImpact
         };
+    }
+
+    /// <summary>
+    /// Get the best available device name for a port, checking multiple sources.
+    /// Priority: ConnectedClient > HistoricalClient > Custom port name > Port number
+    /// </summary>
+    private string GetBestDeviceName(PortInfo port)
+    {
+        // 1. Try connected client name
+        var clientName = port.ConnectedClient?.Name ?? port.ConnectedClient?.Hostname;
+        if (!string.IsNullOrEmpty(clientName))
+            return $"{clientName} on {port.Switch.Name}";
+
+        // 2. Try historical client name (for devices that were connected before)
+        var historicalName = port.HistoricalClient?.DisplayName
+            ?? port.HistoricalClient?.Name
+            ?? port.HistoricalClient?.Hostname;
+        if (!string.IsNullOrEmpty(historicalName))
+            return $"{historicalName} on {port.Switch.Name}";
+
+        // 3. Try custom port name (not just "Port X" or a bare number)
+        if (!string.IsNullOrEmpty(port.Name) && IsCustomPortName(port.Name))
+            return $"{port.Name} on {port.Switch.Name}";
+
+        // 4. Fall back to port number
+        return $"Port {port.PortIndex} on {port.Switch.Name}";
+    }
+
+    /// <summary>
+    /// Check if a port name is a custom name (not just "Port X" or a number)
+    /// </summary>
+    private static bool IsCustomPortName(string portName)
+    {
+        // Skip bare numbers like "8"
+        if (int.TryParse(portName.Trim(), out _))
+            return false;
+
+        // Skip "Port X" patterns
+        if (System.Text.RegularExpressions.Regex.IsMatch(portName, @"^Port\s*\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return false;
+
+        return true;
     }
 }
