@@ -214,7 +214,7 @@
                         {
                             var groupCount = issueTypeGroup.Count();
                             var isSingleItem = groupCount == 1;
-                            var groupKey = $"{issueTypeGroup.Key.Title}|{issueTypeGroup.Key.Severity}";
+                            var groupKey = $"{issueTypeGroup.Key.Title}|{issueTypeGroup.Key.Severity}|{issueTypeGroup.Key.Description}|{issueTypeGroup.Key.Recommendation}";
                             var isExpanded = isSingleItem || expandedIssueTypes.Contains(groupKey);
                             var highestSeverity = issueTypeGroup.Key.Severity.ToLower();
                             var firstIssue = issueTypeGroup.First();
@@ -328,6 +328,7 @@
                                     </div>
                                     <div class="expand-wrapper @(isExpanded ? "expanded" : "")">
                                         <div class="expand-content">
+                                            <div class="issue-type-description">@firstIssue.Description</div>
                                             <div class="issue-type-items-list">
                                                 @foreach (var issue in issueTypeGroup)
                                                 {
@@ -371,7 +372,6 @@
                                                         else
                                                         {
                                                             <div class="issue-context">
-                                                                <span class="context-item">@issue.Description</span>
                                                                 <button class="btn btn-sm btn-ghost issue-action" @onclick="() => DismissIssue(issue)" @onclick:stopPropagation="true" title="Dismiss this issue">
                                                                     Dismiss
                                                                 </button>
@@ -1144,11 +1144,11 @@
         return issues.Where(i => i.Severity.ToLower() == selectedFilter);
     }
 
-    private IEnumerable<IGrouping<(string Title, string Severity), Services.AuditIssue>> GetGroupedFilteredIssues()
+    private IEnumerable<IGrouping<(string Title, string Severity, string? Description, string? Recommendation), Services.AuditIssue>> GetGroupedFilteredIssues()
     {
-        // Group by both issue type (Title) AND severity, so Critical/Recommended/Info are separate groups
+        // Group by issue type (Title), severity, description, AND recommendation so different descriptions/recommendations aren't merged
         return GetFilteredIssues()
-            .GroupBy(i => (i.Title, i.Severity))
+            .GroupBy(i => (i.Title, i.Severity, i.Description, i.Recommendation))
             .OrderBy(g => GetSeverityOrder(g.Key.Severity))
             .ThenBy(g => g.Key.Title);
     }
