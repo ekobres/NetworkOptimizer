@@ -5,16 +5,38 @@ using NetworkOptimizer.UniFi.Models;
 namespace NetworkOptimizer.Audit.Services.Detectors;
 
 /// <summary>
-/// Detects device type from UniFi fingerprint data (dev_cat, dev_type_id, etc.)
+/// Detects device type from UniFi fingerprint data.
 /// This is the highest confidence detection method.
+///
+/// UniFi uses two different ID spaces that must not be confused:
+///
+/// 1. dev_id (device ID): Identifies a specific device model.
+///    Examples: 14 = Apple TV HD, 4405 = Apple TV 4K, 4904 = IKEA Dirigera
+///    This is what dev_id_override contains when a user selects an icon in the UI.
+///
+/// 2. dev_type_id (device type ID): Identifies a device category.
+///    Examples: 9 = IP Network Camera, 47 = Smart TV, 14 = Wireless Controller
+///    This is what dev_cat contains (auto-detected category).
+///
+/// IMPORTANT: These ID spaces overlap! For example:
+/// - dev_id 14 = Apple TV HD (a streaming device)
+/// - dev_type_id 14 = Wireless Controller (network infrastructure)
+///
+/// To correctly categorize a device with dev_id_override, we must look up the
+/// dev_id in the fingerprint database to get its dev_type_id, then map that.
+/// Direct mapping of dev_id_override would cause collisions (e.g., Apple TV → AccessPoint).
 /// </summary>
 public class FingerprintDetector
 {
     private readonly UniFiFingerprintDatabase? _database;
 
     /// <summary>
-    /// Map UniFi dev_type_ids to our categories
-    /// Based on the fingerprint database dev_type_ids mapping
+    /// Maps dev_type_id values to our device categories.
+    ///
+    /// IMPORTANT: This dictionary contains ONLY dev_type_id values (category IDs),
+    /// NOT dev_id values (device-specific IDs). Do not add entries like 4405 (Apple TV 4K)
+    /// or 4904 (IKEA Dirigera) here - those are dev_id values that must be resolved
+    /// via database lookup to get their dev_type_id.
     /// </summary>
     private static readonly Dictionary<int, ClientDeviceCategory> DevTypeMapping = new()
     {
@@ -67,7 +89,6 @@ public class FingerprintDetector
         { 144, ClientDeviceCategory.SmartHub },     // Smart Hub
         { 93, ClientDeviceCategory.SmartHub },      // Home Automation
         { 154, ClientDeviceCategory.SmartHub },     // Smart Bridge
-        { 4904, ClientDeviceCategory.SmartHub },    // IKEA Dirigera Gateway (user override)
 
         // Robotic Vacuums
         { 41, ClientDeviceCategory.RoboticVacuum }, // Robotic Vacuums
@@ -83,7 +104,6 @@ public class FingerprintDetector
         { 238, ClientDeviceCategory.StreamingDevice }, // Media Player
         { 242, ClientDeviceCategory.StreamingDevice }, // Streaming Media Device
         { 186, ClientDeviceCategory.StreamingDevice }, // IPTV Set Top Box
-        { 4405, ClientDeviceCategory.StreamingDevice }, // Apple TV (user override)
 
         // Smart Speakers
         { 37, ClientDeviceCategory.SmartSpeaker },  // Smart Speaker
@@ -168,39 +188,17 @@ public class FingerprintDetector
     /// <summary>
     /// Detect device type from UniFi client fingerprint data.
     /// Checks user-selected device type (DevIdOverride) first, then auto-detected (DevCat).
-    /// Falls back to database lookup and keyword matching for unknown device IDs.
+    /// Uses database lookup to resolve dev_id to dev_type_id for accurate categorization.
     /// </summary>
     public DeviceDetectionResult Detect(UniFiClientResponse? clientFingerprint)
     {
         if (clientFingerprint == null)
             return DeviceDetectionResult.Unknown;
 
-        // Priority 1: User-selected device type override (from UniFi UI) - exact mapping
-        if (clientFingerprint.DevIdOverride.HasValue && DevTypeMapping.TryGetValue(clientFingerprint.DevIdOverride.Value, out var overrideCategory))
-        {
-            var vendorName = _database?.GetVendorName(clientFingerprint.DevVendor);
-            var typeName = _database?.GetDeviceTypeName(clientFingerprint.DevIdOverride);
-
-            return new DeviceDetectionResult
-            {
-                Category = overrideCategory,
-                Source = DetectionSource.UniFiFingerprint,
-                ConfidenceScore = 98, // Highest confidence - user explicitly selected this
-                VendorName = vendorName,
-                ProductName = typeName,
-                RecommendedNetwork = GetRecommendedNetwork(overrideCategory),
-                Metadata = new Dictionary<string, object>
-                {
-                    ["dev_id_override"] = clientFingerprint.DevIdOverride.Value,
-                    ["dev_cat"] = clientFingerprint.DevCat ?? 0,
-                    ["dev_family"] = clientFingerprint.DevFamily ?? 0,
-                    ["dev_vendor"] = clientFingerprint.DevVendor ?? 0,
-                    ["user_override"] = true
-                }
-            };
-        }
-
-        // Priority 2: User-selected device type - lookup from database, use dev_type_id
+        // Priority 1: User-selected device type - lookup from database to get dev_type_id
+        // dev_id values are device-specific (e.g., 14 = Apple TV HD), while dev_type_id
+        // values are category IDs (e.g., 47 = Smart TV). The database lookup resolves the
+        // dev_id to its actual dev_type_id for correct categorization.
         if (clientFingerprint.DevIdOverride.HasValue && _database != null)
         {
             var deviceIdStr = clientFingerprint.DevIdOverride.Value.ToString();
@@ -216,7 +214,7 @@ public class FingerprintDetector
                 {
                     Category = mappedCategory,
                     Source = DetectionSource.UniFiFingerprint,
-                    ConfidenceScore = 96, // Very high - dev_type_id from database
+                    ConfidenceScore = 98, // Highest confidence - user override resolved via database
                     VendorName = vendorName,
                     ProductName = deviceName,
                     RecommendedNetwork = GetRecommendedNetwork(mappedCategory),
@@ -233,7 +231,7 @@ public class FingerprintDetector
             }
         }
 
-        // Priority 3: Auto-detected device category
+        // Priority 2: Auto-detected device category (dev_cat is a dev_type_id)
         if (clientFingerprint.DevCat.HasValue && DevTypeMapping.TryGetValue(clientFingerprint.DevCat.Value, out var category))
         {
             var vendorName = _database?.GetVendorName(clientFingerprint.DevVendor);

@@ -188,7 +188,6 @@ public class FingerprintDetectorTests
     [InlineData(144)]  // Smart Hub
     [InlineData(93)]   // Home Automation
     [InlineData(154)]  // Smart Bridge
-    [InlineData(4904)] // IKEA Dirigera Gateway (user override)
     public void Detect_SmartHubDevCat_ReturnsSmartHub(int devCat)
     {
         var client = new UniFiClientResponse { DevCat = devCat };
@@ -240,7 +239,6 @@ public class FingerprintDetectorTests
     [InlineData(238)]  // Media Player
     [InlineData(242)]  // Streaming Media Device
     [InlineData(186)]  // IPTV Set Top Box
-    [InlineData(4405)] // Apple TV (user override)
     public void Detect_StreamingDeviceDevCat_ReturnsStreamingDevice(int devCat)
     {
         var client = new UniFiClientResponse { DevCat = devCat };
@@ -504,35 +502,72 @@ public class FingerprintDetectorTests
     #region DevIdOverride Priority Tests
 
     [Fact]
-    public void Detect_DevIdOverrideHasPriority_ReturnsOverrideCategory()
+    public void Detect_DevIdOverrideWithDatabase_ResolvesViaDatabase()
     {
-        // DevIdOverride=9 (Camera) should take priority over DevCat=31 (SmartTV)
+        // Create a database with a mock entry for device ID 9999
+        var database = new UniFiFingerprintDatabase();
+        database.DevIds["9999"] = new FingerprintDeviceEntry
+        {
+            Name = "Test Camera",
+            DevTypeId = "9" // Camera dev_type_id
+        };
+        var detector = new FingerprintDetector(database);
+
         var client = new UniFiClientResponse
         {
-            DevIdOverride = 9, // Camera
-            DevCat = 31        // SmartTV
+            DevIdOverride = 9999, // Maps to Camera via database
+            DevCat = 31           // SmartTV - should be ignored
+        };
+
+        var result = detector.Detect(client);
+
+        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        result.ConfidenceScore.Should().Be(98);
+        result.ProductName.Should().Be("Test Camera");
+    }
+
+    [Fact]
+    public void Detect_DevIdOverrideWithoutDatabase_FallsBackToDevCat()
+    {
+        // Without a database, DevIdOverride can't be resolved
+        // so we fall back to DevCat
+        var client = new UniFiClientResponse
+        {
+            DevIdOverride = 9999, // Can't resolve without database
+            DevCat = 31           // SmartTV - used as fallback
         };
 
         var result = _detector.Detect(client);
 
-        result.Category.Should().Be(ClientDeviceCategory.Camera);
-        result.ConfidenceScore.Should().BeGreaterThan(95);
+        result.Category.Should().Be(ClientDeviceCategory.SmartTV);
+        result.Metadata.Should().ContainKey("dev_id_override_unmatched");
+        result.Metadata!["dev_id_override_unmatched"].Should().Be(9999);
     }
 
     [Fact]
     public void Detect_DevIdOverrideWithMetadata_IncludesMetadata()
     {
+        // Create a database with a mock entry
+        var database = new UniFiFingerprintDatabase();
+        database.DevIds["9999"] = new FingerprintDeviceEntry
+        {
+            Name = "Test Camera",
+            DevTypeId = "9"
+        };
+        var detector = new FingerprintDetector(database);
+
         var client = new UniFiClientResponse
         {
-            DevIdOverride = 9,
+            DevIdOverride = 9999,
             DevCat = 100,
             DevFamily = 50,
             DevVendor = 25
         };
 
-        var result = _detector.Detect(client);
+        var result = detector.Detect(client);
 
         result.Metadata.Should().ContainKey("dev_id_override");
+        result.Metadata.Should().ContainKey("dev_type_id");
         result.Metadata.Should().ContainKey("dev_cat");
         result.Metadata.Should().ContainKey("dev_family");
         result.Metadata.Should().ContainKey("dev_vendor");
@@ -567,13 +602,22 @@ public class FingerprintDetectorTests
     #region Confidence Score Tests
 
     [Fact]
-    public void Detect_DevIdOverride_HasHighestConfidence()
+    public void Detect_DevIdOverrideResolved_HasHighestConfidence()
     {
-        var client = new UniFiClientResponse { DevIdOverride = 9 };
+        // DevIdOverride resolved via database has highest confidence (98)
+        var database = new UniFiFingerprintDatabase();
+        database.DevIds["9999"] = new FingerprintDeviceEntry
+        {
+            Name = "Test Camera",
+            DevTypeId = "9"
+        };
+        var detector = new FingerprintDetector(database);
 
-        var result = _detector.Detect(client);
+        var client = new UniFiClientResponse { DevIdOverride = 9999 };
 
-        result.ConfidenceScore.Should().BeGreaterThanOrEqualTo(98);
+        var result = detector.Detect(client);
+
+        result.ConfidenceScore.Should().Be(98);
     }
 
     [Fact]
@@ -1155,8 +1199,8 @@ public class FingerprintDetectorTests
 
     [Theory]
     [InlineData("93", ClientDeviceCategory.SmartHub)]   // Home Automation
+    [InlineData("144", ClientDeviceCategory.SmartHub)]  // Smart Hub
     [InlineData("154", ClientDeviceCategory.SmartHub)]  // Smart Bridge
-    [InlineData("4904", ClientDeviceCategory.SmartHub)] // IKEA Dirigera Gateway
     public void Detect_DevTypeId_HubTypes_MapsCorrectly(string devTypeId, ClientDeviceCategory expected)
     {
         var database = new UniFiFingerprintDatabase();
@@ -1205,7 +1249,6 @@ public class FingerprintDetectorTests
     [InlineData("238", ClientDeviceCategory.StreamingDevice)]  // Media Player
     [InlineData("242", ClientDeviceCategory.StreamingDevice)]  // Streaming Media Device
     [InlineData("186", ClientDeviceCategory.StreamingDevice)]  // IPTV Set Top Box
-    [InlineData("4405", ClientDeviceCategory.StreamingDevice)] // Apple TV (user override)
     public void Detect_DevTypeId_StreamingTypes_MapsCorrectly(string devTypeId, ClientDeviceCategory expected)
     {
         var database = new UniFiFingerprintDatabase();
