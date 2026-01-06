@@ -332,181 +332,198 @@ public class ConfigAuditEngine
 
         _logger.LogInformation("Phase 3c: Analyzing offline clients");
 
-        // Build set of online client MACs for filtering
-        var onlineClientMacs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (ctx.Clients != null)
-        {
-            foreach (var client in ctx.Clients.Where(c => !string.IsNullOrEmpty(c.Mac)))
-            {
-                onlineClientMacs.Add(client.Mac!);
-            }
-        }
-
-        // Get the detection service from the security engine
-        var detectionService = GetDetectionServiceFromAnalyzer(ctx.SecurityEngine);
+        var detectionService = ctx.SecurityEngine.DetectionService;
         if (detectionService == null)
         {
             _logger.LogWarning("No detection service available for offline client analysis");
             return;
         }
 
-        // Two weeks ago threshold for scoring
+        var onlineClientMacs = BuildOnlineClientMacSet(ctx.Clients);
         var twoWeeksAgo = DateTimeOffset.UtcNow.AddDays(-14).ToUnixTimeSeconds();
 
         foreach (var historyClient in ctx.ClientHistory)
         {
-            // Skip if currently online
-            if (!string.IsNullOrEmpty(historyClient.Mac) && onlineClientMacs.Contains(historyClient.Mac))
+            if (ShouldSkipOfflineClient(historyClient, onlineClientMacs))
                 continue;
 
-            // Skip wired devices (handled by port security analysis via LastConnectionMac)
-            if (historyClient.IsWired)
-                continue;
-
-            // Run detection on this offline client
-            var detection = detectionService.DetectFromMac(historyClient.Mac ?? "");
-
-            // Also try name-based detection if MAC detection didn't work
-            if (detection.Category == ClientDeviceCategory.Unknown)
-            {
-                var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname;
-                if (!string.IsNullOrEmpty(displayName))
-                {
-                    detection = detectionService.DetectFromPortName(displayName);
-                }
-            }
-
-            // Skip if still unknown
+            var detection = DetectOfflineClientType(historyClient, detectionService);
             if (detection.Category == ClientDeviceCategory.Unknown)
                 continue;
 
-            // Get the network this client was last connected to
-            var lastNetwork = ctx.Networks.FirstOrDefault(n =>
-                n.Id == historyClient.LastConnectionNetworkId);
-
+            var lastNetwork = ctx.Networks.FirstOrDefault(n => n.Id == historyClient.LastConnectionNetworkId);
             if (lastNetwork == null)
                 continue;
 
-            // Look up the AP model from the uplink name
-            string? lastUplinkModelName = null;
-            if (!string.IsNullOrEmpty(historyClient.LastUplinkName))
-            {
-                ctx.ApNameToModel.TryGetValue(historyClient.LastUplinkName, out lastUplinkModelName);
-            }
-
-            // Add to offline clients list
-            ctx.OfflineClients.Add(new OfflineClientInfo
-            {
-                HistoryClient = historyClient,
-                LastNetwork = lastNetwork,
-                Detection = detection,
-                LastUplinkModelName = lastUplinkModelName
-            });
-
-            // Check if IoT device on wrong VLAN
-            if (detection.Category.IsIoT())
-            {
-                // Use VlanPlacementChecker for consistent severity and network recommendation
-                var placement = Rules.VlanPlacementChecker.CheckIoTPlacement(
-                    detection.Category,
-                    lastNetwork,
-                    ctx.Networks,
-                    10, // default score impact
-                    ctx.AllowanceSettings,
-                    detection.VendorName);
-
-                if (!placement.IsCorrectlyPlaced)
-                {
-                    var isRecent = historyClient.LastSeen >= twoWeeksAgo;
-                    // Use placement severity for recent devices, Informational for stale
-                    var severity = isRecent ? placement.Severity : Models.AuditSeverity.Informational;
-                    var scoreImpact = isRecent ? placement.ScoreImpact : 0;
-
-                    var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
-
-                    ctx.AllIssues.Add(new AuditIssue
-                    {
-                        Type = "OFFLINE-IOT-VLAN",
-                        Severity = severity,
-                        Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be isolated",
-                        DeviceName = $"{displayName} (offline)",
-                        CurrentNetwork = lastNetwork.Name,
-                        CurrentVlan = lastNetwork.VlanId,
-                        RecommendedNetwork = placement.RecommendedNetwork?.Name,
-                        RecommendedVlan = placement.RecommendedNetwork?.VlanId,
-                        RecommendedAction = placement.RecommendedNetwork != null
-                            ? $"Move to {placement.RecommendedNetworkLabel}"
-                            : "Create IoT VLAN",
-                        RuleId = "OFFLINE-IOT-VLAN",
-                        ScoreImpact = scoreImpact,
-                        Metadata = new Dictionary<string, object>
-                        {
-                            ["category"] = detection.CategoryName,
-                            ["confidence"] = detection.ConfidenceScore,
-                            ["source"] = detection.Source.ToString(),
-                            ["lastSeen"] = historyClient.LastSeen,
-                            ["isRecent"] = isRecent,
-                            ["isLowRisk"] = placement.IsLowRisk
-                        }
-                    });
-                }
-            }
-
-            // Check if camera/surveillance device on wrong VLAN
-            if (detection.Category.IsSurveillance())
-            {
-                // Use VlanPlacementChecker for consistent network recommendation
-                var placement = Rules.VlanPlacementChecker.CheckCameraPlacement(
-                    lastNetwork,
-                    ctx.Networks,
-                    8); // default score impact for cameras
-
-                if (!placement.IsCorrectlyPlaced)
-                {
-                    var isRecent = historyClient.LastSeen >= twoWeeksAgo;
-                    var severity = isRecent ? Models.AuditSeverity.Critical : Models.AuditSeverity.Informational;
-                    var scoreImpact = isRecent ? placement.ScoreImpact : 0;
-
-                    var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
-
-                    ctx.AllIssues.Add(new AuditIssue
-                    {
-                        Type = "OFFLINE-CAMERA-VLAN",
-                        Severity = severity,
-                        Message = $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be on security VLAN",
-                        DeviceName = $"{displayName} (offline)",
-                        CurrentNetwork = lastNetwork.Name,
-                        CurrentVlan = lastNetwork.VlanId,
-                        RecommendedNetwork = placement.RecommendedNetwork?.Name,
-                        RecommendedVlan = placement.RecommendedNetwork?.VlanId,
-                        RecommendedAction = placement.RecommendedNetwork != null
-                            ? $"Move to {placement.RecommendedNetworkLabel}"
-                            : "Create Security VLAN",
-                        RuleId = "OFFLINE-CAMERA-VLAN",
-                        ScoreImpact = scoreImpact,
-                        Metadata = new Dictionary<string, object>
-                        {
-                            ["category"] = detection.CategoryName,
-                            ["confidence"] = detection.ConfidenceScore,
-                            ["source"] = detection.Source.ToString(),
-                            ["lastSeen"] = historyClient.LastSeen,
-                            ["isRecent"] = isRecent
-                        }
-                    });
-                }
-            }
+            AddOfflineClientInfo(ctx, historyClient, lastNetwork, detection);
+            CheckOfflineClientPlacement(ctx, historyClient, lastNetwork, detection, twoWeeksAgo);
         }
 
         _logger.LogInformation("Found {OfflineCount} offline clients with detection, {IssueCount} VLAN placement issues",
             ctx.OfflineClients.Count, ctx.AllIssues.Count(i => i.Type?.StartsWith("OFFLINE-") == true));
     }
 
-    private static DeviceTypeDetectionService? GetDetectionServiceFromAnalyzer(PortSecurityAnalyzer analyzer)
+    private static HashSet<string> BuildOnlineClientMacSet(List<UniFiClientResponse>? clients)
     {
-        // Use reflection to get the detection service (it's private in the analyzer)
-        var field = typeof(PortSecurityAnalyzer).GetField("_detectionService",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return field?.GetValue(analyzer) as DeviceTypeDetectionService;
+        var macs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (clients != null)
+        {
+            foreach (var client in clients.Where(c => !string.IsNullOrEmpty(c.Mac)))
+                macs.Add(client.Mac!);
+        }
+        return macs;
+    }
+
+    private static bool ShouldSkipOfflineClient(UniFiClientHistoryResponse client, HashSet<string> onlineMacs)
+    {
+        // Skip if currently online
+        if (!string.IsNullOrEmpty(client.Mac) && onlineMacs.Contains(client.Mac))
+            return true;
+        // Skip wired devices (handled by port security analysis via LastConnectionMac)
+        return client.IsWired;
+    }
+
+    private static DeviceDetectionResult DetectOfflineClientType(
+        UniFiClientHistoryResponse client,
+        DeviceTypeDetectionService detectionService)
+    {
+        var detection = detectionService.DetectFromMac(client.Mac ?? "");
+
+        // Try name-based detection if MAC detection didn't work
+        if (detection.Category == ClientDeviceCategory.Unknown)
+        {
+            var displayName = client.DisplayName ?? client.Name ?? client.Hostname;
+            if (!string.IsNullOrEmpty(displayName))
+                detection = detectionService.DetectFromPortName(displayName);
+        }
+
+        return detection;
+    }
+
+    private void AddOfflineClientInfo(
+        AuditContext ctx,
+        UniFiClientHistoryResponse historyClient,
+        NetworkInfo lastNetwork,
+        DeviceDetectionResult detection)
+    {
+        string? lastUplinkModelName = null;
+        if (!string.IsNullOrEmpty(historyClient.LastUplinkName))
+            ctx.ApNameToModel.TryGetValue(historyClient.LastUplinkName, out lastUplinkModelName);
+
+        ctx.OfflineClients.Add(new OfflineClientInfo
+        {
+            HistoryClient = historyClient,
+            LastNetwork = lastNetwork,
+            Detection = detection,
+            LastUplinkModelName = lastUplinkModelName
+        });
+    }
+
+    private void CheckOfflineClientPlacement(
+        AuditContext ctx,
+        UniFiClientHistoryResponse historyClient,
+        NetworkInfo lastNetwork,
+        DeviceDetectionResult detection,
+        long twoWeeksAgo)
+    {
+        if (detection.Category.IsIoT())
+            CheckOfflineIoTPlacement(ctx, historyClient, lastNetwork, detection, twoWeeksAgo);
+
+        if (detection.Category.IsSurveillance())
+            CheckOfflineCameraPlacement(ctx, historyClient, lastNetwork, detection, twoWeeksAgo);
+    }
+
+    private void CheckOfflineIoTPlacement(
+        AuditContext ctx,
+        UniFiClientHistoryResponse historyClient,
+        NetworkInfo lastNetwork,
+        DeviceDetectionResult detection,
+        long twoWeeksAgo)
+    {
+        var placement = Rules.VlanPlacementChecker.CheckIoTPlacement(
+            detection.Category, lastNetwork, ctx.Networks, 10, ctx.AllowanceSettings, detection.VendorName);
+
+        if (placement.IsCorrectlyPlaced)
+            return;
+
+        var isRecent = historyClient.LastSeen >= twoWeeksAgo;
+        var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
+
+        ctx.AllIssues.Add(CreateOfflineVlanIssue(
+            "OFFLINE-IOT-VLAN",
+            $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be isolated",
+            displayName, lastNetwork, placement, detection, historyClient.LastSeen, isRecent,
+            placement.RecommendedNetwork != null ? $"Move to {placement.RecommendedNetworkLabel}" : "Create IoT VLAN",
+            isRecent ? placement.Severity : Models.AuditSeverity.Informational,
+            isRecent ? placement.ScoreImpact : 0,
+            placement.IsLowRisk));
+    }
+
+    private void CheckOfflineCameraPlacement(
+        AuditContext ctx,
+        UniFiClientHistoryResponse historyClient,
+        NetworkInfo lastNetwork,
+        DeviceDetectionResult detection,
+        long twoWeeksAgo)
+    {
+        var placement = Rules.VlanPlacementChecker.CheckCameraPlacement(lastNetwork, ctx.Networks, 8);
+
+        if (placement.IsCorrectlyPlaced)
+            return;
+
+        var isRecent = historyClient.LastSeen >= twoWeeksAgo;
+        var displayName = historyClient.DisplayName ?? historyClient.Name ?? historyClient.Hostname ?? historyClient.Mac;
+
+        ctx.AllIssues.Add(CreateOfflineVlanIssue(
+            "OFFLINE-CAMERA-VLAN",
+            $"{detection.CategoryName} on {lastNetwork.Name} VLAN - should be on security VLAN",
+            displayName, lastNetwork, placement, detection, historyClient.LastSeen, isRecent,
+            placement.RecommendedNetwork != null ? $"Move to {placement.RecommendedNetworkLabel}" : "Create Security VLAN",
+            isRecent ? Models.AuditSeverity.Critical : Models.AuditSeverity.Informational,
+            isRecent ? placement.ScoreImpact : 0));
+    }
+
+    private static AuditIssue CreateOfflineVlanIssue(
+        string type,
+        string message,
+        string? displayName,
+        NetworkInfo lastNetwork,
+        Rules.VlanPlacementChecker.PlacementResult placement,
+        DeviceDetectionResult detection,
+        long lastSeen,
+        bool isRecent,
+        string recommendedAction,
+        Models.AuditSeverity severity,
+        int scoreImpact,
+        bool? isLowRisk = null)
+    {
+        var metadata = new Dictionary<string, object>
+        {
+            ["category"] = detection.CategoryName,
+            ["confidence"] = detection.ConfidenceScore,
+            ["source"] = detection.Source.ToString(),
+            ["lastSeen"] = lastSeen,
+            ["isRecent"] = isRecent
+        };
+
+        if (isLowRisk.HasValue)
+            metadata["isLowRisk"] = isLowRisk.Value;
+
+        return new AuditIssue
+        {
+            Type = type,
+            Severity = severity,
+            Message = message,
+            DeviceName = $"{displayName} (offline)",
+            CurrentNetwork = lastNetwork.Name,
+            CurrentVlan = lastNetwork.VlanId,
+            RecommendedNetwork = placement.RecommendedNetwork?.Name,
+            RecommendedVlan = placement.RecommendedNetwork?.VlanId,
+            RecommendedAction = recommendedAction,
+            RuleId = type,
+            ScoreImpact = scoreImpact,
+            Metadata = metadata
+        };
     }
 
     private void ExecutePhase4_AnalyzeNetworkConfiguration(AuditContext ctx)

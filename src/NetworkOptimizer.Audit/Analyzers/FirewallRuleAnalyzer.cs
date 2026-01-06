@@ -60,8 +60,8 @@ public class FirewallRuleAnalyzer
                     var earlierRule = orderedRules[j];
 
                     // Only care about conflicting actions (ALLOW vs DENY/BLOCK/DROP)
-                    var earlierIsAllow = IsAllowAction(earlierRule.Action);
-                    var laterIsAllow = IsAllowAction(laterRule.Action);
+                    var earlierIsAllow = earlierRule.ActionType.IsAllowAction();
+                    var laterIsAllow = laterRule.ActionType.IsAllowAction();
 
                     // Skip if same action type (both allow or both deny)
                     if (earlierIsAllow == laterIsAllow)
@@ -171,17 +171,6 @@ public class FirewallRuleAnalyzer
     }
 
     /// <summary>
-    /// Check if an action is an allow/accept action
-    /// </summary>
-    private static bool IsAllowAction(string? action)
-    {
-        if (string.IsNullOrEmpty(action))
-            return false;
-        return action.Equals("allow", StringComparison.OrdinalIgnoreCase) ||
-               action.Equals("accept", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
     /// Detect overly permissive rules (any/any)
     /// </summary>
     public List<AuditIssue> DetectPermissiveRules(List<FirewallRule> rules)
@@ -198,7 +187,7 @@ public class FirewallRuleAnalyzer
             var isAnyDest = rule.DestinationType == "any" || string.IsNullOrEmpty(rule.Destination);
             var isAnyProtocol = rule.Protocol == "all" || string.IsNullOrEmpty(rule.Protocol);
 
-            if (isAnySource && isAnyDest && isAnyProtocol && rule.Action == "accept")
+            if (isAnySource && isAnyDest && isAnyProtocol && rule.ActionType.IsAllowAction())
             {
                 issues.Add(new AuditIssue
                 {
@@ -217,7 +206,7 @@ public class FirewallRuleAnalyzer
                 });
             }
             // Check for any source or any destination (less critical)
-            else if ((isAnySource || isAnyDest) && rule.Action == "accept")
+            else if ((isAnySource || isAnyDest) && rule.ActionType.IsAllowAction())
             {
                 var direction = isAnySource ? "any source" : "any destination";
                 issues.Add(new AuditIssue
@@ -323,7 +312,7 @@ public class FirewallRuleAnalyzer
             {
                 var hasIsolationRule = rules.Any(r =>
                     r.Enabled &&
-                    r.Action == "drop" &&
+                    r.ActionType.IsBlockAction() &&
                     ((r.Source == iot.Id && r.Destination == corporate.Id) ||
                      (r.Source == corporate.Id && r.Destination == iot.Id)));
 
@@ -354,7 +343,7 @@ public class FirewallRuleAnalyzer
             {
                 var hasIsolationRule = rules.Any(r =>
                     r.Enabled &&
-                    r.Action == "drop" &&
+                    r.ActionType.IsBlockAction() &&
                     ((r.Source == guest.Id && r.Destination == corporate.Id) ||
                      (r.Source == corporate.Id && r.Destination == guest.Id)));
 
@@ -429,7 +418,7 @@ public class FirewallRuleAnalyzer
             // Must have: source = management network, destination web domain = ui.com
             var hasUniFiAccess = rules.Any(r =>
                 r.Enabled &&
-                r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                r.ActionType.IsAllowAction() &&
                 r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                 r.WebDomains?.Any(d => d.Contains("ui.com", StringComparison.OrdinalIgnoreCase)) == true);
 
@@ -458,7 +447,7 @@ public class FirewallRuleAnalyzer
             // Must have: source = management network, destination web domain = qcs.qualcomm.com
             var hasAfcAccess = rules.Any(r =>
                 r.Enabled &&
-                r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                r.ActionType.IsAllowAction() &&
                 r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                 r.WebDomains?.Any(d => d.Contains("qcs.qualcomm.com", StringComparison.OrdinalIgnoreCase)) == true);
 
@@ -487,7 +476,7 @@ public class FirewallRuleAnalyzer
             // Can be satisfied by: web domain containing ntp.org OR destination port 123
             var hasNtpAccess = rules.Any(r =>
                 r.Enabled &&
-                r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                r.ActionType.IsAllowAction() &&
                 r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                 (r.WebDomains?.Any(d => d.Contains("ntp.org", StringComparison.OrdinalIgnoreCase)) == true ||
                  r.DestinationPort == "123" ||
@@ -523,7 +512,7 @@ public class FirewallRuleAnalyzer
             {
                 var has5GModemAccess = rules.Any(r =>
                     r.Enabled &&
-                    r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                    r.ActionType.IsAllowAction() &&
                     r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                     r.WebDomains?.Any(d =>
                         d.Contains("trafficmanager.net", StringComparison.OrdinalIgnoreCase) ||

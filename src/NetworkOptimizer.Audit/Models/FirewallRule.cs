@@ -31,6 +31,11 @@ public class FirewallRule
     public string? Action { get; init; }
 
     /// <summary>
+    /// Parsed action type enum (computed from Action string)
+    /// </summary>
+    public FirewallAction ActionType => FirewallActionExtensions.Parse(Action);
+
+    /// <summary>
     /// Protocol (tcp, udp, all, etc.)
     /// </summary>
     public string? Protocol { get; init; }
