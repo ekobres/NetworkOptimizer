@@ -1176,7 +1176,7 @@
         return issues.Where(i => GetSeverityCssClass(i.Severity) == selectedFilter);
     }
 
-    private IEnumerable<IGrouping<(string Title, AuditSeverity Severity, string? Description, string? Recommendation), Services.AuditIssue>> GetGroupedFilteredIssues()
+    private IEnumerable<IGrouping<(string Title, AuditSeverity Severity, string? Description, string Recommendation), Services.AuditIssue>> GetGroupedFilteredIssues()
     {
         // Smart grouping based on issue type:
         // - Device issues (has DeviceName/Port): group by Title+Severity+Description+Recommendation
