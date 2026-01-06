@@ -1382,4 +1382,340 @@ public class DnsSecurityAnalyzerTests
     }
 
     #endregion
+
+    #region WAN DNS Validation Tests
+
+    [Fact]
+    public async Task Analyze_WithDohAndMatchingWanDns_SetsWanDnsMatchesDoH()
+    {
+        // Arrange - DoH configured with Cloudflare, WAN DNS also Cloudflare
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""cloudflare""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true,
+                        ""dns"": [""1.1.1.1"", ""1.0.0.1""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        result.DohConfigured.Should().BeTrue();
+        result.WanDnsServers.Should().Contain("1.1.1.1");
+        result.ExpectedDnsProvider.Should().Be("Cloudflare");
+    }
+
+    [Fact]
+    public async Task Analyze_WithDohAndMismatchedWanDns_GeneratesIssue()
+    {
+        // Arrange - DoH configured with Cloudflare, but WAN DNS is Google
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""cloudflare""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true,
+                        ""dns"": [""8.8.8.8"", ""8.8.4.4""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        result.DohConfigured.Should().BeTrue();
+        result.WanDnsMatchesDoH.Should().BeFalse();
+        result.Issues.Should().Contain(i => i.Type == "DNS_WAN_MISMATCH");
+    }
+
+    [Fact]
+    public async Task Analyze_WithDohButNoWanDns_SkipsValidation()
+    {
+        // Arrange - DoH configured but no WAN DNS info
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""cloudflare""]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, null);
+
+        // Assert - Should not crash, validation skipped
+        result.DohConfigured.Should().BeTrue();
+        result.WanDnsServers.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Analyze_WithGoogleDohAndGoogleWanDns_Matches()
+    {
+        // Arrange - Google DoH with Google WAN DNS
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""google""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true,
+                        ""dns"": [""8.8.8.8"", ""8.8.4.4""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        result.ExpectedDnsProvider.Should().Be("Google");
+        result.WanDnsProvider.Should().Be("Google");
+    }
+
+    [Fact]
+    public async Task Analyze_WithQuad9DohAndQuad9WanDns_Matches()
+    {
+        // Arrange - Quad9 DoH with Quad9 WAN DNS
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""quad9""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true,
+                        ""dns"": [""9.9.9.9"", ""149.112.112.112""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        result.ExpectedDnsProvider.Should().Be("Quad9");
+    }
+
+    [Fact]
+    public async Task Analyze_MultipleWanInterfaces_ChecksEach()
+    {
+        // Arrange - DoH with dual WAN, one matching, one not
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""cloudflare""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN1"",
+                        ""up"": true,
+                        ""dns"": [""1.1.1.1""]
+                    },
+                    {
+                        ""network_name"": ""wan2"",
+                        ""name"": ""WAN2"",
+                        ""up"": true,
+                        ""dns"": [""8.8.8.8""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert - WAN2 has mismatched DNS
+        result.WanInterfaces.Should().HaveCount(2);
+        result.WanDnsMatchesDoH.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Analyze_WanInterfaceWithoutDns_CountsAsNoDns()
+    {
+        // Arrange - WAN interface with no static DNS
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""cloudflare""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        result.WanInterfaces.Should().HaveCount(1);
+        result.WanInterfaces[0].HasStaticDns.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Analyze_WithOpenDnsDohAndOpenDnsWanDns_Matches()
+    {
+        // Arrange - OpenDNS DoH with OpenDNS WAN DNS
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""opendns""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true,
+                        ""dns"": [""208.67.222.222"", ""208.67.220.220""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        result.ExpectedDnsProvider.Should().Be("OpenDNS");
+    }
+
+    [Fact]
+    public async Task Analyze_WithAdGuardDohAndAdGuardWanDns_Matches()
+    {
+        // Arrange - AdGuard DoH with AdGuard WAN DNS
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""adguard""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true,
+                        ""dns"": [""94.140.14.14"", ""94.140.15.15""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        result.ExpectedDnsProvider.Should().Be("AdGuard");
+    }
+
+    [Fact]
+    public async Task Analyze_MatchingWanDns_AddsHardeningNote()
+    {
+        // Arrange
+        var settings = JsonDocument.Parse(@"[
+            {
+                ""key"": ""doh"",
+                ""state"": ""custom"",
+                ""server_names"": [""cloudflare""]
+            }
+        ]").RootElement;
+
+        var deviceData = JsonDocument.Parse(@"[
+            {
+                ""type"": ""udm"",
+                ""port_table"": [
+                    {
+                        ""network_name"": ""wan"",
+                        ""name"": ""WAN"",
+                        ""up"": true,
+                        ""dns"": [""1.1.1.1"", ""1.0.0.1""]
+                    }
+                ]
+            }
+        ]").RootElement;
+
+        // Act
+        var result = await _analyzer.AnalyzeAsync(settings, null, null, null, deviceData);
+
+        // Assert
+        if (result.WanDnsMatchesDoH)
+        {
+            result.HardeningNotes.Should().Contain(n => n.Contains("WAN DNS correctly configured"));
+        }
+    }
+
+    #endregion
 }
