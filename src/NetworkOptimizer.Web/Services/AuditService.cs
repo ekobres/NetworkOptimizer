@@ -879,7 +879,8 @@ public class AuditService
         // Firewall rule issues
         Audit.IssueTypes.FwAnyAny or
         Audit.IssueTypes.AllowSubvertsDeny or Audit.IssueTypes.AllowExceptionPattern or Audit.IssueTypes.DenyShadowsAllow or
-        Audit.IssueTypes.PermissiveRule or Audit.IssueTypes.BroadRule or Audit.IssueTypes.OrphanedRule or Audit.IssueTypes.MissingIsolation => "Firewall Rules",
+        Audit.IssueTypes.PermissiveRule or Audit.IssueTypes.BroadRule or Audit.IssueTypes.OrphanedRule or
+        Audit.IssueTypes.MissingIsolation or Audit.IssueTypes.IsolationBypassed => "Firewall Rules",
         var t when t.StartsWith("FW-") => "Firewall Rules",
 
         // VLAN security issues (includes device placement - putting devices on correct VLAN)
@@ -929,6 +930,7 @@ public class AuditService
             Audit.IssueTypes.AllowSubvertsDeny => "Firewall: Rule Order Issue",
             Audit.IssueTypes.DenyShadowsAllow => "Firewall: Ineffective Allow Rule",
             Audit.IssueTypes.MissingIsolation => "Firewall: Missing VLAN Isolation",
+            Audit.IssueTypes.IsolationBypassed => "Firewall: VLAN Isolation Bypassed",
             "VLAN_VIOLATION" => "VLAN Policy Violation",
             "INTER_VLAN" => "Inter-VLAN Access Issue",
 

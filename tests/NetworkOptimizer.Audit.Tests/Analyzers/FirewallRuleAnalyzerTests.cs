@@ -982,17 +982,18 @@ public class FirewallRuleAnalyzerTests
 
         var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
 
-        // Should flag the ALLOW rule as problematic
-        issues.Should().Contain(i => i.Type == "BROAD_RULE" && i.Message.Contains("[TEST] Any <-> Any"));
-        var allowIssue = issues.First(i => i.Type == "BROAD_RULE");
+        // Should flag the ALLOW rule as critical - actively bypassing isolation
+        issues.Should().Contain(i => i.Type == "ISOLATION_BYPASSED" && i.Message.Contains("[TEST] Any <-> Any"));
+        var allowIssue = issues.First(i => i.Type == "ISOLATION_BYPASSED");
         allowIssue.Message.Should().Contain("IoT").And.Contain("Security");
-        allowIssue.RuleId.Should().Be("FW-ALLOW-ISOLATED");
+        allowIssue.Severity.Should().Be(AuditSeverity.Critical);
+        allowIssue.RuleId.Should().Be("FW-ISOLATION-BYPASS");
     }
 
     [Fact]
-    public void CheckInterVlanIsolation_AllowRuleBetweenGuestAndCorporate_FlaggedAsBroadRule()
+    public void CheckInterVlanIsolation_AllowRuleBetweenGuestAndCorporate_FlaggedAsCritical()
     {
-        // Test Guest to Corporate allow rule is flagged
+        // Test Guest to Corporate allow rule is flagged as critical
         var networks = new List<NetworkInfo>
         {
             CreateNetwork("Guest WiFi", NetworkPurpose.Guest, id: "guest-net-id"),
@@ -1016,7 +1017,8 @@ public class FirewallRuleAnalyzerTests
 
         var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
 
-        issues.Should().Contain(i => i.Type == "BROAD_RULE" && i.RuleId == "FW-ALLOW-ISOLATED");
+        issues.Should().Contain(i => i.Type == "ISOLATION_BYPASSED" && i.RuleId == "FW-ISOLATION-BYPASS");
+        issues.First(i => i.Type == "ISOLATION_BYPASSED").Severity.Should().Be(AuditSeverity.Critical);
     }
 
     [Fact]
@@ -1048,7 +1050,7 @@ public class FirewallRuleAnalyzerTests
         var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
 
         // Should NOT flag allow rules between two corporate networks
-        issues.Should().NotContain(i => i.RuleId == "FW-ALLOW-ISOLATED");
+        issues.Should().NotContain(i => i.RuleId == "FW-ISOLATION-BYPASS");
     }
 
     #endregion

@@ -448,8 +448,8 @@ public class FirewallRuleAnalyzer
 
             issues.Add(new AuditIssue
             {
-                Type = IssueTypes.BroadRule,
-                Severity = AuditSeverity.Recommended,
+                Type = IssueTypes.IsolationBypassed,
+                Severity = AuditSeverity.Critical,
                 Message = $"Rule '{rule.Name}' allows traffic from {sourceNet.Name} ({sourceNet.Purpose}) to {destNet.Name} ({destNet.Purpose}) which should be isolated",
                 Metadata = new Dictionary<string, object>
                 {
@@ -459,10 +459,10 @@ public class FirewallRuleAnalyzer
                     { "source_purpose", sourceNet.Purpose.ToString() },
                     { "dest_network", destNet.Name },
                     { "dest_purpose", destNet.Purpose.ToString() },
-                    { "recommendation", "Review if this rule is necessary or restrict to specific ports/protocols" }
+                    { "recommendation", "Delete this rule or restrict to specific ports/protocols if necessary" }
                 },
-                RuleId = "FW-ALLOW-ISOLATED",
-                ScoreImpact = 7
+                RuleId = "FW-ISOLATION-BYPASS",
+                ScoreImpact = 12
             });
         }
     }
@@ -488,10 +488,16 @@ public class FirewallRuleAnalyzer
 
         if (!hasIsolationRule)
         {
+            // Determine severity based on network types
+            // Critical: Guest to sensitive networks, IoT to Management
+            var isCritical = IsCriticalIsolationMissing(network1.Purpose, network2.Purpose);
+            var severity = isCritical ? AuditSeverity.Critical : AuditSeverity.Recommended;
+            var scoreImpact = isCritical ? 12 : 7;
+
             issues.Add(new AuditIssue
             {
                 Type = IssueTypes.MissingIsolation,
-                Severity = AuditSeverity.Recommended,
+                Severity = severity,
                 Message = $"No explicit isolation rule between {network1.Name} ({network1.Purpose}) and {network2.Name} ({network2.Purpose})",
                 Metadata = new Dictionary<string, object>
                 {
@@ -502,9 +508,31 @@ public class FirewallRuleAnalyzer
                     { "recommendation", "Enable network isolation or add firewall rule to block inter-VLAN traffic" }
                 },
                 RuleId = ruleIdPrefix,
-                ScoreImpact = 7
+                ScoreImpact = scoreImpact
             });
         }
+    }
+
+    /// <summary>
+    /// Determines if missing isolation between two network types is critical.
+    /// Guest accessing sensitive networks and IoT accessing Management are critical.
+    /// </summary>
+    private static bool IsCriticalIsolationMissing(NetworkPurpose purpose1, NetworkPurpose purpose2)
+    {
+        // Guest to Corporate, Management, or Security = Critical
+        if (purpose1 == NetworkPurpose.Guest || purpose2 == NetworkPurpose.Guest)
+        {
+            var other = purpose1 == NetworkPurpose.Guest ? purpose2 : purpose1;
+            if (other is NetworkPurpose.Corporate or NetworkPurpose.Management or NetworkPurpose.Security)
+                return true;
+        }
+
+        // IoT to Management = Critical (IoT shouldn't access network infrastructure)
+        if ((purpose1 == NetworkPurpose.IoT && purpose2 == NetworkPurpose.Management) ||
+            (purpose1 == NetworkPurpose.Management && purpose2 == NetworkPurpose.IoT))
+            return true;
+
+        return false;
     }
 
     /// <summary>
