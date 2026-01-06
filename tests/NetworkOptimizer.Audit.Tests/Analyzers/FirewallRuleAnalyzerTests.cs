@@ -694,10 +694,10 @@ public class FirewallRuleAnalyzerTests
     #region v2 API Format Tests
 
     [Fact]
-    public void DetectPermissiveRules_V2ApiFormat_SpecificSourceIps_NotFlaggedAsPermissive()
+    public void DetectPermissiveRules_V2ApiFormat_SpecificSourceIps_NotFlaggedAtAll()
     {
-        // This is the exact scenario that was causing false positives:
-        // v2 API rule with specific source IPs should NOT be flagged as any->any
+        // v2 API rule with specific source IPs should NOT be flagged at all
+        // Having specific source IPs makes "any destination" acceptable
         var rules = new List<FirewallRule>
         {
             new FirewallRule
@@ -715,10 +715,61 @@ public class FirewallRuleAnalyzerTests
 
         var issues = _analyzer.DetectPermissiveRules(rules);
 
-        // Should detect "any destination" but NOT "any->any" since source is specific
-        issues.Should().ContainSingle();
-        issues.First().Type.Should().Be("BROAD_RULE"); // Not PERMISSIVE_RULE
-        issues.First().Severity.Should().Be(AuditSeverity.Recommended); // Not Critical
+        // Not flagged because specific source IPs make the rule restrictive
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_AnyDestWithSpecificPorts_NotFlaggedAsBroad()
+    {
+        // Rule with ANY destination but specific ports should NOT be flagged as broad
+        // This matches the "Allow Select Access to Custom UniFi APIs" scenario
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-ports",
+                Name = "Allow Select Access to Custom UniFi APIs",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "tcp",
+                SourceMatchingTarget = "IP",
+                SourceIps = new List<string> { "192.168.1.220", "192.168.1.10" },
+                DestinationMatchingTarget = "ANY",
+                DestinationPort = "8088-8089"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Not flagged because it has specific source IPs AND specific destination ports
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_AnySourceWithSpecificPorts_NotFlaggedAsBroad()
+    {
+        // Rule with ANY source but specific destination ports should NOT be flagged as broad
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "rule-any-src-specific-port",
+                Name = "Allow SSH from Any",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "tcp",
+                SourceMatchingTarget = "ANY",
+                DestinationMatchingTarget = "IP",
+                DestinationIps = new List<string> { "192.168.1.1" },
+                DestinationPort = "22"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Not flagged because specific port makes "any source" acceptable for this use case
+        issues.Should().BeEmpty();
     }
 
     [Fact]

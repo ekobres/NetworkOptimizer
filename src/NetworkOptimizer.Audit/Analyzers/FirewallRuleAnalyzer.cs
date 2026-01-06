@@ -214,8 +214,24 @@ public class FirewallRuleAnalyzer
                 });
             }
             // Check for any source or any destination (less critical)
+            // But don't flag if the rule has other restrictions that make it specific:
+            // - Specific destination ports limit what can be accessed
+            // - Specific source IPs limit who can access
+            // - Web domains limit destination to specific sites
             else if ((isAnySource || isAnyDest) && rule.ActionType.IsAllowAction())
             {
+                var hasSpecificPorts = !string.IsNullOrEmpty(rule.DestinationPort);
+                var hasSpecificSourceIps = rule.SourceIps?.Any() == true;
+                var hasWebDomains = rule.WebDomains?.Any() == true;
+
+                // If ANY destination but has specific ports or source IPs, it's not truly "broad"
+                if (isAnyDest && (hasSpecificPorts || hasSpecificSourceIps || hasWebDomains))
+                    continue;
+
+                // If ANY source but has specific destination ports or web domains, it's not truly "broad"
+                if (isAnySource && (hasSpecificPorts || hasWebDomains))
+                    continue;
+
                 var direction = isAnySource ? "any source" : "any destination";
                 issues.Add(new AuditIssue
                 {

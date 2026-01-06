@@ -154,7 +154,7 @@
                     {
                         @foreach (var issue in dismissedIssues)
                         {
-                            <div class="issue-item issue-@issue.Severity.ToString().ToLowerInvariant() issue-dismissed">
+                            <div class="issue-item issue-@GetSeverityCssClass(issue.Severity) issue-dismissed">
                                 <div class="issue-icon">
                                     @((MarkupString)GetSeverityIcon(issue.Severity))
                                 </div>
@@ -219,14 +219,14 @@
                             var groupKey = $"{issueTypeGroup.Key.Title}|{issueTypeGroup.Key.Severity}|{issueTypeGroup.Key.Description}|{issueTypeGroup.Key.Recommendation}";
                             var isExpanded = isSingleItem || expandedIssueTypes.Contains(groupKey);
                             var highestSeverity = issueTypeGroup.Key.Severity;
-                            var highestSeverityCss = highestSeverity.ToString().ToLowerInvariant();
+                            var highestSeverityCss = GetSeverityCssClass(highestSeverity);
                             var firstIssue = issueTypeGroup.First();
 
                             @if (isSingleItem)
                             {
                                 // Single item: render as a regular issue card (not collapsible)
                                 var issue = firstIssue;
-                                <div class="issue-item issue-@issue.Severity.ToString().ToLowerInvariant()">
+                                <div class="issue-item issue-@GetSeverityCssClass(issue.Severity)">
                                     <div class="issue-icon">
                                         @((MarkupString)GetSeverityIcon(issue.Severity))
                                     </div>
@@ -920,8 +920,20 @@
 
             // Build report data from audit results
             // Extract clean network name from gateway name for report title
-            var gatewayName = lastResult.Switches.FirstOrDefault(s => s.IsGateway)?.Name ?? "Network";
+            var gateway = lastResult.Switches.FirstOrDefault(s => s.IsGateway);
+            var gatewayName = gateway?.Name ?? "Gateway";
             var networkName = ExtractNetworkName(gatewayName);
+
+            // Helper to get device name for issues - firewall issues use gateway, others use DeviceName
+            string GetIssueDeviceName(Services.AuditIssue issue)
+            {
+                if (!string.IsNullOrEmpty(issue.DeviceName))
+                    return issue.DeviceName;
+                if (issue.IsWireless)
+                    return issue.AccessPoint ?? "Wireless";
+                // Firewall issues (no device, no port, not wireless) belong to gateway
+                return gatewayName;
+            }
             var reportData = new NetworkOptimizer.Reports.ReportData
             {
                 ClientName = networkName,
@@ -991,7 +1003,7 @@
                     .Select(i => new NetworkOptimizer.Reports.AuditIssue
                     {
                         Severity = NetworkOptimizer.Reports.IssueSeverity.Critical,
-                        SwitchName = i.DeviceName ?? "Unknown",
+                        SwitchName = GetIssueDeviceName(i),
                         SwitchMac = i.DeviceMac,
                         PortIndex = int.TryParse(i.Port, out var p) ? p : null,
                         PortId = int.TryParse(i.Port, out _) ? null : i.Port,  // Non-integer port IDs (e.g., "WAN1")
@@ -1015,7 +1027,7 @@
                     .Select(i => new NetworkOptimizer.Reports.AuditIssue
                     {
                         Severity = NetworkOptimizer.Reports.IssueSeverity.Warning,
-                        SwitchName = i.DeviceName ?? "Unknown",
+                        SwitchName = GetIssueDeviceName(i),
                         SwitchMac = i.DeviceMac,
                         PortIndex = int.TryParse(i.Port, out var p) ? p : null,
                         PortId = int.TryParse(i.Port, out _) ? null : i.Port,  // Non-integer port IDs (e.g., "WAN1")
@@ -1161,7 +1173,7 @@
     {
         if (selectedFilter == "all")
             return issues;
-        return issues.Where(i => i.Severity.ToString().ToLowerInvariant() == selectedFilter);
+        return issues.Where(i => GetSeverityCssClass(i.Severity) == selectedFilter);
     }
 
     private IEnumerable<IGrouping<(string Title, AuditSeverity Severity, string? Description, string? Recommendation), Services.AuditIssue>> GetGroupedFilteredIssues()
@@ -1225,6 +1237,15 @@
     {
         AuditSeverity.Informational => "Info",
         _ => severity.ToString()
+    };
+
+    /// <summary>
+    /// Get CSS class suffix for severity (matches existing CSS which uses "info" not "informational")
+    /// </summary>
+    private static string GetSeverityCssClass(AuditSeverity severity) => severity switch
+    {
+        AuditSeverity.Informational => "info",
+        _ => severity.ToString().ToLowerInvariant()
     };
 
     private async Task DismissIssue(Services.AuditIssue issue)
