@@ -234,6 +234,9 @@ public class Iperf3ServerService : BackgroundService
             // Parse end results - from SERVER perspective:
             // sum_received = data server received FROM client = "From Device" = DownloadBitsPerSecond
             // sum_sent = data server sent TO client = "To Device" = UploadBitsPerSecond
+            //
+            // For bidir tests (--bidir), iperf3 also outputs:
+            // sum_sent_bidir_reverse / sum_received_bidir_reverse for the reverse direction
             double fromDeviceBps = 0;  // Server download = received from client
             double toDeviceBps = 0;    // Server upload = sent to client
             long fromDeviceBytes = 0;
@@ -244,6 +247,7 @@ public class Iperf3ServerService : BackgroundService
             if (root.TryGetProperty("end", out var end))
             {
                 // Data received FROM client (server download = "From Device")
+                // Check both regular and bidir_reverse variants
                 if (end.TryGetProperty("sum_received", out var sumReceived))
                 {
                     fromDeviceBps = sumReceived.GetProperty("bits_per_second").GetDouble();
@@ -261,6 +265,26 @@ public class Iperf3ServerService : BackgroundService
                         toDeviceBytes = bytes.GetInt64();
                     if (sumSent.TryGetProperty("retransmits", out var rt))
                         toDeviceRetransmits = rt.GetInt32();
+                }
+
+                // For bidir tests: check _bidir_reverse variants
+                // In bidir mode, there are two simultaneous tests:
+                //   Normal: client → server (sum_received has client upload data)
+                //   Reverse: server → client (sum_sent_bidir_reverse has client download data)
+                //
+                // sum_sent_bidir_reverse = server sent TO client in reverse channel = "To Device"
+                if (end.TryGetProperty("sum_sent_bidir_reverse", out var sumSentReverse))
+                {
+                    var reverseBps = sumSentReverse.GetProperty("bits_per_second").GetDouble();
+                    // This is the actual download speed in bidir mode
+                    if (reverseBps > 0)
+                    {
+                        toDeviceBps = reverseBps;
+                        if (sumSentReverse.TryGetProperty("bytes", out var bytes))
+                            toDeviceBytes = bytes.GetInt64();
+                        if (sumSentReverse.TryGetProperty("retransmits", out var rt))
+                            toDeviceRetransmits = rt.GetInt32();
+                    }
                 }
             }
 
