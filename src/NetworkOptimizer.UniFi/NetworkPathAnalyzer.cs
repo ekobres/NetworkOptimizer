@@ -177,9 +177,15 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
             return null;
         }
 
-        // Find this server in the client list
-        var serverClient = topology.Clients.FirstOrDefault(c =>
-            localIps.Contains(c.IpAddress, StringComparer.OrdinalIgnoreCase));
+        // Find this server in the client list - search in priority order
+        DiscoveredClient? serverClient = null;
+        foreach (var ip in localIps)
+        {
+            serverClient = topology.Clients.FirstOrDefault(c =>
+                c.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase));
+            if (serverClient != null)
+                break;
+        }
 
         if (serverClient == null)
         {
@@ -560,8 +566,10 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 var name = ni.Name.ToLowerInvariant();
                 var desc = ni.Description.ToLowerInvariant();
 
-                // Skip virtual/bridge/tunnel interfaces - these are rarely the "real" network
+                // Skip virtual/bridge/tunnel/container interfaces
                 if (name.Contains("docker") || desc.Contains("docker") ||
+                    name.Contains("podman") || desc.Contains("podman") ||
+                    name.Contains("macvlan") || desc.Contains("macvlan") ||
                     name.Contains("veth") || name.Contains("br-") ||
                     name.Contains("virbr") || name.Contains("vbox") ||
                     name.Contains("vmnet") || name.Contains("vmware") ||
@@ -574,7 +582,6 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
 
                 // Assign priority: lower = better
                 // Physical Ethernet > WiFi > Everything else
-                // Note: 10GbE/25GbE/etc typically report as Ethernet (6) or FastEtherFx (69)
                 int priority;
                 var ifType = ni.NetworkInterfaceType;
                 if (ifType == NetworkInterfaceType.Ethernet ||
