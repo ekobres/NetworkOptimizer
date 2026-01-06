@@ -136,12 +136,13 @@
 - Consider user timezone preferences
 - Affected areas: Speed test results, audit history, device last seen, logs
 
-### Replace Severity String Constants with Enums
-- Current: Severity comparisons use string literals like `"Critical"`, `"Recommended"`, `"Informational"`
-- Example: `i.Severity == "Critical"` scattered throughout codebase
-- Target: Use `AuditSeverity` enum consistently from backend to frontend
-- Benefits: Type safety, refactoring support, no string typos
-- Affected areas: AuditService, AlertsList, Audit.razor filtering/sorting
+### ~~Replace Severity String Constants with Enums~~ (DONE)
+- ~~Current: Severity comparisons use string literals like `"Critical"`, `"Recommended"`, `"Informational"`~~
+- ~~Example: `i.Severity == "Critical"` scattered throughout codebase~~
+- ~~Target: Use `AuditSeverity` enum consistently from backend to frontend~~
+- ~~Benefits: Type safety, refactoring support, no string typos~~
+- ~~Affected areas: AuditService, AlertsList, Audit.razor filtering/sorting~~
+- DONE: Changed `AuditService.AuditIssue.Severity` to `AuditSeverity` enum, updated all comparisons
 
 ### ~~Unify Device Type System~~ (FIXED)
 - ~~Multiple competing device type systems need consolidation~~
