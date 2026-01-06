@@ -1923,7 +1923,7 @@ select.form-control {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    padding: 0.25rem 1rem 0.75rem 3.5rem;
+    padding: 0.5rem 1rem 0.75rem 3.5rem;
 }
 
 .issue-type-item .issue-context {
