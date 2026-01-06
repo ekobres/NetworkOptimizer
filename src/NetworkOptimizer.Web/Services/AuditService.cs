@@ -15,11 +15,6 @@ namespace NetworkOptimizer.Web.Services;
 
 public class AuditService
 {
-    // Severity level constants for consistent string comparisons
-    private const string SeverityCritical = "Critical";
-    private const string SeverityRecommended = "Recommended";
-    private const string SeverityInfo = "Info";
-
     // Cache keys for IMemoryCache
     private const string CacheKeyLastAuditResult = "AuditService_LastAuditResult";
     private const string CacheKeyLastAuditTime = "AuditService_LastAuditTime";
@@ -248,13 +243,13 @@ public class AuditService
     /// Get count of active critical issues
     /// </summary>
     public int ActiveCriticalCount =>
-        GetActiveIssues().Count(i => i.Severity == SeverityCritical);
+        GetActiveIssues().Count(i => i.Severity == AuditModels.AuditSeverity.Critical);
 
     /// <summary>
     /// Get count of active recommended issues
     /// </summary>
     public int ActiveRecommendedCount =>
-        GetActiveIssues().Count(i => i.Severity == SeverityRecommended);
+        GetActiveIssues().Count(i => i.Severity == AuditModels.AuditSeverity.Recommended);
 
     /// <summary>
     /// Clear all dismissed issues (removes from database too)
@@ -384,8 +379,8 @@ public class AuditService
             return new AuditSummary
             {
                 Score = cachedResult.Score,
-                CriticalCount = activeIssues.Count(i => i.Severity == SeverityCritical),
-                WarningCount = activeIssues.Count(i => i.Severity == SeverityRecommended),
+                CriticalCount = activeIssues.Count(i => i.Severity == AuditModels.AuditSeverity.Critical),
+                WarningCount = activeIssues.Count(i => i.Severity == AuditModels.AuditSeverity.Recommended),
                 LastAuditTime = cachedTime.Value,
                 RecentIssues = activeIssues.Take(5).ToList()
             };
@@ -496,7 +491,7 @@ public class AuditService
                 {
                     new AuditIssue
                     {
-                        Severity = SeverityCritical,
+                        Severity = AuditModels.AuditSeverity.Critical,
                         Category = "Connection",
                         Title = "Controller Not Connected",
                         Description = "Cannot run security audit without an active connection to the UniFi controller.",
@@ -629,7 +624,7 @@ public class AuditService
                 {
                     new AuditIssue
                     {
-                        Severity = SeverityCritical,
+                        Severity = AuditModels.AuditSeverity.Critical,
                         Category = "System",
                         Title = "Audit Failed",
                         Description = $"An error occurred while running the security audit: {ex.Message}",
@@ -661,7 +656,7 @@ public class AuditService
 
             issues.Add(new AuditIssue
             {
-                Severity = ConvertSeverity(issue.Severity),
+                Severity = issue.Severity,
                 Category = category,
                 Title = GetIssueTitle(issue.Type, issue.Message, issue.Severity),
                 Description = issue.Message,
@@ -689,9 +684,10 @@ public class AuditService
         // Group by severity in single pass to avoid multiple iterations
         var severityCounts = issues.GroupBy(i => i.Severity)
             .ToDictionary(g => g.Key, g => g.Count());
-        var criticalCount = severityCounts.GetValueOrDefault(SeverityCritical, 0);
-        var warningCount = severityCounts.GetValueOrDefault(SeverityRecommended, 0);
-        var infoCount = severityCounts.GetValueOrDefault(SeverityInfo, 0);
+        var criticalCount = severityCounts.GetValueOrDefault(AuditModels.AuditSeverity.Critical, 0);
+        var warningCount = severityCounts.GetValueOrDefault(AuditModels.AuditSeverity.Recommended, 0);
+        var infoCount = severityCounts.GetValueOrDefault(AuditModels.AuditSeverity.Informational, 0)
+                      + severityCounts.GetValueOrDefault(AuditModels.AuditSeverity.Info, 0);
 
         // Recalculate score based on FILTERED issues only (excluded features don't affect score)
         var score = CalculateFilteredScore(engineResult, options);
@@ -915,14 +911,6 @@ public class AuditService
         "Port Security" => options.IncludePortSecurity,
         "DNS Security" => options.IncludeDnsSecurity,
         _ => true
-    };
-
-    private static string ConvertSeverity(AuditModels.AuditSeverity severity) => severity switch
-    {
-        AuditModels.AuditSeverity.Critical => "Critical",
-        AuditModels.AuditSeverity.Recommended => "Recommended",
-        AuditModels.AuditSeverity.Informational => "Info",
-        _ => "Info"
     };
 
     private static string GetIssueTitle(string type, string message, Audit.Models.AuditSeverity severity)
@@ -1149,7 +1137,7 @@ public class AuditStatistics
 
 public class AuditIssue
 {
-    public string Severity { get; set; } = "";
+    public AuditModels.AuditSeverity Severity { get; set; }
     public string Category { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
