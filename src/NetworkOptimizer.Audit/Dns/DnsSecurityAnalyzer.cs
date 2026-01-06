@@ -27,7 +27,8 @@ public class DnsSecurityAnalyzer
         "quad9",
         "nextdns",
         "adguard",
-        "opendns"
+        "opendns",
+        "one.one.one"  // Cloudflare 1.1.1.1 alternate domain
     ];
 
     private readonly ThirdPartyDnsDetector _thirdPartyDetector;
