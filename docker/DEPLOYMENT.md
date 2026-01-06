@@ -46,7 +46,7 @@ docker compose build
 docker compose up -d
 
 # Check logs for the auto-generated admin password
-docker compose logs network-optimizer | grep -A5 "FIRST-RUN"
+docker logs network-optimizer 2>&1 | grep -A5 "AUTO-GENERATED"
 
 # Verify health
 docker compose ps

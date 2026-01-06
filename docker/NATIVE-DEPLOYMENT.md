@@ -175,7 +175,7 @@ Open your browser to: **http://localhost:8042**
 
 On first run, check the logs for the auto-generated admin password:
 ```bash
-grep -i password ~/network-optimizer/logs/stdout.log
+grep -A5 "AUTO-GENERATED" ~/network-optimizer/logs/stdout.log
 ```
 
 ### Service Management

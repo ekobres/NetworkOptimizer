@@ -18,7 +18,7 @@ docker compose up -d
 
 ### First Run - Get Admin Password
 ```bash
-docker compose logs network-optimizer | grep -A5 "FIRST-RUN"
+docker logs network-optimizer 2>&1 | grep -A5 "AUTO-GENERATED"
 ```
 
 Access at: **http://localhost:8042**

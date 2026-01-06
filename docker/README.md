@@ -34,7 +34,7 @@ Access at http://localhost:8042 (wait ~60 seconds for startup)
 
 3. **Get the auto-generated admin password:**
    ```bash
-   docker compose logs network-optimizer | grep -A5 "FIRST-RUN"
+   docker logs network-optimizer 2>&1 | grep -A5 "AUTO-GENERATED"
    ```
    On first run, a secure password is generated and displayed in the logs.
 
@@ -105,8 +105,8 @@ The web UI requires authentication. Password sources (in priority order):
 
 ### First Run
 ```bash
-# View the auto-generated password (shown only once)
-docker logs network-optimizer 2>&1 | grep "Password:"
+# View the auto-generated password (shown only once on first startup)
+docker logs network-optimizer 2>&1 | grep -A5 "AUTO-GENERATED"
 ```
 
 ### Setting a Permanent Password
