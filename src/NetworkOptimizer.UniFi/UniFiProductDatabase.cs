@@ -38,6 +38,9 @@ public static class UniFiProductDatabase
         // Industrial
         "USW-Industrial",
 
+        // Pro XG (MIPS-based)
+        "USW-Pro-XG-8-PoE",
+
         // Older AC APs (MIPS-based)
         "UAP",
         "UAP-LR",
