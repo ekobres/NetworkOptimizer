@@ -978,4 +978,213 @@ public class VlanAnalyzerTests
     }
 
     #endregion
+
+    #region AnalyzeInfrastructureVlanPlacement Tests
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_IdealNetwork_SwitchOnManagement_NoIssues()
+    {
+        // Arrange - Ideal sequential VLAN setup
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Management", NetworkPurpose.Management, vlanId: 1),
+            CreateNetwork("Home", NetworkPurpose.Home, vlanId: 2),
+            CreateNetwork("Guest", NetworkPurpose.Guest, vlanId: 3),
+            CreateNetwork("Security", NetworkPurpose.Security, vlanId: 4),
+            CreateNetwork("IoT", NetworkPurpose.IoT, vlanId: 5)
+        };
+
+        // Switch on Management VLAN (192.168.1.x)
+        var deviceJson = CreateDeviceJson("usw", "Core Switch", "192.168.1.10");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_IdealNetwork_SwitchOnHomeVlan_FlagsCritical()
+    {
+        // Arrange - Ideal sequential VLAN setup
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Management", NetworkPurpose.Management, vlanId: 1),
+            CreateNetwork("Home", NetworkPurpose.Home, vlanId: 2),
+            CreateNetwork("Guest", NetworkPurpose.Guest, vlanId: 3),
+            CreateNetwork("Security", NetworkPurpose.Security, vlanId: 4),
+            CreateNetwork("IoT", NetworkPurpose.IoT, vlanId: 5)
+        };
+
+        // Switch on Home VLAN (192.168.2.x) - wrong!
+        var deviceJson = CreateDeviceJson("usw", "Desk Switch", "192.168.2.15");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().HaveCount(1);
+        issues[0].Type.Should().Be(IssueTypes.InfraNotOnMgmt);
+        issues[0].Severity.Should().Be(AuditSeverity.Critical);
+        issues[0].Message.Should().Contain("Switch");
+        issues[0].Message.Should().Contain("Home");
+        issues[0].RecommendedNetwork.Should().Be("Management");
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_NonIdealVlans_APOnIoTVlan_FlagsCritical()
+    {
+        // Arrange - Non-sequential VLANs like real-world setups (99, 1, 42, 64)
+        var networks = new List<NetworkInfo>
+        {
+            new() { Id = "mgmt", Name = "Management", VlanId = 99, Purpose = NetworkPurpose.Management, Subnet = "192.168.99.0/24", Gateway = "192.168.99.1" },
+            new() { Id = "home", Name = "Main Network", VlanId = 1, Purpose = NetworkPurpose.Home, Subnet = "192.168.1.0/24", Gateway = "192.168.1.1" },
+            new() { Id = "sec", Name = "Cameras", VlanId = 42, Purpose = NetworkPurpose.Security, Subnet = "192.168.42.0/24", Gateway = "192.168.42.1" },
+            new() { Id = "iot", Name = "Smart Devices", VlanId = 64, Purpose = NetworkPurpose.IoT, Subnet = "192.168.64.0/24", Gateway = "192.168.64.1" }
+        };
+
+        // AP on IoT VLAN (192.168.64.x) - wrong!
+        var deviceJson = CreateDeviceJson("uap", "Living Room AP", "192.168.64.20");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().HaveCount(1);
+        issues[0].Type.Should().Be(IssueTypes.InfraNotOnMgmt);
+        issues[0].Message.Should().Contain("Access Point");
+        issues[0].Message.Should().Contain("Smart Devices");
+        issues[0].CurrentNetwork.Should().Be("Smart Devices");
+        issues[0].CurrentVlan.Should().Be(64);
+        issues[0].RecommendedNetwork.Should().Be("Management");
+        issues[0].RecommendedVlan.Should().Be(99);
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_GatewayOnAnyVlan_NoIssues()
+    {
+        // Arrange - Gateway devices are skipped
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Management", NetworkPurpose.Management, vlanId: 1),
+            CreateNetwork("Home", NetworkPurpose.Home, vlanId: 2)
+        };
+
+        // Gateway on Home VLAN - still OK because gateways are exempt
+        var deviceJson = CreateDeviceJson("udm", "Dream Machine", "192.168.2.1");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_MultipleDevicesWrongVlan_FlagsAll()
+    {
+        // Arrange
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Management", NetworkPurpose.Management, vlanId: 1),
+            CreateNetwork("Home", NetworkPurpose.Home, vlanId: 2),
+            CreateNetwork("IoT", NetworkPurpose.IoT, vlanId: 3)
+        };
+
+        // Multiple devices on wrong VLANs
+        var deviceJson = CreateMultipleDevicesJson(
+            ("usw", "Switch A", "192.168.2.10"),  // Home VLAN - wrong
+            ("uap", "AP A", "192.168.3.10"),      // IoT VLAN - wrong
+            ("usw", "Switch B", "192.168.1.20")   // Management - OK
+        );
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().HaveCount(2);
+        issues.Should().Contain(i => i.Message.Contains("Switch A"));
+        issues.Should().Contain(i => i.Message.Contains("AP A"));
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_NoManagementNetwork_NoIssues()
+    {
+        // Arrange - No Management network defined
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Home", NetworkPurpose.Home, vlanId: 1),
+            CreateNetwork("IoT", NetworkPurpose.IoT, vlanId: 2)
+        };
+
+        var deviceJson = CreateDeviceJson("usw", "Switch", "192.168.2.10");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert - Can't flag if no Management network exists
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_CellularModemOnGuestVlan_FlagsCritical()
+    {
+        // Arrange
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Management", NetworkPurpose.Management, vlanId: 1),
+            CreateNetwork("Guest", NetworkPurpose.Guest, vlanId: 50)
+        };
+
+        // Cellular modem on Guest VLAN - wrong!
+        var deviceJson = CreateDeviceJson("umbb", "LTE Backup", "192.168.50.5");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().HaveCount(1);
+        issues[0].Message.Should().Contain("Cellular Modem");
+    }
+
+    private static System.Text.Json.JsonElement CreateDeviceJson(string type, string name, string ip)
+    {
+        var json = $$"""
+        {
+            "data": [
+                {
+                    "type": "{{type}}",
+                    "name": "{{name}}",
+                    "ip": "{{ip}}",
+                    "mac": "aa:bb:cc:dd:ee:ff"
+                }
+            ]
+        }
+        """;
+        return System.Text.Json.JsonDocument.Parse(json).RootElement;
+    }
+
+    private static System.Text.Json.JsonElement CreateMultipleDevicesJson(params (string type, string name, string ip)[] devices)
+    {
+        var deviceJsons = devices.Select(d => $$"""
+                {
+                    "type": "{{d.type}}",
+                    "name": "{{d.name}}",
+                    "ip": "{{d.ip}}",
+                    "mac": "{{Guid.NewGuid():N}}"
+                }
+        """);
+
+        var json = $$"""
+        {
+            "data": [
+                {{string.Join(",\n", deviceJsons)}}
+            ]
+        }
+        """;
+        return System.Text.Json.JsonDocument.Parse(json).RootElement;
+    }
+
+    #endregion
 }
