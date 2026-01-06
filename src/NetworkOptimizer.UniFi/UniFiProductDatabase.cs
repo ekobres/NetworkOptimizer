@@ -67,11 +67,11 @@ public static class UniFiProductDatabase
         { "UDMSE", "UDM-SE" },
 
         // Dream Wall
-        { "UDW", "Dream Wall" },
+        { "UDW", "UDW" },
 
         // Enterprise Fortress Gateway
-        { "EFG", "Enterprise Fortress Gateway" },
-        { "UDMENT", "Enterprise Fortress Gateway" },
+        { "EFG", "EFG" },
+        { "UDMENT", "EFG" },
 
         // Cloud Gateways
         { "UCG", "UCG" },
@@ -81,13 +81,13 @@ public static class UniFiProductDatabase
         { "UCG-ULTRA", "UCG-Ultra" },
 
         // Cloud Keys
-        { "UCK", "Cloud Key" },
-        { "UCK-G2", "Cloud Key Gen2" },
-        { "UCKG2", "Cloud Key Gen2" },
-        { "UCKP", "Cloud Key Plus" },
-        { "UCK-G2-PLUS", "Cloud Key Gen2 Plus" },
-        { "UCKP2", "Cloud Key Gen2 Plus" },
-        { "UCKENT", "Cloud Key Enterprise" },
+        { "UCK", "UC-CK" },
+        { "UCK-G2", "UCK-G2" },
+        { "UCKG2", "UCK-G2" },
+        { "UCKP", "UCK-G2-Plus" },
+        { "UCK-G2-PLUS", "UCK-G2-Plus" },
+        { "UCKP2", "UCK-G2-Plus" },
+        { "UCKENT", "CK-Enterprise" },
 
         // UniFi Security Gateways (legacy)
         { "USG", "USG" },
@@ -97,30 +97,30 @@ public static class UniFiProductDatabase
         { "UGWXG", "USG-XG-8" },
 
         // UniFi Gateways (Next-Gen)
-        { "UXG", "Gateway" },
-        { "UXGPRO", "Gateway Pro" },
-        { "UXG-PRO", "Gateway Pro" },
-        { "UXGPROV2", "Gateway Pro" },
-        { "UXGLITE", "Gateway Lite" },
-        { "UXGFIBER", "Gateway Fiber" },
-        { "UXGENT", "Gateway Enterprise" },
-        { "UXGB", "Gateway Max" },
-        { "UXGA6AA", "Gateway Max" },
+        { "UXG", "UXG" },
+        { "UXGPRO", "UXG-Pro" },
+        { "UXG-PRO", "UXG-Pro" },
+        { "UXGPROV2", "UXG-Pro" },
+        { "UXGLITE", "UXG-Lite" },
+        { "UXGFIBER", "UXG-Fiber" },
+        { "UXGENT", "UXG-Enterprise" },
+        { "UXGB", "UXG-Max" },
+        { "UXGA6AA", "UXG-Max" },
 
         // Dream Routers
-        { "UDR", "Dream Router" },
-        { "UDR7", "Dream Router 7" },
-        { "UDR5G", "Dream Router 5G Max" },
-        { "UDRULT", "Dream Router Ultra" },
-        { "UDMA67A", "Dream Router" },
-        { "UDMA6B9", "Dream Router" },
+        { "UDR", "UDR" },
+        { "UDR7", "UDR7" },
+        { "UDR5G", "UDR-5G-Max" },
+        { "UDRULT", "UCG-Ultra" },
+        { "UDMA67A", "UDR" },
+        { "UDMA6B9", "UDR" },
 
         // UniFi Express
-        { "UX", "Express" },
-        { "EXPRESS", "Express" },
-        { "UX7", "Express 7" },
-        { "UDMA69B", "Express" },
-        { "UXMAX", "Express Max" },
+        { "UX", "UX" },
+        { "EXPRESS", "UX" },
+        { "UX7", "UX7" },
+        { "UDMA69B", "UX" },
+        { "UXMAX", "UX-Max" },
 
         // =====================================================================
         // SWITCHES
@@ -448,31 +448,31 @@ public static class UniFiProductDatabase
         { "ULTEPEU", "U-LTE-Pro" },
 
         // ----- Mobile Routers -----
-        { "UMR", "Mobile Router" },
-        { "UMR-INDUSTRIAL", "Mobile Router Industrial" },
-        { "UMR-ULTRA", "Mobile Router Ultra" },
+        { "UMR", "UMR" },
+        { "UMR-INDUSTRIAL", "UMR-Industrial" },
+        { "UMR-ULTRA", "UMR-Ultra" },
 
         // ----- UPS -----
         { "UPS", "USP" },
         { "UPS2U", "USP-RPS" },
 
         // ----- Building Bridge -----
-        { "UBB", "Building Bridge" },
-        { "UBBXG", "Building Bridge XG" },
+        { "UBB", "UBB" },
+        { "UBBXG", "UBB-XG" },
 
         // ----- Device Bridge -----
-        { "UDB", "Device Bridge" },
-        { "UDBPRO", "Device Bridge Pro" },
-        { "UDBE802", "Device Bridge Pro" },
-        { "UDBPROSECTOR", "Device Bridge Pro Sector" },
-        { "UACCMPOEAF", "PoE Adapter" },
+        { "UDB", "UDB" },
+        { "UDBPRO", "UDB-Pro" },
+        { "UDBE802", "UDB-Pro" },
+        { "UDBPROSECTOR", "UDB-Pro-Sector" },
+        { "UACCMPOEAF", "U-POE-af" },
 
         // ----- Smart Power -----
-        { "USP", "SmartPower" },
-        { "USPPLUG", "SmartPower Plug" },
-        { "USPSTRIP", "SmartPower Strip" },
-        { "UP1", "SmartPower Plug" },
-        { "UP6", "SmartPower Strip" },
+        { "USP", "USP" },
+        { "USPPLUG", "USP-Plug" },
+        { "USPSTRIP", "USP-Strip" },
+        { "UP1", "USP-Plug" },
+        { "UP6", "USP-Strip" },
     };
 
     /// <summary>
