@@ -146,6 +146,28 @@ public class DeviceAllowanceSettingsTests
     }
 
     [Fact]
+    public void IsSmartTVAllowed_AllowAppleStreaming_ReturnsTrue_ForAppleVendor()
+    {
+        // Apple TV is categorized as SmartTV by UniFi (dev_type_id=47)
+        // so the Apple streaming allowance should apply to SmartTV too
+        var settings = new DeviceAllowanceSettings { AllowAppleStreamingOnMainNetwork = true };
+
+        settings.IsSmartTVAllowed("Apple").Should().BeTrue();
+        settings.IsSmartTVAllowed("Apple Inc").Should().BeTrue();
+        settings.IsSmartTVAllowed("apple").Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsSmartTVAllowed_AllowAppleStreaming_ReturnsFalse_ForNonAppleVendor()
+    {
+        var settings = new DeviceAllowanceSettings { AllowAppleStreamingOnMainNetwork = true };
+
+        settings.IsSmartTVAllowed("LG").Should().BeFalse();
+        settings.IsSmartTVAllowed("Samsung").Should().BeFalse();
+        settings.IsSmartTVAllowed("TCL").Should().BeFalse();
+    }
+
+    [Fact]
     public void IsSmartTVAllowed_AllowAll_TakesPrecedenceOverNameBrand()
     {
         var settings = new DeviceAllowanceSettings

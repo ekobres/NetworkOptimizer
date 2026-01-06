@@ -69,6 +69,56 @@ public class DeviceTypeDetectionServiceTests
 
     #endregion
 
+    #region Apple TV Name Override Tests
+
+    [Theory]
+    [InlineData("Apple TV")]
+    [InlineData("Living Room Apple TV")]
+    [InlineData("AppleTV Bedroom")]
+    [InlineData("[Media] Tiny Home - Apple TV")]
+    [InlineData("[Mac] AppleTV Bedroom")]
+    public void DetectDeviceType_NameContainsAppleTV_ReturnsStreamingDevice(string deviceName)
+    {
+        // Arrange - Apple TV is categorized as SmartTV by UniFi (dev_type_id=47)
+        // but should be overridden to StreamingDevice
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = deviceName,
+            DevCat = 47 // SmartTV fingerprint (should be overridden)
+        };
+
+        // Act
+        var result = _service.DetectDeviceType(client);
+
+        // Assert
+        result.Category.Should().Be(ClientDeviceCategory.StreamingDevice);
+        result.VendorName.Should().Be("Apple");
+        result.ConfidenceScore.Should().BeGreaterThanOrEqualTo(95);
+    }
+
+    [Fact]
+    public void DetectDeviceType_AppleTVWithDevIdOverride_NameOverrideWins()
+    {
+        // Arrange - Even with a dev_id_override that maps to SmartTV,
+        // the name override should take priority
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = "Apple TV 4K",
+            DevIdOverride = 14, // Apple TV HD in fingerprint DB → SmartTV
+            DevCat = 47
+        };
+
+        // Act
+        var result = _service.DetectDeviceType(client);
+
+        // Assert
+        result.Category.Should().Be(ClientDeviceCategory.StreamingDevice);
+    }
+
+    #endregion
+
     #region Vendor OUI Default to Plug Tests (Cync/Wyze/GE)
 
     [Theory]

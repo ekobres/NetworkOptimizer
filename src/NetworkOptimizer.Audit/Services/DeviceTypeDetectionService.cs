@@ -582,6 +582,24 @@ public class DeviceTypeDetectionService
             };
         }
 
+        // Apple TV - UniFi categorizes as SmartTV (dev_type_id=47) but it's a streaming device
+        if (nameLower.Contains("apple tv") || nameLower.Contains("appletv"))
+        {
+            return new DeviceDetectionResult
+            {
+                Category = ClientDeviceCategory.StreamingDevice,
+                Source = DetectionSource.DeviceName,
+                ConfidenceScore = NameOverrideConfidence,
+                VendorName = "Apple",
+                RecommendedNetwork = NetworkPurpose.IoT,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["override_reason"] = "Apple TV is a streaming device - overrides SmartTV fingerprint",
+                    ["matched_name"] = checkName
+                }
+            };
+        }
+
         return null;
     }
 
