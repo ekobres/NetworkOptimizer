@@ -582,6 +582,23 @@ public class DeviceTypeDetectionService
             };
         }
 
+        // Streaming devices (Apple TV, Roku, etc.) - often misdetected as AccessPoint or other categories
+        if (IsStreamingDeviceName(nameLower))
+        {
+            return new DeviceDetectionResult
+            {
+                Category = ClientDeviceCategory.StreamingDevice,
+                Source = DetectionSource.DeviceName,
+                ConfidenceScore = NameOverrideConfidence,
+                RecommendedNetwork = NetworkPurpose.IoT,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["override_reason"] = "Name contains streaming device keyword - overrides fingerprint",
+                    ["matched_name"] = checkName
+                }
+            };
+        }
+
         return null;
     }
 

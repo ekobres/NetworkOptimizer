@@ -74,11 +74,11 @@ public static class UniFiProductDatabase
         { "UDMENT", "Enterprise Fortress Gateway" },
 
         // Cloud Gateways
-        { "UCG", "Cloud Gateway" },
-        { "UCGF", "Cloud Gateway Fiber" },
-        { "UDMA6A8", "Cloud Gateway Fiber" },
-        { "UCGMAX", "Cloud Gateway Max" },
-        { "UCG-ULTRA", "Cloud Gateway Ultra" },
+        { "UCG", "UCG" },
+        { "UCGF", "UCG-Fiber" },
+        { "UDMA6A8", "UCG-Fiber" },
+        { "UCGMAX", "UCG-Max" },
+        { "UCG-ULTRA", "UCG-Ultra" },
 
         // Cloud Keys
         { "UCK", "Cloud Key" },
