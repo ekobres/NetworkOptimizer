@@ -1148,6 +1148,116 @@ public class VlanAnalyzerTests
         issues[0].Message.Should().Contain("Cellular Modem");
     }
 
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_Vlan1AsDefault_SwitchOnVlan1_NoIssues()
+    {
+        // Arrange - VLAN 1 named "Default" but classified as Management (common UniFi setup)
+        var networks = new List<NetworkInfo>
+        {
+            new() { Id = "default", Name = "Default", VlanId = 1, Purpose = NetworkPurpose.Management, Subnet = "192.168.1.0/24", Gateway = "192.168.1.1" },
+            new() { Id = "home", Name = "Home Network", VlanId = 10, Purpose = NetworkPurpose.Home, Subnet = "192.168.10.0/24", Gateway = "192.168.10.1" },
+            new() { Id = "iot", Name = "IoT", VlanId = 20, Purpose = NetworkPurpose.IoT, Subnet = "192.168.20.0/24", Gateway = "192.168.20.1" }
+        };
+
+        // Switch on VLAN 1 (Default/Management) - should be OK
+        var deviceJson = CreateDeviceJson("usw", "Core Switch", "192.168.1.50");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_Vlan1AsLan_SwitchOnVlan1_NoIssues()
+    {
+        // Arrange - VLAN 1 named "LAN" but classified as Management
+        var networks = new List<NetworkInfo>
+        {
+            new() { Id = "lan", Name = "LAN", VlanId = 1, Purpose = NetworkPurpose.Management, Subnet = "192.168.1.0/24", Gateway = "192.168.1.1" },
+            new() { Id = "guest", Name = "Guest", VlanId = 30, Purpose = NetworkPurpose.Guest, Subnet = "192.168.30.0/24", Gateway = "192.168.30.1" }
+        };
+
+        // AP on VLAN 1 (LAN/Management) - should be OK
+        var deviceJson = CreateDeviceJson("uap", "Office AP", "192.168.1.100");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_Vlan1AsDefault_SwitchOnHomeVlan_FlagsCritical()
+    {
+        // Arrange - VLAN 1 is "Default" (Management), but switch is on Home VLAN
+        var networks = new List<NetworkInfo>
+        {
+            new() { Id = "default", Name = "Default", VlanId = 1, Purpose = NetworkPurpose.Management, Subnet = "192.168.1.0/24", Gateway = "192.168.1.1" },
+            new() { Id = "home", Name = "Home Network", VlanId = 10, Purpose = NetworkPurpose.Home, Subnet = "192.168.10.0/24", Gateway = "192.168.10.1" }
+        };
+
+        // Switch on Home VLAN - wrong!
+        var deviceJson = CreateDeviceJson("usw", "Desk Switch", "192.168.10.25");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().HaveCount(1);
+        issues[0].Type.Should().Be(IssueTypes.InfraNotOnMgmt);
+        issues[0].CurrentNetwork.Should().Be("Home Network");
+        issues[0].RecommendedNetwork.Should().Be("Default");
+        issues[0].RecommendedVlan.Should().Be(1);
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_Vlan1NotManagement_UsesExplicitMgmtVlan()
+    {
+        // Arrange - VLAN 1 is Home, VLAN 99 is explicit Management (user's setup style)
+        var networks = new List<NetworkInfo>
+        {
+            new() { Id = "home", Name = "Main Network", VlanId = 1, Purpose = NetworkPurpose.Home, Subnet = "192.168.1.0/24", Gateway = "192.168.1.1" },
+            new() { Id = "mgmt", Name = "Management", VlanId = 99, Purpose = NetworkPurpose.Management, Subnet = "192.168.99.0/24", Gateway = "192.168.99.1" },
+            new() { Id = "iot", Name = "IoT", VlanId = 64, Purpose = NetworkPurpose.IoT, Subnet = "192.168.64.0/24", Gateway = "192.168.64.1" }
+        };
+
+        // Switch on VLAN 1 (Home, not Management) - should be flagged
+        var deviceJson = CreateDeviceJson("usw", "Living Room Switch", "192.168.1.30");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().HaveCount(1);
+        issues[0].CurrentNetwork.Should().Be("Main Network");
+        issues[0].CurrentVlan.Should().Be(1);
+        issues[0].RecommendedNetwork.Should().Be("Management");
+        issues[0].RecommendedVlan.Should().Be(99);
+    }
+
+    [Fact]
+    public void AnalyzeInfrastructureVlanPlacement_Vlan1NotManagement_SwitchOnMgmtVlan99_NoIssues()
+    {
+        // Arrange - VLAN 1 is Home, VLAN 99 is Management
+        var networks = new List<NetworkInfo>
+        {
+            new() { Id = "home", Name = "Main Network", VlanId = 1, Purpose = NetworkPurpose.Home, Subnet = "192.168.1.0/24", Gateway = "192.168.1.1" },
+            new() { Id = "mgmt", Name = "Management", VlanId = 99, Purpose = NetworkPurpose.Management, Subnet = "192.168.99.0/24", Gateway = "192.168.99.1" }
+        };
+
+        // Switch correctly on Management VLAN 99
+        var deviceJson = CreateDeviceJson("usw", "Core Switch", "192.168.99.10");
+
+        // Act
+        var issues = _analyzer.AnalyzeInfrastructureVlanPlacement(deviceJson, networks);
+
+        // Assert
+        issues.Should().BeEmpty();
+    }
+
     private static System.Text.Json.JsonElement CreateDeviceJson(string type, string name, string ip)
     {
         var json = $$"""
