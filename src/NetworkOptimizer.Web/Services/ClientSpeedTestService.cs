@@ -245,7 +245,7 @@ public class ClientSpeedTestService
             if (!_connectionService.IsConnected)
                 return;
 
-            var clients = await _connectionService.Client.GetClientsAsync();
+            var clients = await _connectionService.Client!.GetClientsAsync();
             var client = clients?.FirstOrDefault(c => c.Ip == result.DeviceHost);
 
             if (client != null)

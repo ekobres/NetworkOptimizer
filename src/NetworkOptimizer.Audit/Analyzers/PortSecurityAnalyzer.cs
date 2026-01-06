@@ -21,6 +21,11 @@ public class PortSecurityAnalyzer
     private readonly List<IWirelessAuditRule> _wirelessRules;
     private readonly DeviceTypeDetectionService? _detectionService;
 
+    /// <summary>
+    /// The device type detection service used by this analyzer
+    /// </summary>
+    public DeviceTypeDetectionService? DetectionService => _detectionService;
+
     public PortSecurityAnalyzer(ILogger<PortSecurityAnalyzer> logger)
         : this(logger, null)
     {

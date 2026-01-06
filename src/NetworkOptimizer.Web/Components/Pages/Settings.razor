@@ -2143,7 +2143,7 @@
         var validation = AdminAuth.ValidateNewPassword(adminNewPassword, adminConfirmPassword);
         if (!validation.IsValid)
         {
-            adminPasswordMessage = validation.ErrorMessage;
+            adminPasswordMessage = validation.ErrorMessage ?? "Invalid password";
             adminPasswordMessageClass = "danger";
             StateHasChanged();
             return;

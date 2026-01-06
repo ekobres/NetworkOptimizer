@@ -1,4 +1,5 @@
 @using NetworkOptimizer.Web.Services
+@using AuditSeverity = NetworkOptimizer.Audit.Models.AuditSeverity
 @inject UniFiConnectionService ConnectionService
 @inject AuditService AuditService
 
@@ -100,8 +101,8 @@
             // TODO: Once we have clients with many alerts, move filtering and Take() to backend/query side
             var activeIssues = await AuditService.GetActiveIssuesAsync();
             var actionableIssues = activeIssues
-                .Where(i => i.Severity == "Critical" || i.Severity == "Recommended")
-                .OrderBy(i => i.Severity == "Critical" ? 0 : 1) // Critical first
+                .Where(i => i.Severity == AuditSeverity.Critical || i.Severity == AuditSeverity.Recommended)
+                .OrderBy(i => i.Severity == AuditSeverity.Critical ? 0 : 1) // Critical first
                 .ThenBy(i => i.Category) // Then by category for grouping
                 .ToList();
 
@@ -117,7 +118,7 @@
                     alerts.Add(new AlertInfo
                     {
                         Id = id++,
-                        Severity = issue.Severity,
+                        Severity = issue.Severity.ToString(),
                         Title = issue.Title,
                         Message = issue.Description,
                         Source = issue.Category,

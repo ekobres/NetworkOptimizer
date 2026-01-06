@@ -40,9 +40,13 @@ public class VlanPlacementCheckerTests
     [InlineData(ClientDeviceCategory.SmartTV, true)]
     [InlineData(ClientDeviceCategory.SmartSpeaker, true)]
     [InlineData(ClientDeviceCategory.GameConsole, true)]
-    [InlineData(ClientDeviceCategory.SmartThermostat, false)]
-    [InlineData(ClientDeviceCategory.SmartLock, false)]
-    [InlineData(ClientDeviceCategory.SmartHub, false)]
+    [InlineData(ClientDeviceCategory.SmartThermostat, true)]  // Thermostats are low-risk (convenience, not security)
+    [InlineData(ClientDeviceCategory.SmartLock, false)]       // Locks are high-risk (security/access control)
+    [InlineData(ClientDeviceCategory.SmartHub, false)]        // Hubs are high-risk (control many devices)
+    [InlineData(ClientDeviceCategory.SmartSensor, false)]     // Sensors are high-risk (presence detection)
+    [InlineData(ClientDeviceCategory.Camera, false)]          // Cameras are high-risk (security)
+    [InlineData(ClientDeviceCategory.CloudCamera, false)]     // Cloud cameras are high-risk (security)
+    [InlineData(ClientDeviceCategory.IoTGeneric, true)]       // Generic IoT is low-risk
     public void CheckIoTPlacement_DetectsLowRiskDevices(ClientDeviceCategory category, bool expectedLowRisk)
     {
         var network = new NetworkInfo { Id = "corp", Name = "Corporate", VlanId = 1, Purpose = NetworkPurpose.Corporate };
@@ -370,6 +374,145 @@ public class VlanPlacementCheckerTests
 
         result.Severity.Should().Be(AuditSeverity.Recommended);
         result.IsLowRisk.Should().BeTrue();
+    }
+
+    #endregion
+
+    #region CheckPrinterPlacement Tests
+
+    private static readonly List<NetworkInfo> NetworksWithPrinter = new()
+    {
+        new NetworkInfo { Id = "1", Name = "Default", VlanId = 1, Purpose = NetworkPurpose.Corporate },
+        new NetworkInfo { Id = "2", Name = "IoT", VlanId = 20, Purpose = NetworkPurpose.IoT },
+        new NetworkInfo { Id = "3", Name = "Security", VlanId = 30, Purpose = NetworkPurpose.Security },
+        new NetworkInfo { Id = "5", Name = "Printers", VlanId = 50, Purpose = NetworkPurpose.Printer }
+    };
+
+    [Fact]
+    public void CheckPrinterPlacement_OnPrinterVlan_IsAlwaysCorrect()
+    {
+        var printerNetwork = new NetworkInfo { Id = "5", Name = "Printers", VlanId = 50, Purpose = NetworkPurpose.Printer };
+        var allowance = new DeviceAllowanceSettings { AllowPrintersOnMainNetwork = false };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(printerNetwork, NetworksWithPrinter, 10, allowance);
+
+        result.IsCorrectlyPlaced.Should().BeTrue();
+        result.IsLowRisk.Should().BeTrue();
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_LenientMode_AcceptsIoT()
+    {
+        var iotNetwork = new NetworkInfo { Id = "2", Name = "IoT", VlanId = 20, Purpose = NetworkPurpose.IoT };
+        var allowance = new DeviceAllowanceSettings { AllowPrintersOnMainNetwork = true };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(iotNetwork, NetworksWithPrinter, 10, allowance);
+
+        result.IsCorrectlyPlaced.Should().BeTrue();
+        result.Severity.Should().Be(AuditSeverity.Informational);
+        result.ScoreImpact.Should().Be(ScoreConstants.InformationalImpact);
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_LenientMode_AcceptsSecurity()
+    {
+        var securityNetwork = new NetworkInfo { Id = "3", Name = "Security", VlanId = 30, Purpose = NetworkPurpose.Security };
+        var allowance = new DeviceAllowanceSettings { AllowPrintersOnMainNetwork = true };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(securityNetwork, NetworksWithPrinter, 10, allowance);
+
+        result.IsCorrectlyPlaced.Should().BeTrue();
+        result.Severity.Should().Be(AuditSeverity.Informational);
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_StrictMode_RequiresPrinterVlan()
+    {
+        var iotNetwork = new NetworkInfo { Id = "2", Name = "IoT", VlanId = 20, Purpose = NetworkPurpose.IoT };
+        var allowance = new DeviceAllowanceSettings { AllowPrintersOnMainNetwork = false };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(iotNetwork, NetworksWithPrinter, 10, allowance);
+
+        // Even on IoT, strict mode requires Printer VLAN when one exists
+        result.IsCorrectlyPlaced.Should().BeFalse();
+        result.Severity.Should().Be(AuditSeverity.Recommended);
+        result.ScoreImpact.Should().Be(10);
+        result.RecommendedNetwork!.Purpose.Should().Be(NetworkPurpose.Printer);
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_StrictMode_NoPrinterVlan_AcceptsIoT()
+    {
+        var iotNetwork = new NetworkInfo { Id = "2", Name = "IoT", VlanId = 20, Purpose = NetworkPurpose.IoT };
+        var allowance = new DeviceAllowanceSettings { AllowPrintersOnMainNetwork = false };
+        // TestNetworks doesn't have a Printer VLAN
+        var result = VlanPlacementChecker.CheckPrinterPlacement(iotNetwork, TestNetworks, 10, allowance);
+
+        // Without Printer VLAN, IoT is acceptable even in strict mode
+        result.IsCorrectlyPlaced.Should().BeTrue();
+        result.RecommendedNetwork!.Purpose.Should().Be(NetworkPurpose.IoT);
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_StrictMode_NoPrinterVlan_AcceptsSecurity()
+    {
+        var securityNetwork = new NetworkInfo { Id = "3", Name = "Security", VlanId = 30, Purpose = NetworkPurpose.Security };
+        var allowance = new DeviceAllowanceSettings { AllowPrintersOnMainNetwork = false };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(securityNetwork, TestNetworks, 10, allowance);
+
+        result.IsCorrectlyPlaced.Should().BeTrue();
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_OnCorporate_IsAlwaysIncorrect()
+    {
+        var corpNetwork = new NetworkInfo { Id = "1", Name = "Default", VlanId = 1, Purpose = NetworkPurpose.Corporate };
+        var allowance = new DeviceAllowanceSettings { AllowPrintersOnMainNetwork = true };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(corpNetwork, NetworksWithPrinter, 10, allowance);
+
+        // Corporate is never correct, even in lenient mode
+        result.IsCorrectlyPlaced.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_DefaultAllowance_IsLenient()
+    {
+        var iotNetwork = new NetworkInfo { Id = "2", Name = "IoT", VlanId = 20, Purpose = NetworkPurpose.IoT };
+
+        // null allowance defaults to lenient (AllowPrintersOnMainNetwork = true)
+        var result = VlanPlacementChecker.CheckPrinterPlacement(iotNetwork, NetworksWithPrinter, 10, null);
+
+        result.IsCorrectlyPlaced.Should().BeTrue();
+        result.Severity.Should().Be(AuditSeverity.Informational);
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_RecommendsPrinterVlanOverIoT()
+    {
+        var corpNetwork = new NetworkInfo { Id = "1", Name = "Default", VlanId = 1, Purpose = NetworkPurpose.Corporate };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(corpNetwork, NetworksWithPrinter, 10, null);
+
+        // Should recommend Printer VLAN when available, not IoT
+        result.RecommendedNetwork!.Purpose.Should().Be(NetworkPurpose.Printer);
+        result.RecommendedNetworkLabel.Should().Be("Printers (50)");
+    }
+
+    [Fact]
+    public void CheckPrinterPlacement_NoNetworks_ReturnsFallbackLabel()
+    {
+        var corpNetwork = new NetworkInfo { Id = "1", Name = "Default", VlanId = 1, Purpose = NetworkPurpose.Corporate };
+        var emptyNetworks = new List<NetworkInfo>
+        {
+            new() { Id = "1", Name = "Default", VlanId = 1, Purpose = NetworkPurpose.Corporate }
+        };
+
+        var result = VlanPlacementChecker.CheckPrinterPlacement(corpNetwork, emptyNetworks, 10, null);
+
+        result.RecommendedNetwork.Should().BeNull();
+        result.RecommendedNetworkLabel.Should().Be("Printer or IoT VLAN");
     }
 
     #endregion

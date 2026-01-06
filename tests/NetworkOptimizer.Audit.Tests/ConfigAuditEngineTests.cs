@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NetworkOptimizer.Audit.Models;
+using NetworkOptimizer.UniFi.Models;
 using Xunit;
 
 namespace NetworkOptimizer.Audit.Tests;
@@ -430,6 +431,380 @@ public class ConfigAuditEngineTests
         var summary = _engine.GenerateExecutiveSummary(auditResult);
 
         summary.Should().NotBeNullOrEmpty();
+    }
+
+    #endregion
+
+    #region Offline Client Analysis Tests
+
+    private static string CreateDeviceJsonWithNetworks()
+    {
+        // Device JSON with a gateway that has network_table
+        return """
+        [
+            {
+                "type": "udm",
+                "name": "Gateway",
+                "network_table": [
+                    {
+                        "_id": "net-corp",
+                        "name": "Corporate",
+                        "vlan": 1,
+                        "purpose": "corporate",
+                        "dhcpd_enabled": true,
+                        "ip_subnet": "192.0.2.1/24"
+                    },
+                    {
+                        "_id": "net-iot",
+                        "name": "IoT",
+                        "vlan": 20,
+                        "purpose": "iot",
+                        "dhcpd_enabled": true,
+                        "ip_subnet": "192.0.2.129/25"
+                    },
+                    {
+                        "_id": "net-security",
+                        "name": "Security",
+                        "vlan": 30,
+                        "purpose": "security",
+                        "dhcpd_enabled": true,
+                        "ip_subnet": "192.0.2.225/28"
+                    }
+                ]
+            }
+        ]
+        """;
+    }
+
+    [Fact]
+    public async Task RunAudit_NoClientHistory_SkipsOfflineAnalysis()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: null,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        // Should complete without offline client issues
+        result.Issues.Should().NotContain(i => i.Type == "OFFLINE-IOT-VLAN");
+        result.Issues.Should().NotContain(i => i.Type == "OFFLINE-CAMERA-VLAN");
+    }
+
+    [Fact]
+    public async Task RunAudit_EmptyClientHistory_SkipsOfflineAnalysis()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: new List<UniFiClientHistoryResponse>(),
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        result.Issues.Should().NotContain(i => i.Type == "OFFLINE-IOT-VLAN");
+    }
+
+    [Fact]
+    public async Task RunAudit_OfflineIoTOnCorporate_CreatesIssue()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        // Roku MAC prefix (known IoT device)
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "D8:31:34:11:22:33", // Roku OUI
+                IsWired = false,
+                LastConnectionNetworkId = "net-corp",
+                DisplayName = "Living Room Roku",
+                LastSeen = DateTimeOffset.UtcNow.ToUnixTimeSeconds() // Recent
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        result.Issues.Should().Contain(i => i.Type == "OFFLINE-IOT-VLAN");
+        var issue = result.Issues.First(i => i.Type == "OFFLINE-IOT-VLAN");
+        issue.DeviceName.Should().Contain("(offline)");
+        issue.CurrentNetwork.Should().Be("Corporate");
+    }
+
+    [Fact]
+    public async Task RunAudit_OfflineIoTOnIoTVlan_NoIssue()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "D8:31:34:11:22:33", // Roku OUI
+                IsWired = false,
+                LastConnectionNetworkId = "net-iot", // Already on IoT
+                DisplayName = "Living Room Roku",
+                LastSeen = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        result.Issues.Should().NotContain(i => i.Type == "OFFLINE-IOT-VLAN");
+    }
+
+    [Fact]
+    public async Task RunAudit_OfflineWiredDevice_Skipped()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "D8:31:34:11:22:33", // Roku OUI
+                IsWired = true, // Wired devices are skipped
+                LastConnectionNetworkId = "net-corp",
+                DisplayName = "Wired Roku"
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        result.Issues.Should().NotContain(i => i.Type == "OFFLINE-IOT-VLAN");
+    }
+
+    [Fact]
+    public async Task RunAudit_OnlineClient_NotFlaggedAsOffline()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        var onlineClients = new List<UniFiClientResponse>
+        {
+            new() { Mac = "D8:31:34:11:22:33" }
+        };
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "D8:31:34:11:22:33", // Same MAC as online client
+                IsWired = false,
+                LastConnectionNetworkId = "net-corp",
+                DisplayName = "Active Roku"
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: onlineClients,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        // Should not flag as offline since client is currently online
+        result.Issues.Should().NotContain(i => i.Type == "OFFLINE-IOT-VLAN" &&
+            i.DeviceName != null && i.DeviceName.Contains("(offline)"));
+    }
+
+    [Fact]
+    public async Task RunAudit_StaleOfflineClient_GetsInformationalSeverity()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        // Client last seen more than 14 days ago
+        var staleTimestamp = DateTimeOffset.UtcNow.AddDays(-30).ToUnixTimeSeconds();
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "D8:31:34:11:22:33", // Roku OUI
+                IsWired = false,
+                LastConnectionNetworkId = "net-corp",
+                DisplayName = "Old Roku",
+                LastSeen = staleTimestamp
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        var issue = result.Issues.FirstOrDefault(i => i.Type == "OFFLINE-IOT-VLAN");
+        issue.Should().NotBeNull();
+        issue!.Severity.Should().Be(AuditSeverity.Informational);
+        issue.ScoreImpact.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RunAudit_RecentOfflineClient_GetsCriticalOrRecommended()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        // Client last seen within 14 days
+        var recentTimestamp = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "D8:31:34:11:22:33", // Roku OUI - low risk streaming device
+                IsWired = false,
+                LastConnectionNetworkId = "net-corp",
+                DisplayName = "Recent Roku",
+                LastSeen = recentTimestamp
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        var issue = result.Issues.FirstOrDefault(i => i.Type == "OFFLINE-IOT-VLAN");
+        issue.Should().NotBeNull();
+        // Roku is low-risk, so should be Recommended
+        issue!.Severity.Should().Be(AuditSeverity.Recommended);
+        issue.ScoreImpact.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task RunAudit_OfflineClientWithNameDetection_CreatesIssue()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        // Unknown MAC but name indicates IoT device
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "00:11:22:33:44:55", // Unknown OUI
+                IsWired = false,
+                LastConnectionNetworkId = "net-corp",
+                DisplayName = "Nest Thermostat", // Name-based detection
+                LastSeen = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        // Should detect from name and create issue
+        result.Issues.Should().Contain(i => i.Type == "OFFLINE-IOT-VLAN");
+    }
+
+    [Fact]
+    public async Task RunAudit_OfflineUnknownDevice_NoIssue()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "00:11:22:33:44:55", // Unknown OUI
+                IsWired = false,
+                LastConnectionNetworkId = "net-corp",
+                DisplayName = "Generic Device", // No IoT keywords
+                LastSeen = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        // Should not create issue for unknown devices
+        result.Issues.Should().NotContain(i => i.Type == "OFFLINE-IOT-VLAN" &&
+            i.DeviceName != null && i.DeviceName.Contains("Generic Device"));
+    }
+
+    [Fact]
+    public async Task RunAudit_OfflineClientNoNetwork_NoIssue()
+    {
+        var deviceJson = CreateDeviceJsonWithNetworks();
+        var clientHistory = new List<UniFiClientHistoryResponse>
+        {
+            new()
+            {
+                Id = "client-1",
+                Mac = "D8:31:34:11:22:33", // Roku OUI
+                IsWired = false,
+                LastConnectionNetworkId = "net-nonexistent", // Network not in device data
+                DisplayName = "Orphaned Roku"
+            }
+        };
+
+        var result = await _engine.RunAuditAsync(
+            deviceJson,
+            clients: null,
+            clientHistory: clientHistory,
+            fingerprintDb: null,
+            settingsData: null,
+            firewallPoliciesData: null,
+            allowanceSettings: null,
+            protectCameras: null);
+
+        // Should not create issue if network can't be found
+        result.Issues.Should().NotContain(i => i.DeviceName != null && i.DeviceName.Contains("Orphaned"));
     }
 
     #endregion

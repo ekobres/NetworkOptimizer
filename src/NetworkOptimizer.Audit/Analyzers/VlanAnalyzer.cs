@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Core.Helpers;
 using static NetworkOptimizer.Core.Enums.DeviceTypeExtensions;
+using DeviceType = NetworkOptimizer.Core.Enums.DeviceType;
 
 namespace NetworkOptimizer.Audit.Analyzers;
 
@@ -681,5 +682,159 @@ public class VlanAnalyzer
         }
 
         return issues;
+    }
+
+    /// <summary>
+    /// Analyze infrastructure device VLAN placement.
+    /// Switches and APs should be on a Management VLAN, not on user/IoT networks.
+    /// </summary>
+    public List<AuditIssue> AnalyzeInfrastructureVlanPlacement(JsonElement deviceData, List<NetworkInfo> networks, string gatewayName = "Gateway")
+    {
+        var issues = new List<AuditIssue>();
+
+        // Find management network
+        var managementNetwork = networks.FirstOrDefault(n => n.Purpose == NetworkPurpose.Management);
+        if (managementNetwork == null)
+        {
+            _logger.LogDebug("No Management network found - skipping infrastructure VLAN check");
+            return issues;
+        }
+
+        foreach (var device in deviceData.UnwrapDataArray())
+        {
+            var deviceType = device.GetStringOrNull("type");
+            if (string.IsNullOrEmpty(deviceType))
+                continue;
+
+            var parsedType = FromUniFiApiType(deviceType);
+
+            // Skip gateways - they're typically on VLAN 1 by default and that's OK
+            if (parsedType.IsGateway())
+                continue;
+
+            // Check all UniFi network infrastructure devices (switches, APs, cellular modems, building bridges, cloud keys)
+            if (!parsedType.IsUniFiNetworkDevice())
+                continue;
+
+            var name = device.GetStringFromAny("name", "mac") ?? "Unknown Device";
+            var ip = device.GetStringOrNull("ip");
+
+            if (string.IsNullOrEmpty(ip))
+            {
+                _logger.LogDebug("Device {Name} has no IP address - skipping", name);
+                continue;
+            }
+
+            // Find which network this device is on based on its IP
+            var deviceNetwork = FindNetworkByIp(ip, networks);
+
+            if (deviceNetwork == null)
+            {
+                _logger.LogDebug("Could not determine network for {Name} ({Ip})", name, ip);
+                continue;
+            }
+
+            // Check if device is on Management network
+            if (deviceNetwork.Purpose != NetworkPurpose.Management)
+            {
+                var deviceTypeLabel = parsedType.ToDisplayName();
+
+                issues.Add(new AuditIssue
+                {
+                    Type = IssueTypes.InfraNotOnMgmt,
+                    Severity = AuditSeverity.Critical,
+                    Message = $"{deviceTypeLabel} '{name}' is on {deviceNetwork.Name} VLAN - should be on Management VLAN",
+                    DeviceName = name,
+                    CurrentNetwork = deviceNetwork.Name,
+                    CurrentVlan = deviceNetwork.VlanId,
+                    RecommendedNetwork = managementNetwork.Name,
+                    RecommendedVlan = managementNetwork.VlanId,
+                    Metadata = new Dictionary<string, object>
+                    {
+                        { "device_type", deviceTypeLabel },
+                        { "device_ip", ip },
+                        { "current_network_purpose", deviceNetwork.Purpose.ToString() }
+                    },
+                    RuleId = "INFRA-VLAN-001",
+                    ScoreImpact = 10,
+                    RecommendedAction = $"Move device to {managementNetwork.Name} VLAN"
+                });
+
+                _logger.LogInformation("{DeviceType} '{Name}' on {Network} VLAN - should be on Management",
+                    deviceTypeLabel, name, deviceNetwork.Name);
+            }
+        }
+
+        return issues;
+    }
+
+    /// <summary>
+    /// Find which network an IP address belongs to based on subnet matching.
+    /// </summary>
+    private NetworkInfo? FindNetworkByIp(string ip, List<NetworkInfo> networks)
+    {
+        if (!System.Net.IPAddress.TryParse(ip, out var ipAddress))
+            return null;
+
+        foreach (var network in networks)
+        {
+            if (string.IsNullOrEmpty(network.Subnet))
+                continue;
+
+            if (IsIpInSubnet(ipAddress, network.Subnet))
+                return network;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Check if an IP address is within a given subnet (CIDR notation like "192.168.1.0/24").
+    /// </summary>
+    private static bool IsIpInSubnet(System.Net.IPAddress ip, string subnet)
+    {
+        var parts = subnet.Split('/');
+        if (parts.Length != 2 || !int.TryParse(parts[1], out var prefixLength))
+            return false;
+
+        if (!System.Net.IPAddress.TryParse(parts[0], out var networkAddress))
+            return false;
+
+        // Only handle IPv4
+        if (ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork ||
+            networkAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            return false;
+
+        var ipBytes = ip.GetAddressBytes();
+        var networkBytes = networkAddress.GetAddressBytes();
+
+        // Create mask from prefix length
+        var maskBytes = new byte[4];
+        for (int i = 0; i < 4; i++)
+        {
+            if (prefixLength >= 8)
+            {
+                maskBytes[i] = 0xFF;
+                prefixLength -= 8;
+            }
+            else if (prefixLength > 0)
+            {
+                maskBytes[i] = (byte)(0xFF << (8 - prefixLength));
+                prefixLength = 0;
+            }
+            else
+            {
+                maskBytes[i] = 0;
+            }
+        }
+
+        // Check if masked IP equals masked network
+        for (int i = 0; i < 4; i++)
+        {
+            if ((ipBytes[i] & maskBytes[i]) != (networkBytes[i] & maskBytes[i]))
+                return false;
+        }
+
+        return true;
     }
 }

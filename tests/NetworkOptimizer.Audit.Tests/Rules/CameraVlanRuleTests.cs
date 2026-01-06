@@ -342,8 +342,8 @@ public class CameraVlanRuleTests
         var connectedClient = new UniFiClientResponse
         {
             Mac = "00:11:22:33:44:55",
-            Name = null,        // No name
-            Hostname = null,    // No hostname
+            Name = null!,       // No name - testing null handling
+            Hostname = null!,   // No hostname - testing null handling
             IsWired = true,
             NetworkId = corpNetwork.Id
         };
@@ -379,8 +379,8 @@ public class CameraVlanRuleTests
         var connectedClient = new UniFiClientResponse
         {
             Mac = "9C:8E:CD:11:22:33",
-            Name = null,        // No name
-            Hostname = null,    // No hostname
+            Name = null!,       // No name - testing null handling
+            Hostname = null!,   // No hostname - testing null handling
             Oui = "Amcrest",    // Manufacturer
             IsWired = true,
             NetworkId = corpNetwork.Id

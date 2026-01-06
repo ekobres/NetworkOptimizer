@@ -5,6 +5,8 @@ using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.Core.Models;
 using NetworkOptimizer.UniFi.Models;
 
+using static NetworkOptimizer.Audit.Constants.DetectionConstants;
+
 namespace NetworkOptimizer.Audit.Services;
 
 /// <summary>
@@ -13,22 +15,6 @@ namespace NetworkOptimizer.Audit.Services;
 /// </summary>
 public class DeviceTypeDetectionService
 {
-    // Confidence score constants for detection results
-    private const int MaxConfidence = 100;
-    private const int MultiSourceAgreementBoost = 10;
-
-    // Name override confidence (highest - explicit name match)
-    private const int NameOverrideConfidence = 95;
-    private const int VendorDefaultConfidence = 85;
-    private const int AppleWatchConfidence = 90;
-
-    // OUI-based confidence levels
-    private const int OuiHighConfidence = 90;      // Dedicated IoT vendors (ecobee, sonos, arlo)
-    private const int OuiMediumConfidence = 85;    // Strong signal vendors (philips, ring)
-    private const int OuiStandardConfidence = 80;  // General IoT vendors
-    private const int OuiLowerConfidence = 75;     // Multi-purpose vendors (belkin, tp-link)
-    private const int OuiLowestConfidence = 70;    // Broad vendors (amazon, google, honeywell)
-
     private readonly ILogger<DeviceTypeDetectionService>? _logger;
     private readonly FingerprintDetector _fingerprintDetector;
     private readonly MacOuiDetector _macOuiDetector;
@@ -591,6 +577,24 @@ public class DeviceTypeDetectionService
                 Metadata = new Dictionary<string, object>
                 {
                     ["override_reason"] = "Name contains speaker/voice assistant keyword - overrides vendor OUI",
+                    ["matched_name"] = checkName
+                }
+            };
+        }
+
+        // Apple TV - UniFi categorizes as SmartTV (dev_type_id=47) but it's a streaming device
+        if (nameLower.Contains("apple tv") || nameLower.Contains("appletv"))
+        {
+            return new DeviceDetectionResult
+            {
+                Category = ClientDeviceCategory.StreamingDevice,
+                Source = DetectionSource.DeviceName,
+                ConfidenceScore = NameOverrideConfidence,
+                VendorName = "Apple",
+                RecommendedNetwork = NetworkPurpose.IoT,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["override_reason"] = "Apple TV is a streaming device - overrides SmartTV fingerprint",
                     ["matched_name"] = checkName
                 }
             };

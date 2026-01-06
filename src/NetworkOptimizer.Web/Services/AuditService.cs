@@ -15,11 +15,6 @@ namespace NetworkOptimizer.Web.Services;
 
 public class AuditService
 {
-    // Severity level constants for consistent string comparisons
-    private const string SeverityCritical = "Critical";
-    private const string SeverityRecommended = "Recommended";
-    private const string SeverityInfo = "Info";
-
     // Cache keys for IMemoryCache
     private const string CacheKeyLastAuditResult = "AuditService_LastAuditResult";
     private const string CacheKeyLastAuditTime = "AuditService_LastAuditTime";
@@ -248,13 +243,13 @@ public class AuditService
     /// Get count of active critical issues
     /// </summary>
     public int ActiveCriticalCount =>
-        GetActiveIssues().Count(i => i.Severity == SeverityCritical);
+        GetActiveIssues().Count(i => i.Severity == AuditModels.AuditSeverity.Critical);
 
     /// <summary>
     /// Get count of active recommended issues
     /// </summary>
     public int ActiveRecommendedCount =>
-        GetActiveIssues().Count(i => i.Severity == SeverityRecommended);
+        GetActiveIssues().Count(i => i.Severity == AuditModels.AuditSeverity.Recommended);
 
     /// <summary>
     /// Clear all dismissed issues (removes from database too)
@@ -384,8 +379,8 @@ public class AuditService
             return new AuditSummary
             {
                 Score = cachedResult.Score,
-                CriticalCount = activeIssues.Count(i => i.Severity == SeverityCritical),
-                WarningCount = activeIssues.Count(i => i.Severity == SeverityRecommended),
+                CriticalCount = activeIssues.Count(i => i.Severity == AuditModels.AuditSeverity.Critical),
+                WarningCount = activeIssues.Count(i => i.Severity == AuditModels.AuditSeverity.Recommended),
                 LastAuditTime = cachedTime.Value,
                 RecentIssues = activeIssues.Take(5).ToList()
             };
@@ -496,7 +491,7 @@ public class AuditService
                 {
                     new AuditIssue
                     {
-                        Severity = SeverityCritical,
+                        Severity = AuditModels.AuditSeverity.Critical,
                         Category = "Connection",
                         Title = "Controller Not Connected",
                         Description = "Cannot run security audit without an active connection to the UniFi controller.",
@@ -629,7 +624,7 @@ public class AuditService
                 {
                     new AuditIssue
                     {
-                        Severity = SeverityCritical,
+                        Severity = AuditModels.AuditSeverity.Critical,
                         Category = "System",
                         Title = "Audit Failed",
                         Description = $"An error occurred while running the security audit: {ex.Message}",
@@ -661,7 +656,7 @@ public class AuditService
 
             issues.Add(new AuditIssue
             {
-                Severity = ConvertSeverity(issue.Severity),
+                Severity = issue.Severity,
                 Category = category,
                 Title = GetIssueTitle(issue.Type, issue.Message, issue.Severity),
                 Description = issue.Message,
@@ -689,9 +684,9 @@ public class AuditService
         // Group by severity in single pass to avoid multiple iterations
         var severityCounts = issues.GroupBy(i => i.Severity)
             .ToDictionary(g => g.Key, g => g.Count());
-        var criticalCount = severityCounts.GetValueOrDefault(SeverityCritical, 0);
-        var warningCount = severityCounts.GetValueOrDefault(SeverityRecommended, 0);
-        var infoCount = severityCounts.GetValueOrDefault(SeverityInfo, 0);
+        var criticalCount = severityCounts.GetValueOrDefault(AuditModels.AuditSeverity.Critical, 0);
+        var warningCount = severityCounts.GetValueOrDefault(AuditModels.AuditSeverity.Recommended, 0);
+        var infoCount = severityCounts.GetValueOrDefault(AuditModels.AuditSeverity.Informational, 0);
 
         // Recalculate score based on FILTERED issues only (excluded features don't affect score)
         var score = CalculateFilteredScore(engineResult, options);
@@ -884,7 +879,8 @@ public class AuditService
         // Firewall rule issues
         Audit.IssueTypes.FwAnyAny or
         Audit.IssueTypes.AllowSubvertsDeny or Audit.IssueTypes.AllowExceptionPattern or Audit.IssueTypes.DenyShadowsAllow or
-        Audit.IssueTypes.PermissiveRule or Audit.IssueTypes.BroadRule or Audit.IssueTypes.OrphanedRule or Audit.IssueTypes.MissingIsolation => "Firewall Rules",
+        Audit.IssueTypes.PermissiveRule or Audit.IssueTypes.BroadRule or Audit.IssueTypes.OrphanedRule or
+        Audit.IssueTypes.MissingIsolation or Audit.IssueTypes.IsolationBypassed => "Firewall Rules",
         var t when t.StartsWith("FW-") => "Firewall Rules",
 
         // VLAN security issues (includes device placement - putting devices on correct VLAN)
@@ -892,10 +888,11 @@ public class AuditService
         Audit.IssueTypes.MgmtDhcpEnabled => "VLAN Security",
         Audit.IssueTypes.SecurityNetworkNotIsolated or Audit.IssueTypes.MgmtNetworkNotIsolated or Audit.IssueTypes.IotNetworkNotIsolated => "VLAN Security",
         Audit.IssueTypes.SecurityNetworkHasInternet or Audit.IssueTypes.MgmtNetworkHasInternet => "VLAN Security",
-        Audit.IssueTypes.MgmtMissingUnifiAccess or Audit.IssueTypes.MgmtMissingAfcAccess or Audit.IssueTypes.MgmtMissingNtpAccess or Audit.IssueTypes.MgmtMissing5gAccess => "VLAN Security",
+        Audit.IssueTypes.MgmtMissingUnifiAccess or Audit.IssueTypes.MgmtMissingAfcAccess or Audit.IssueTypes.MgmtMissingNtpAccess or Audit.IssueTypes.MgmtMissing5gAccess => "Firewall Rules",
         // Device placement (wrong VLAN) - controlled by VLAN Security checkbox
         Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan or "OFFLINE-IOT-VLAN" => "VLAN Security",
         Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" => "VLAN Security",
+        Audit.IssueTypes.InfraNotOnMgmt => "VLAN Security",
 
         // Port security issues
         Audit.IssueTypes.MacRestriction or Audit.IssueTypes.UnusedPort or Audit.IssueTypes.PortIsolation or "PORT_SECURITY" => "Port Security",
@@ -917,14 +914,6 @@ public class AuditService
         _ => true
     };
 
-    private static string ConvertSeverity(AuditModels.AuditSeverity severity) => severity switch
-    {
-        AuditModels.AuditSeverity.Critical => "Critical",
-        AuditModels.AuditSeverity.Recommended => "Recommended",
-        AuditModels.AuditSeverity.Informational => "Info",
-        _ => "Info"
-    };
-
     private static string GetIssueTitle(string type, string message, Audit.Models.AuditSeverity severity)
     {
         // Extract a short title from the issue type
@@ -942,14 +931,15 @@ public class AuditService
             Audit.IssueTypes.AllowSubvertsDeny => "Firewall: Rule Order Issue",
             Audit.IssueTypes.DenyShadowsAllow => "Firewall: Ineffective Allow Rule",
             Audit.IssueTypes.MissingIsolation => "Firewall: Missing VLAN Isolation",
+            Audit.IssueTypes.IsolationBypassed => "Firewall: VLAN Isolation Bypassed",
             "VLAN_VIOLATION" => "VLAN Policy Violation",
             "INTER_VLAN" => "Inter-VLAN Access Issue",
 
-            // Management network access
-            Audit.IssueTypes.MgmtMissingUnifiAccess => "Missing UniFi Cloud Access",
-            Audit.IssueTypes.MgmtMissingAfcAccess => "Missing AFC Access",
-            Audit.IssueTypes.MgmtMissingNtpAccess => "Missing NTP Access",
-            Audit.IssueTypes.MgmtMissing5gAccess => "Missing 5G/LTE Access",
+            // Management network firewall access
+            Audit.IssueTypes.MgmtMissingUnifiAccess => "Firewall: Missing UniFi Cloud Access",
+            Audit.IssueTypes.MgmtMissingAfcAccess => "Firewall: Missing AFC Access",
+            Audit.IssueTypes.MgmtMissingNtpAccess => "Firewall: Missing NTP Access",
+            Audit.IssueTypes.MgmtMissing5gAccess => "Firewall: Missing 5G/LTE Access",
 
             // VLAN security
             Audit.IssueTypes.RoutingEnabled => "Routing on Isolated VLAN",
@@ -965,6 +955,7 @@ public class AuditService
                     : (isInformational ? "IoT Device Possibly on Wrong VLAN" : "IoT Device on Wrong VLAN"),
             Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" =>
                 isInformational ? "Camera Possibly on Wrong VLAN" : "Camera on Wrong VLAN",
+            Audit.IssueTypes.InfraNotOnMgmt => "Infrastructure Device on Wrong VLAN",
 
             // Port security
             Audit.IssueTypes.MacRestriction => "Missing MAC Restriction",
@@ -1053,6 +1044,7 @@ public class AuditService
         Audit.IssueTypes.PortIsolation => "Enable port isolation for security devices.",
         Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan => "Move IoT devices to a dedicated IoT VLAN.",
         Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan => "Move cameras to a dedicated Security VLAN.",
+        Audit.IssueTypes.InfraNotOnMgmt => "Move network infrastructure to a dedicated Management VLAN.",
         Audit.IssueTypes.DnsLeakage => "Configure firewall to block direct DNS queries from isolated networks.",
         Audit.IssueTypes.DnsNoDoh => "Configure DoH in Network Settings with a trusted provider like NextDNS or Cloudflare.",
         Audit.IssueTypes.DnsDohAuto => "Set DoH to 'custom' mode with explicit servers for guaranteed encryption.",
@@ -1149,7 +1141,7 @@ public class AuditStatistics
 
 public class AuditIssue
 {
-    public string Severity { get; set; } = "";
+    public AuditModels.AuditSeverity Severity { get; set; }
     public string Category { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";

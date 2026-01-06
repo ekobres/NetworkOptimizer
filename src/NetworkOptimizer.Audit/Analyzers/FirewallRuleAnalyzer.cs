@@ -60,8 +60,8 @@ public class FirewallRuleAnalyzer
                     var earlierRule = orderedRules[j];
 
                     // Only care about conflicting actions (ALLOW vs DENY/BLOCK/DROP)
-                    var earlierIsAllow = IsAllowAction(earlierRule.Action);
-                    var laterIsAllow = IsAllowAction(laterRule.Action);
+                    var earlierIsAllow = earlierRule.ActionType.IsAllowAction();
+                    var laterIsAllow = laterRule.ActionType.IsAllowAction();
 
                     // Skip if same action type (both allow or both deny)
                     if (earlierIsAllow == laterIsAllow)
@@ -83,7 +83,7 @@ public class FirewallRuleAnalyzer
                             issues.Add(new AuditIssue
                             {
                                 Type = IssueTypes.AllowExceptionPattern,
-                                Severity = AuditSeverity.Info,
+                                Severity = AuditSeverity.Informational,
                                 Message = $"Allow rule '{earlierRule.Name}' creates an intentional exception to deny rule '{laterRule.Name}'",
                                 Metadata = new Dictionary<string, object>
                                 {
@@ -147,7 +147,7 @@ public class FirewallRuleAnalyzer
                             issues.Add(new AuditIssue
                             {
                                 Type = IssueTypes.DenyShadowsAllow,
-                                Severity = AuditSeverity.Info,
+                                Severity = AuditSeverity.Informational,
                                 Message = $"Allow rule '{laterRule.Name}' may be ineffective due to earlier deny rule '{earlierRule.Name}'",
                                 Metadata = new Dictionary<string, object>
                                 {
@@ -171,17 +171,6 @@ public class FirewallRuleAnalyzer
     }
 
     /// <summary>
-    /// Check if an action is an allow/accept action
-    /// </summary>
-    private static bool IsAllowAction(string? action)
-    {
-        if (string.IsNullOrEmpty(action))
-            return false;
-        return action.Equals("allow", StringComparison.OrdinalIgnoreCase) ||
-               action.Equals("accept", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
     /// Detect overly permissive rules (any/any)
     /// </summary>
     public List<AuditIssue> DetectPermissiveRules(List<FirewallRule> rules)
@@ -193,12 +182,20 @@ public class FirewallRuleAnalyzer
             if (!rule.Enabled)
                 continue;
 
-            // Check for any->any rules
-            var isAnySource = rule.SourceType == "any" || string.IsNullOrEmpty(rule.Source);
-            var isAnyDest = rule.DestinationType == "any" || string.IsNullOrEmpty(rule.Destination);
-            var isAnyProtocol = rule.Protocol == "all" || string.IsNullOrEmpty(rule.Protocol);
+            // Skip predefined/system rules - these are UniFi built-in rules that users can't change
+            // Includes "Allow All Traffic", "Allow Return Traffic", auto-generated "(Return)" rules, etc.
+            if (rule.Predefined)
+                continue;
 
-            if (isAnySource && isAnyDest && isAnyProtocol && rule.Action == "accept")
+            // Check for any->any rules
+            // v2 API uses SourceMatchingTarget/DestinationMatchingTarget = "ANY"
+            // Legacy API uses SourceType/DestinationType = "any" or empty Source/Destination
+            var isAnySource = IsAnySource(rule);
+            var isAnyDest = IsAnyDestination(rule);
+            var isAnyProtocol = rule.Protocol?.Equals("all", StringComparison.OrdinalIgnoreCase) == true
+                || string.IsNullOrEmpty(rule.Protocol);
+
+            if (isAnySource && isAnyDest && isAnyProtocol && rule.ActionType.IsAllowAction())
             {
                 issues.Add(new AuditIssue
                 {
@@ -217,8 +214,24 @@ public class FirewallRuleAnalyzer
                 });
             }
             // Check for any source or any destination (less critical)
-            else if ((isAnySource || isAnyDest) && rule.Action == "accept")
+            // But don't flag if the rule has other restrictions that make it specific:
+            // - Specific destination ports limit what can be accessed
+            // - Specific source IPs limit who can access
+            // - Web domains limit destination to specific sites
+            else if ((isAnySource || isAnyDest) && rule.ActionType.IsAllowAction())
             {
+                var hasSpecificPorts = !string.IsNullOrEmpty(rule.DestinationPort);
+                var hasSpecificSourceIps = rule.SourceIps?.Any() == true;
+                var hasWebDomains = rule.WebDomains?.Any() == true;
+
+                // If ANY destination but has specific ports or source IPs, it's not truly "broad"
+                if (isAnyDest && (hasSpecificPorts || hasSpecificSourceIps || hasWebDomains))
+                    continue;
+
+                // If ANY source but has specific destination ports or web domains, it's not truly "broad"
+                if (isAnySource && (hasSpecificPorts || hasWebDomains))
+                    continue;
+
                 var direction = isAnySource ? "any source" : "any destination";
                 issues.Add(new AuditIssue
                 {
@@ -310,75 +323,250 @@ public class FirewallRuleAnalyzer
     {
         var issues = new List<AuditIssue>();
 
-        // Find networks that should be isolated but DON'T have network_isolation_enabled
-        // (networks with isolation enabled are handled by UniFi's built-in "Isolated Networks" rule)
+        // Find networks by purpose (only those without system isolation enabled need manual firewall rules)
         var iotNetworks = networks.Where(n => n.Purpose == NetworkPurpose.IoT && !n.NetworkIsolationEnabled).ToList();
         var guestNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Guest && !n.NetworkIsolationEnabled).ToList();
-        var corporateNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Corporate).ToList();
+        var securityNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Security && !n.NetworkIsolationEnabled).ToList();
 
-        // Check if there are explicit deny rules between non-isolated IoT and Corporate
+        // Trusted networks that untrusted networks should be isolated FROM
+        var corporateNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Corporate).ToList();
+        var homeNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Home).ToList();
+        var managementNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Management).ToList();
+
+        // Combine trusted networks for easier iteration
+        var trustedNetworks = corporateNetworks.Concat(homeNetworks).Concat(managementNetworks).ToList();
+
+        // IoT should be isolated from: Corporate, Home, Management, Security
         foreach (var iot in iotNetworks)
         {
-            foreach (var corporate in corporateNetworks)
+            // Check against trusted networks
+            foreach (var trusted in trustedNetworks)
             {
-                var hasIsolationRule = rules.Any(r =>
-                    r.Enabled &&
-                    r.Action == "drop" &&
-                    ((r.Source == iot.Id && r.Destination == corporate.Id) ||
-                     (r.Source == corporate.Id && r.Destination == iot.Id)));
+                CheckAndAddIsolationIssue(issues, rules, iot, trusted, "FW-ISOLATION-IOT");
+            }
 
-                if (!hasIsolationRule)
-                {
-                    issues.Add(new AuditIssue
-                    {
-                        Type = IssueTypes.MissingIsolation,
-                        Severity = AuditSeverity.Recommended,
-                        Message = $"No explicit isolation rule between {iot.Name} and {corporate.Name}",
-                        Metadata = new Dictionary<string, object>
-                        {
-                            { "network1", iot.Name },
-                            { "network2", corporate.Name },
-                            { "recommendation", "Enable network isolation or add firewall rule to block inter-VLAN traffic" }
-                        },
-                        RuleId = "FW-ISOLATION-001",
-                        ScoreImpact = 7
-                    });
-                }
+            // IoT should also be isolated from Security (cameras)
+            foreach (var security in securityNetworks)
+            {
+                CheckAndAddIsolationIssue(issues, rules, iot, security, "FW-ISOLATION-IOT-SEC");
             }
         }
 
-        // Similar check for non-isolated Guest networks
+        // Guest should be isolated from: Corporate, Home, Management, Security, IoT
         foreach (var guest in guestNetworks)
         {
-            foreach (var corporate in corporateNetworks)
+            // Check against trusted networks
+            foreach (var trusted in trustedNetworks)
             {
-                var hasIsolationRule = rules.Any(r =>
-                    r.Enabled &&
-                    r.Action == "drop" &&
-                    ((r.Source == guest.Id && r.Destination == corporate.Id) ||
-                     (r.Source == corporate.Id && r.Destination == guest.Id)));
+                CheckAndAddIsolationIssue(issues, rules, guest, trusted, "FW-ISOLATION-GUEST");
+            }
 
-                if (!hasIsolationRule)
-                {
-                    issues.Add(new AuditIssue
-                    {
-                        Type = IssueTypes.MissingIsolation,
-                        Severity = AuditSeverity.Recommended,
-                        Message = $"No explicit isolation rule between {guest.Name} and {corporate.Name}",
-                        Metadata = new Dictionary<string, object>
-                        {
-                            { "network1", guest.Name },
-                            { "network2", corporate.Name },
-                            { "recommendation", "Enable network isolation or add firewall rule to block inter-VLAN traffic" }
-                        },
-                        RuleId = "FW-ISOLATION-002",
-                        ScoreImpact = 7
-                    });
-                }
+            // Guest should be isolated from Security (cameras)
+            foreach (var security in securityNetworks)
+            {
+                CheckAndAddIsolationIssue(issues, rules, guest, security, "FW-ISOLATION-GUEST-SEC");
+            }
+
+            // Guest should be isolated from IoT (guests shouldn't control smart home devices)
+            foreach (var iot in iotNetworks)
+            {
+                CheckAndAddIsolationIssue(issues, rules, guest, iot, "FW-ISOLATION-GUEST-IOT");
+            }
+        }
+
+        // Management should be isolated from: Corporate, Home, Security
+        // Management networks should only be accessible to specific admin devices, not entire networks
+        foreach (var mgmt in managementNetworks.Where(n => !n.NetworkIsolationEnabled))
+        {
+            foreach (var corp in corporateNetworks)
+            {
+                CheckAndAddIsolationIssue(issues, rules, corp, mgmt, "FW-ISOLATION-MGMT");
+            }
+            foreach (var home in homeNetworks)
+            {
+                CheckAndAddIsolationIssue(issues, rules, home, mgmt, "FW-ISOLATION-MGMT");
+            }
+            foreach (var security in securityNetworks)
+            {
+                CheckAndAddIsolationIssue(issues, rules, security, mgmt, "FW-ISOLATION-SEC-MGMT");
+            }
+        }
+
+        // Now check for ALLOW rules between networks that should be isolated
+        // This catches rules that explicitly open up traffic between isolated network types
+        var allIotNetworks = networks.Where(n => n.Purpose == NetworkPurpose.IoT).ToList();
+        var allGuestNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Guest).ToList();
+        var allSecurityNetworks = networks.Where(n => n.Purpose == NetworkPurpose.Security).ToList();
+
+        // Check for allow rules between IoT and trusted/security networks
+        foreach (var iot in allIotNetworks)
+        {
+            foreach (var trusted in trustedNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, iot, trusted);
+            }
+            foreach (var security in allSecurityNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, iot, security);
+            }
+        }
+
+        // Check for allow rules between Guest and trusted/security/IoT networks
+        foreach (var guest in allGuestNetworks)
+        {
+            foreach (var trusted in trustedNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, guest, trusted);
+            }
+            foreach (var security in allSecurityNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, guest, security);
+            }
+            foreach (var iot in allIotNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, guest, iot);
+            }
+        }
+
+        // Check for allow rules between Corporate/Home/Security and Management
+        foreach (var mgmt in managementNetworks)
+        {
+            foreach (var corp in corporateNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, corp, mgmt);
+            }
+            foreach (var home in homeNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, home, mgmt);
+            }
+            foreach (var security in allSecurityNetworks)
+            {
+                CheckForProblematicAllowRules(issues, rules, security, mgmt);
             }
         }
 
         return issues;
+    }
+
+    /// <summary>
+    /// Helper to find and flag ALLOW rules between networks that should be isolated
+    /// </summary>
+    private void CheckForProblematicAllowRules(
+        List<AuditIssue> issues,
+        List<FirewallRule> rules,
+        NetworkInfo network1,
+        NetworkInfo network2)
+    {
+        // Don't check network against itself
+        if (network1.Id == network2.Id)
+            return;
+
+        // Find all ALLOW rules between these two networks (either direction)
+        var allowRules = rules.Where(r =>
+            r.Enabled &&
+            !r.Predefined &&
+            r.ActionType.IsAllowAction() &&
+            (HasNetworkPair(r, network1.Id, network2.Id) || HasNetworkPair(r, network2.Id, network1.Id)))
+            .ToList();
+
+        foreach (var rule in allowRules)
+        {
+            // Determine direction for the message
+            var isForward = HasNetworkPair(rule, network1.Id, network2.Id);
+            var sourceNet = isForward ? network1 : network2;
+            var destNet = isForward ? network2 : network1;
+
+            issues.Add(new AuditIssue
+            {
+                Type = IssueTypes.IsolationBypassed,
+                Severity = AuditSeverity.Critical,
+                Message = $"Rule '{rule.Name}' allows traffic from {sourceNet.Name} ({sourceNet.Purpose}) to {destNet.Name} ({destNet.Purpose}) which should be isolated",
+                Metadata = new Dictionary<string, object>
+                {
+                    { "rule_name", rule.Name ?? rule.Id },
+                    { "rule_index", rule.Index },
+                    { "source_network", sourceNet.Name },
+                    { "source_purpose", sourceNet.Purpose.ToString() },
+                    { "dest_network", destNet.Name },
+                    { "dest_purpose", destNet.Purpose.ToString() },
+                    { "recommendation", "Delete this rule or restrict to specific ports/protocols if necessary" }
+                },
+                RuleId = "FW-ISOLATION-BYPASS",
+                ScoreImpact = 12
+            });
+        }
+    }
+
+    /// <summary>
+    /// Helper to check for isolation rule between two networks and add issue if missing
+    /// </summary>
+    private void CheckAndAddIsolationIssue(
+        List<AuditIssue> issues,
+        List<FirewallRule> rules,
+        NetworkInfo network1,
+        NetworkInfo network2,
+        string ruleIdPrefix)
+    {
+        // Don't check network against itself
+        if (network1.Id == network2.Id)
+            return;
+
+        var hasIsolationRule = rules.Any(r =>
+            r.Enabled &&
+            r.ActionType.IsBlockAction() &&
+            (HasNetworkPair(r, network1.Id, network2.Id) || HasNetworkPair(r, network2.Id, network1.Id)));
+
+        if (!hasIsolationRule)
+        {
+            // Determine severity based on network types
+            // Critical: Guest to sensitive networks, IoT to Management
+            var isCritical = IsCriticalIsolationMissing(network1.Purpose, network2.Purpose);
+            var severity = isCritical ? AuditSeverity.Critical : AuditSeverity.Recommended;
+            var scoreImpact = isCritical ? 12 : 7;
+
+            issues.Add(new AuditIssue
+            {
+                Type = IssueTypes.MissingIsolation,
+                Severity = severity,
+                Message = $"No explicit isolation rule between {network1.Name} ({network1.Purpose}) and {network2.Name} ({network2.Purpose})",
+                Metadata = new Dictionary<string, object>
+                {
+                    { "network1", network1.Name },
+                    { "network1Purpose", network1.Purpose.ToString() },
+                    { "network2", network2.Name },
+                    { "network2Purpose", network2.Purpose.ToString() },
+                    { "recommendation", "Enable network isolation or add firewall rule to block inter-VLAN traffic" }
+                },
+                RuleId = ruleIdPrefix,
+                ScoreImpact = scoreImpact
+            });
+        }
+    }
+
+    /// <summary>
+    /// Determines if missing isolation between two network types is critical.
+    /// Guest accessing sensitive networks, and anything accessing Management are critical.
+    /// </summary>
+    private static bool IsCriticalIsolationMissing(NetworkPurpose purpose1, NetworkPurpose purpose2)
+    {
+        // Guest to Corporate, Management, or Security = Critical
+        if (purpose1 == NetworkPurpose.Guest || purpose2 == NetworkPurpose.Guest)
+        {
+            var other = purpose1 == NetworkPurpose.Guest ? purpose2 : purpose1;
+            if (other is NetworkPurpose.Corporate or NetworkPurpose.Management or NetworkPurpose.Security)
+                return true;
+        }
+
+        // Anything to Management = Critical (Management should only be accessed by specific admin devices)
+        // This includes: IoT, Corporate, Home, Security
+        if (purpose1 == NetworkPurpose.Management || purpose2 == NetworkPurpose.Management)
+        {
+            var other = purpose1 == NetworkPurpose.Management ? purpose2 : purpose1;
+            if (other is NetworkPurpose.IoT or NetworkPurpose.Corporate or NetworkPurpose.Home or NetworkPurpose.Security)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -429,7 +617,7 @@ public class FirewallRuleAnalyzer
             // Must have: source = management network, destination web domain = ui.com
             var hasUniFiAccess = rules.Any(r =>
                 r.Enabled &&
-                r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                r.ActionType.IsAllowAction() &&
                 r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                 r.WebDomains?.Any(d => d.Contains("ui.com", StringComparison.OrdinalIgnoreCase)) == true);
 
@@ -438,7 +626,7 @@ public class FirewallRuleAnalyzer
                 issues.Add(new AuditIssue
                 {
                     Type = IssueTypes.MgmtMissingUnifiAccess,
-                    Severity = AuditSeverity.Info,
+                    Severity = AuditSeverity.Informational,
                     Message = $"Isolated management network '{mgmtNetwork.Name}' may lack UniFi cloud access",
                     CurrentNetwork = mgmtNetwork.Name,
                     CurrentVlan = mgmtNetwork.VlanId,
@@ -458,7 +646,7 @@ public class FirewallRuleAnalyzer
             // Must have: source = management network, destination web domain = qcs.qualcomm.com
             var hasAfcAccess = rules.Any(r =>
                 r.Enabled &&
-                r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                r.ActionType.IsAllowAction() &&
                 r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                 r.WebDomains?.Any(d => d.Contains("qcs.qualcomm.com", StringComparison.OrdinalIgnoreCase)) == true);
 
@@ -467,7 +655,7 @@ public class FirewallRuleAnalyzer
                 issues.Add(new AuditIssue
                 {
                     Type = IssueTypes.MgmtMissingAfcAccess,
-                    Severity = AuditSeverity.Info,
+                    Severity = AuditSeverity.Informational,
                     Message = $"Isolated management network '{mgmtNetwork.Name}' may lack AFC traffic access",
                     CurrentNetwork = mgmtNetwork.Name,
                     CurrentVlan = mgmtNetwork.VlanId,
@@ -487,7 +675,7 @@ public class FirewallRuleAnalyzer
             // Can be satisfied by: web domain containing ntp.org OR destination port 123
             var hasNtpAccess = rules.Any(r =>
                 r.Enabled &&
-                r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                r.ActionType.IsAllowAction() &&
                 r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                 (r.WebDomains?.Any(d => d.Contains("ntp.org", StringComparison.OrdinalIgnoreCase)) == true ||
                  r.DestinationPort == "123" ||
@@ -498,7 +686,7 @@ public class FirewallRuleAnalyzer
                 issues.Add(new AuditIssue
                 {
                     Type = IssueTypes.MgmtMissingNtpAccess,
-                    Severity = AuditSeverity.Info,
+                    Severity = AuditSeverity.Informational,
                     Message = $"Isolated management network '{mgmtNetwork.Name}' may lack NTP time sync access",
                     CurrentNetwork = mgmtNetwork.Name,
                     CurrentVlan = mgmtNetwork.VlanId,
@@ -523,7 +711,7 @@ public class FirewallRuleAnalyzer
             {
                 var has5GModemAccess = rules.Any(r =>
                     r.Enabled &&
-                    r.Action?.Equals("allow", StringComparison.OrdinalIgnoreCase) == true &&
+                    r.ActionType.IsAllowAction() &&
                     r.SourceNetworkIds?.Contains(mgmtNetwork.Id) == true &&
                     r.WebDomains?.Any(d =>
                         d.Contains("trafficmanager.net", StringComparison.OrdinalIgnoreCase) ||
@@ -535,7 +723,7 @@ public class FirewallRuleAnalyzer
                     issues.Add(new AuditIssue
                     {
                         Type = IssueTypes.MgmtMissing5gAccess,
-                        Severity = AuditSeverity.Info,
+                        Severity = AuditSeverity.Informational,
                         Message = $"Isolated management network '{mgmtNetwork.Name}' may lack 5G/LTE modem registration access",
                         CurrentNetwork = mgmtNetwork.Name,
                         CurrentVlan = mgmtNetwork.VlanId,
@@ -554,5 +742,55 @@ public class FirewallRuleAnalyzer
         }
 
         return issues;
+    }
+
+    /// <summary>
+    /// Check if a firewall rule has "any" source (matches all sources)
+    /// Handles both v2 API format (SourceMatchingTarget) and legacy format (SourceType/Source)
+    /// </summary>
+    private static bool IsAnySource(FirewallRule rule)
+    {
+        // v2 API format: SourceMatchingTarget explicitly tells us the matching type
+        if (!string.IsNullOrEmpty(rule.SourceMatchingTarget))
+        {
+            return rule.SourceMatchingTarget.Equals("ANY", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Legacy format: check SourceType or fall back to empty Source
+        return rule.SourceType?.Equals("any", StringComparison.OrdinalIgnoreCase) == true
+            || string.IsNullOrEmpty(rule.Source);
+    }
+
+    /// <summary>
+    /// Check if a firewall rule has "any" destination (matches all destinations)
+    /// Handles both v2 API format (DestinationMatchingTarget) and legacy format (DestinationType/Destination)
+    /// </summary>
+    private static bool IsAnyDestination(FirewallRule rule)
+    {
+        // v2 API format: DestinationMatchingTarget explicitly tells us the matching type
+        if (!string.IsNullOrEmpty(rule.DestinationMatchingTarget))
+        {
+            return rule.DestinationMatchingTarget.Equals("ANY", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Legacy format: check DestinationType or fall back to empty Destination
+        return rule.DestinationType?.Equals("any", StringComparison.OrdinalIgnoreCase) == true
+            || string.IsNullOrEmpty(rule.Destination);
+    }
+
+    /// <summary>
+    /// Check if a firewall rule matches a specific source->destination network pair.
+    /// Handles both v2 API format (SourceNetworkIds/DestinationNetworkIds) and legacy format (Source/Destination).
+    /// </summary>
+    private static bool HasNetworkPair(FirewallRule rule, string sourceNetworkId, string destNetworkId)
+    {
+        // Check v2 API format first (SourceNetworkIds/DestinationNetworkIds)
+        var sourceMatches = rule.SourceNetworkIds?.Contains(sourceNetworkId) == true
+            || rule.Source == sourceNetworkId;
+
+        var destMatches = rule.DestinationNetworkIds?.Contains(destNetworkId) == true
+            || rule.Destination == destNetworkId;
+
+        return sourceMatches && destMatches;
     }
 }

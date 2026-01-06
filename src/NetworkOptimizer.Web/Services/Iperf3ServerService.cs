@@ -333,7 +333,8 @@ public class Iperf3ServerService : BackgroundService
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "pkill",
-                    Arguments = "-f 'iperf3 -s'",
+                    // Use regex pattern - quotes don't work without shell interpretation
+                    Arguments = "-f iperf3.*-s",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,

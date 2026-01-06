@@ -14,6 +14,7 @@ public static class IssueTypes
     public const string BroadRule = "BROAD_RULE";
     public const string OrphanedRule = "ORPHANED_RULE";
     public const string MissingIsolation = "MISSING_ISOLATION";
+    public const string IsolationBypassed = "ISOLATION_BYPASSED";
     public const string FwAnyAny = "FW_ANY_ANY";
     public const string MgmtMissingUnifiAccess = "MGMT_MISSING_UNIFI_ACCESS";
     public const string MgmtMissingAfcAccess = "MGMT_MISSING_AFC_ACCESS";
@@ -25,6 +26,7 @@ public static class IssueTypes
     public const string WifiIotVlan = "WIFI-IOT-VLAN-001";
     public const string CameraVlan = "CAMERA-VLAN-001";
     public const string WifiCameraVlan = "WIFI-CAMERA-VLAN-001";
+    public const string InfraNotOnMgmt = "INFRA_NOT_ON_MGMT";
     public const string DnsLeakage = "DNS_LEAKAGE";
     public const string RoutingEnabled = "ROUTING_ENABLED";
     public const string MgmtDhcpEnabled = "MGMT_DHCP_ENABLED";

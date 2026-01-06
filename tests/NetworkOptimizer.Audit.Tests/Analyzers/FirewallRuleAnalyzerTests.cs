@@ -405,7 +405,7 @@ public class FirewallRuleAnalyzerTests
         // Assert - These are informational issues with no score impact (too strict for most users)
         foreach (var issue in issues)
         {
-            issue.Severity.Should().Be(AuditSeverity.Info);
+            issue.Severity.Should().Be(AuditSeverity.Informational);
             issue.ScoreImpact.Should().Be(0);
         }
     }
@@ -524,7 +524,7 @@ public class FirewallRuleAnalyzerTests
         // Narrow exception before broad deny should be info-level exception pattern
         var issue = issues.FirstOrDefault(i => i.Type == "ALLOW_EXCEPTION_PATTERN");
         issue.Should().NotBeNull();
-        issue!.Severity.Should().Be(AuditSeverity.Info);
+        issue!.Severity.Should().Be(AuditSeverity.Informational);
     }
 
     [Fact]
@@ -569,7 +569,7 @@ public class FirewallRuleAnalyzerTests
         issues.Should().ContainSingle();
         var issue = issues.First();
         issue.Type.Should().Be("DENY_SHADOWS_ALLOW");
-        issue.Severity.Should().Be(AuditSeverity.Info);
+        issue.Severity.Should().Be(AuditSeverity.Informational);
         issue.Message.Should().Contain("Allow Device Screen Streaming");
         issue.Message.Should().Contain("Block Access to Isolated VLANs");
     }
@@ -650,6 +650,22 @@ public class FirewallRuleAnalyzerTests
     }
 
     [Fact]
+    public void DetectPermissiveRules_PredefinedRule_Ignored()
+    {
+        // Predefined rules (UniFi built-in like "Allow All Traffic", "Allow Return Traffic")
+        // should be skipped since users can't change them
+        var rules = new List<FirewallRule>
+        {
+            CreateFirewallRule("Allow All Traffic", action: "accept", predefined: true, sourceType: "any", destType: "any", protocol: "all"),
+            CreateFirewallRule("Allow Return Traffic", action: "accept", predefined: true, sourceType: "any", destType: "any", protocol: "all")
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
     public void DetectPermissiveRules_DenyRule_NoIssue()
     {
         var rules = new List<FirewallRule>
@@ -674,6 +690,499 @@ public class FirewallRuleAnalyzerTests
 
         issues.Should().BeEmpty();
     }
+
+    #region v2 API Format Tests
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_SpecificSourceIps_NotFlaggedAtAll()
+    {
+        // v2 API rule with specific source IPs should NOT be flagged at all
+        // Having specific source IPs makes "any destination" acceptable
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-1",
+                Name = "Allow Phone Access to IoT (Return)",
+                Action = "ALLOW", // v2 API uses uppercase
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "IP", // v2 API format
+                SourceIps = new List<string> { "192.168.64.0/24", "192.168.200.0/24" },
+                DestinationMatchingTarget = "ANY"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Not flagged because specific source IPs make the rule restrictive
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_AnyDestWithSpecificPorts_NotFlaggedAsBroad()
+    {
+        // Rule with ANY destination but specific ports should NOT be flagged as broad
+        // This matches the "Allow Select Access to Custom UniFi APIs" scenario
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-ports",
+                Name = "Allow Select Access to Custom UniFi APIs",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "tcp",
+                SourceMatchingTarget = "IP",
+                SourceIps = new List<string> { "192.168.1.220", "192.168.1.10" },
+                DestinationMatchingTarget = "ANY",
+                DestinationPort = "8088-8089"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Not flagged because it has specific source IPs AND specific destination ports
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_AnySourceWithSpecificPorts_NotFlaggedAsBroad()
+    {
+        // Rule with ANY source but specific destination ports should NOT be flagged as broad
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "rule-any-src-specific-port",
+                Name = "Allow SSH from Any",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "tcp",
+                SourceMatchingTarget = "ANY",
+                DestinationMatchingTarget = "IP",
+                DestinationIps = new List<string> { "192.168.1.1" },
+                DestinationPort = "22"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Not flagged because specific port makes "any source" acceptable for this use case
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_AnyAny_FlaggedAsPermissive()
+    {
+        // v2 API rule that IS truly any->any should be flagged
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-2",
+                Name = "Allow All Traffic",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "ANY",
+                DestinationMatchingTarget = "ANY"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        issues.Should().ContainSingle();
+        issues.First().Type.Should().Be("PERMISSIVE_RULE");
+        issues.First().Severity.Should().Be(AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_SpecificDestIps_NotFlaggedAsAnyAny()
+    {
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-3",
+                Name = "Allow Access to Specific IPs",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "ANY",
+                DestinationMatchingTarget = "IP",
+                DestinationIps = new List<string> { "192.168.1.100" }
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Should be BROAD_RULE (any source) not PERMISSIVE_RULE (any->any)
+        issues.Should().ContainSingle();
+        issues.First().Type.Should().Be("BROAD_RULE");
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_NetworkTarget_NotFlaggedAsAnyAny()
+    {
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-4",
+                Name = "Allow Access from Network",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "network-123" },
+                DestinationMatchingTarget = "ANY"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Source is specific network, not "any"
+        issues.Should().ContainSingle();
+        issues.First().Type.Should().Be("BROAD_RULE"); // any destination
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_ClientMacs_NotFlaggedAsAnyAny()
+    {
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-5",
+                Name = "Allow from Specific Clients",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "CLIENT",
+                SourceClientMacs = new List<string> { "aa:bb:cc:dd:ee:ff" },
+                DestinationMatchingTarget = "ANY"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Source is specific client MACs, not "any"
+        issues.Should().ContainSingle();
+        issues.First().Type.Should().Be("BROAD_RULE"); // any destination
+    }
+
+    [Fact]
+    public void DetectPermissiveRules_V2ApiFormat_SpecificProtocol_NotFlaggedAsAnyAny()
+    {
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-rule-6",
+                Name = "Allow TCP Only",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "tcp", // specific protocol
+                SourceMatchingTarget = "ANY",
+                DestinationMatchingTarget = "ANY"
+            }
+        };
+
+        var issues = _analyzer.DetectPermissiveRules(rules);
+
+        // Protocol is specific, so not PERMISSIVE_RULE (any->any->any)
+        // But still flagged as single BROAD_RULE (any source OR any dest triggers it)
+        issues.Should().ContainSingle();
+        issues.First().Type.Should().Be("BROAD_RULE");
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_V2ApiFormat_HasBlockRule_NoIssue()
+    {
+        // Test that v2 API format block rules are properly detected
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT", NetworkPurpose.IoT, id: "iot-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id")
+        };
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-block-rule",
+                Name = "Block IoT to Corp",
+                Action = "DROP",
+                Enabled = true,
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "iot-net-id" },
+                DestinationMatchingTarget = "NETWORK",
+                DestinationNetworkIds = new List<string> { "corp-net-id" }
+            }
+        };
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_V2ApiFormat_ReverseDirection_NoIssue()
+    {
+        // Test that v2 API format block rules in reverse direction are properly detected
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT", NetworkPurpose.IoT, id: "iot-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id")
+        };
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "v2-block-rule",
+                Name = "Block Corp to IoT",
+                Action = "BLOCK",
+                Enabled = true,
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "corp-net-id" },
+                DestinationMatchingTarget = "NETWORK",
+                DestinationNetworkIds = new List<string> { "iot-net-id" }
+            }
+        };
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_AllowRuleBetweenIsolatedNetworks_FlaggedAsBroadRule()
+    {
+        // Test that ALLOW rules between networks that should be isolated are flagged
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT Devices", NetworkPurpose.IoT, id: "iot-net-id"),
+            CreateNetwork("Security Cameras", NetworkPurpose.Security, id: "security-net-id")
+        };
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "allow-iot-to-security",
+                Name = "[TEST] Any <-> Any",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "iot-net-id" },
+                DestinationMatchingTarget = "NETWORK",
+                DestinationNetworkIds = new List<string> { "security-net-id" }
+            }
+        };
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag the ALLOW rule as critical - actively bypassing isolation
+        issues.Should().Contain(i => i.Type == "ISOLATION_BYPASSED" && i.Message.Contains("[TEST] Any <-> Any"));
+        var allowIssue = issues.First(i => i.Type == "ISOLATION_BYPASSED");
+        allowIssue.Message.Should().Contain("IoT").And.Contain("Security");
+        allowIssue.Severity.Should().Be(AuditSeverity.Critical);
+        allowIssue.RuleId.Should().Be("FW-ISOLATION-BYPASS");
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_AllowRuleBetweenGuestAndCorporate_FlaggedAsCritical()
+    {
+        // Test Guest to Corporate allow rule is flagged as critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Guest WiFi", NetworkPurpose.Guest, id: "guest-net-id"),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id")
+        };
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "allow-guest-to-corp",
+                Name = "Allow Guest to Corporate",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "guest-net-id" },
+                DestinationMatchingTarget = "NETWORK",
+                DestinationNetworkIds = new List<string> { "corp-net-id" }
+            }
+        };
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "ISOLATION_BYPASSED" && i.RuleId == "FW-ISOLATION-BYPASS");
+        issues.First(i => i.Type == "ISOLATION_BYPASSED").Severity.Should().Be(AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_AllowRuleBetweenCorporateNetworks_NotFlagged()
+    {
+        // Test that ALLOW rules between two Corporate networks are NOT flagged
+        // (Corporate to Corporate is fine)
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate Main", NetworkPurpose.Corporate, id: "corp-main-id"),
+            CreateNetwork("Corporate Branch", NetworkPurpose.Corporate, id: "corp-branch-id")
+        };
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "allow-corp-to-corp",
+                Name = "Allow Corp to Corp",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "corp-main-id" },
+                DestinationMatchingTarget = "NETWORK",
+                DestinationNetworkIds = new List<string> { "corp-branch-id" }
+            }
+        };
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should NOT flag allow rules between two corporate networks
+        issues.Should().NotContain(i => i.RuleId == "FW-ISOLATION-BYPASS");
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_CorporateToManagement_NoBlockRule_FlaggedAsCritical()
+    {
+        // Corporate to Management without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+        issues.First(i => i.Type == "MISSING_ISOLATION").Message.Should().Contain("Corporate").And.Contain("Management");
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_HomeToManagement_NoBlockRule_FlaggedAsCritical()
+    {
+        // Home to Management without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Home", NetworkPurpose.Home, id: "home-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_SecurityToManagement_NoBlockRule_FlaggedAsCritical()
+    {
+        // Security to Management without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_GuestToCorporate_NoBlockRule_FlaggedAsCritical()
+    {
+        // Guest to Corporate without block rule should be Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Guest WiFi", NetworkPurpose.Guest, id: "guest-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id")
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_IoTToCorporate_NoBlockRule_FlaggedAsRecommended()
+    {
+        // IoT to Corporate without block rule should be Recommended (not Critical)
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT Devices", NetworkPurpose.IoT, id: "iot-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id")
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Recommended);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_AllowRuleCorporateToManagement_FlaggedAsCritical()
+    {
+        // ALLOW rule from Corporate to Management should be flagged as Critical
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id")
+        };
+        var rules = new List<FirewallRule>
+        {
+            new FirewallRule
+            {
+                Id = "allow-corp-to-mgmt",
+                Name = "Allow Corporate to Management",
+                Action = "ALLOW",
+                Enabled = true,
+                Protocol = "all",
+                SourceMatchingTarget = "NETWORK",
+                SourceNetworkIds = new List<string> { "corp-net-id" },
+                DestinationMatchingTarget = "NETWORK",
+                DestinationNetworkIds = new List<string> { "mgmt-net-id" }
+            }
+        };
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().Contain(i => i.Type == "ISOLATION_BYPASSED" && i.Severity == AuditSeverity.Critical);
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_ManagementWithSystemIsolation_NotChecked()
+    {
+        // Management network WITH system isolation enabled should NOT be checked
+        // (UniFi's "Isolated Networks" feature handles it)
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id"),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: true) // System isolation ON
+        };
+        var rules = new List<FirewallRule>(); // No manual rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should NOT flag missing isolation because system isolation handles it
+        issues.Should().NotContain(i => i.Type == "MISSING_ISOLATION" && i.Message.Contains("Management"));
+    }
+
+    #endregion
 
     #endregion
 
