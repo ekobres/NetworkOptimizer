@@ -316,8 +316,7 @@ public class FirewallRuleAnalyzer
                 var hasIsolationRule = rules.Any(r =>
                     r.Enabled &&
                     r.ActionType.IsBlockAction() &&
-                    ((r.Source == iot.Id && r.Destination == corporate.Id) ||
-                     (r.Source == corporate.Id && r.Destination == iot.Id)));
+                    (HasNetworkPair(r, iot.Id, corporate.Id) || HasNetworkPair(r, corporate.Id, iot.Id)));
 
                 if (!hasIsolationRule)
                 {
@@ -347,8 +346,7 @@ public class FirewallRuleAnalyzer
                 var hasIsolationRule = rules.Any(r =>
                     r.Enabled &&
                     r.ActionType.IsBlockAction() &&
-                    ((r.Source == guest.Id && r.Destination == corporate.Id) ||
-                     (r.Source == corporate.Id && r.Destination == guest.Id)));
+                    (HasNetworkPair(r, guest.Id, corporate.Id) || HasNetworkPair(r, corporate.Id, guest.Id)));
 
                 if (!hasIsolationRule)
                 {
@@ -580,5 +578,21 @@ public class FirewallRuleAnalyzer
         // Legacy format: check DestinationType or fall back to empty Destination
         return rule.DestinationType?.Equals("any", StringComparison.OrdinalIgnoreCase) == true
             || string.IsNullOrEmpty(rule.Destination);
+    }
+
+    /// <summary>
+    /// Check if a firewall rule matches a specific source->destination network pair.
+    /// Handles both v2 API format (SourceNetworkIds/DestinationNetworkIds) and legacy format (Source/Destination).
+    /// </summary>
+    private static bool HasNetworkPair(FirewallRule rule, string sourceNetworkId, string destNetworkId)
+    {
+        // Check v2 API format first (SourceNetworkIds/DestinationNetworkIds)
+        var sourceMatches = rule.SourceNetworkIds?.Contains(sourceNetworkId) == true
+            || rule.Source == sourceNetworkId;
+
+        var destMatches = rule.DestinationNetworkIds?.Contains(destNetworkId) == true
+            || rule.Destination == destNetworkId;
+
+        return sourceMatches && destMatches;
     }
 }
