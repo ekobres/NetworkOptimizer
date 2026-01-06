@@ -326,9 +326,16 @@
                                         </div>
                                         <span class="issue-type-chevron">@(isExpanded ? "▲" : "▼")</span>
                                     </div>
+                                    @{
+                                        // Non-device groups have null Description in key - show description per item
+                                        var isDeviceGroup = issueTypeGroup.Key.Description != null;
+                                    }
                                     <div class="expand-wrapper @(isExpanded ? "expanded" : "")">
                                         <div class="expand-content">
-                                            <div class="issue-type-description">@firstIssue.Description</div>
+                                            @if (isDeviceGroup)
+                                            {
+                                                <div class="issue-type-description">@firstIssue.Description</div>
+                                            }
                                             <div class="issue-type-items-list">
                                                 @foreach (var issue in issueTypeGroup)
                                                 {
@@ -337,7 +344,7 @@
                                                                        !string.IsNullOrEmpty(parsed.NetworkDeviceName) ||
                                                                        !string.IsNullOrEmpty(issue.Port);
                                                     <div class="issue-type-item">
-                                                        @if (hasDeviceInfo)
+                                                        @if (isDeviceGroup && hasDeviceInfo)
                                                         {
                                                             <div class="issue-context">
                                                                 @if (!string.IsNullOrEmpty(parsed.ClientName))
@@ -364,6 +371,16 @@
                                                                 {
                                                                     <span class="context-item"><strong>Network:</strong> @issue.CurrentNetwork@(issue.CurrentVlan.HasValue ? $" (VLAN {issue.CurrentVlan})" : "")</span>
                                                                 }
+                                                                <button class="btn btn-sm btn-ghost issue-action" @onclick="() => DismissIssue(issue)" @onclick:stopPropagation="true" title="Dismiss this issue">
+                                                                    Dismiss
+                                                                </button>
+                                                            </div>
+                                                        }
+                                                        else if (!isDeviceGroup)
+                                                        {
+                                                            @* Non-device group: show description per item *@
+                                                            <div class="issue-context">
+                                                                <span class="context-item issue-item-description">@issue.Description</span>
                                                                 <button class="btn btn-sm btn-ghost issue-action" @onclick="() => DismissIssue(issue)" @onclick:stopPropagation="true" title="Dismiss this issue">
                                                                     Dismiss
                                                                 </button>
@@ -1146,11 +1163,24 @@
 
     private IEnumerable<IGrouping<(string Title, string Severity, string? Description, string? Recommendation), Services.AuditIssue>> GetGroupedFilteredIssues()
     {
-        // Group by issue type (Title), severity, description, AND recommendation so different descriptions/recommendations aren't merged
+        // Smart grouping based on issue type:
+        // - Device issues (has DeviceName/Port): group by Title+Severity+Description+Recommendation
+        // - Non-device issues: group by Title+Severity+Recommendation only (Description shown per-item)
         return GetFilteredIssues()
-            .GroupBy(i => (i.Title, i.Severity, i.Description, i.Recommendation))
+            .GroupBy(i => (
+                i.Title,
+                i.Severity,
+                // For device issues, include Description in key; for non-device, use null to collapse
+                HasDeviceInfo(i) ? i.Description : null,
+                i.Recommendation
+            ))
             .OrderBy(g => GetSeverityOrder(g.Key.Severity))
             .ThenBy(g => g.Key.Title);
+    }
+
+    private bool HasDeviceInfo(Services.AuditIssue issue)
+    {
+        return !string.IsNullOrEmpty(issue.DeviceName) || !string.IsNullOrEmpty(issue.Port);
     }
 
     private int GetSeverityOrder(string severity)
