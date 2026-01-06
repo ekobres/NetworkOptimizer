@@ -6,14 +6,15 @@ using AuditSeverity = NetworkOptimizer.Audit.Models.AuditSeverity;
 namespace NetworkOptimizer.Audit.Rules;
 
 /// <summary>
-/// Detects security cameras not on a dedicated security VLAN
-/// Uses enhanced detection: fingerprint > MAC OUI > port name patterns
+/// Detects self-hosted security cameras not on a dedicated security VLAN.
+/// Uses enhanced detection: fingerprint > MAC OUI > port name patterns.
+/// Note: Cloud cameras (Ring, Nest, Wyze, Blink, Arlo) are handled by IoT VLAN rules instead.
 /// </summary>
 public class CameraVlanRule : AuditRuleBase
 {
     public override string RuleId => "CAMERA-VLAN-001";
     public override string RuleName => "Camera VLAN Placement";
-    public override string Description => "Security cameras should be on dedicated security/camera VLANs";
+    public override string Description => "Self-hosted security cameras should be on dedicated security/camera VLANs";
     public override AuditSeverity Severity => AuditSeverity.Critical;
     public override int ScoreImpact => 8;
 
@@ -56,8 +57,13 @@ public class CameraVlanRule : AuditRuleBase
             return null;
         }
 
-        // Check if this is a surveillance/security device
+        // Check if this is a surveillance/security device (but not cloud cameras)
+        // Cloud cameras (Ring, Nest, Wyze, Blink, Arlo) are handled by IoT VLAN rules
         if (!detection.Category.IsSurveillance())
+            return null;
+
+        // Skip cloud cameras - they should go on IoT VLAN, not Security VLAN
+        if (detection.Category.IsCloudCamera())
             return null;
 
         // Get the network this port is on
@@ -115,11 +121,43 @@ public class CameraVlanRule : AuditRuleBase
         }
         else
         {
-            // Active port: use connected client name if available, fall back to detected category
+            // Active port: use connected client name if available
             var clientName = port.ConnectedClient?.Name ?? port.ConnectedClient?.Hostname;
-            deviceName = !string.IsNullOrEmpty(clientName)
-                ? $"{clientName} on {port.Switch.Name}"
-                : $"{detection.CategoryName} on {port.Switch.Name}";
+            if (!string.IsNullOrEmpty(clientName))
+            {
+                deviceName = $"{clientName} on {port.Switch.Name}";
+            }
+            else if (!string.IsNullOrEmpty(detection.ProductName))
+            {
+                // Use specific product name from detection (e.g., "G6 Pro Bullet" from Protect API)
+                deviceName = $"{detection.ProductName} on {port.Switch.Name}";
+            }
+            else
+            {
+                // Fall back to OUI (manufacturer) with MAC suffix, or detection vendor, or just MAC
+                var oui = port.ConnectedClient?.Oui;
+                var mac = port.ConnectedClient?.Mac;
+                var macSuffix = !string.IsNullOrEmpty(mac) && mac.Length >= 8
+                    ? mac.Substring(mac.Length - 5).ToUpperInvariant()
+                    : null;
+
+                if (!string.IsNullOrEmpty(oui) && !string.IsNullOrEmpty(macSuffix))
+                {
+                    deviceName = $"{oui} ({macSuffix}) on {port.Switch.Name}";
+                }
+                else if (!string.IsNullOrEmpty(detection.VendorName) && !string.IsNullOrEmpty(macSuffix))
+                {
+                    deviceName = $"{detection.VendorName} ({macSuffix}) on {port.Switch.Name}";
+                }
+                else if (!string.IsNullOrEmpty(mac))
+                {
+                    deviceName = $"{mac} on {port.Switch.Name}";
+                }
+                else
+                {
+                    deviceName = $"{detection.CategoryName} on {port.Switch.Name}";
+                }
+            }
         }
 
         var message = $"{detection.CategoryName} on {network.Name} VLAN - should be on security VLAN";

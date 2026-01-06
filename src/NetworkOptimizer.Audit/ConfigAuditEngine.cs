@@ -6,7 +6,12 @@ using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Audit.Services;
 using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.Core.Helpers;
+using NetworkOptimizer.Core.Models;
 using NetworkOptimizer.UniFi.Models;
+
+// Disambiguate types that exist in both Audit.Models and Core.Models
+using AuditResult = NetworkOptimizer.Audit.Models.AuditResult;
+using AuditStatistics = NetworkOptimizer.Audit.Models.AuditStatistics;
 
 using static NetworkOptimizer.Core.Helpers.DisplayFormatters;
 
@@ -149,7 +154,7 @@ public class ConfigAuditEngine
         JsonElement? firewallPoliciesData,
         DeviceAllowanceSettings? allowanceSettings,
         string? clientName = null)
-        => RunAuditAsync(deviceDataJson, clients, clientHistory: null, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, protectCameraMacs: null, clientName);
+        => RunAuditAsync(deviceDataJson, clients, clientHistory: null, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, protectCameras: null, clientName);
 
     /// <summary>
     /// Run a comprehensive audit on UniFi device data with client history for offline device detection
@@ -161,7 +166,7 @@ public class ConfigAuditEngine
     /// <param name="settingsData">Site settings data including DoH configuration (optional)</param>
     /// <param name="firewallPoliciesData">Firewall policies data for DNS leak prevention analysis (optional)</param>
     /// <param name="allowanceSettings">Settings for allowing devices on main network (optional)</param>
-    /// <param name="protectCameraMacs">Set of UniFi Protect camera MAC addresses for 100% confidence detection (optional)</param>
+    /// <param name="protectCameras">UniFi Protect cameras for 100% confidence detection (optional)</param>
     /// <param name="clientName">Optional client/site name for the report</param>
     /// <returns>Complete audit results</returns>
     public async Task<AuditResult> RunAuditAsync(
@@ -172,13 +177,13 @@ public class ConfigAuditEngine
         JsonElement? settingsData,
         JsonElement? firewallPoliciesData,
         DeviceAllowanceSettings? allowanceSettings,
-        HashSet<string>? protectCameraMacs,
+        ProtectCameraCollection? protectCameras,
         string? clientName = null)
     {
         _logger.LogInformation("Starting network configuration audit for {Client}", clientName ?? "Unknown");
 
         // Initialize context with parsed data and security engine
-        var ctx = InitializeAuditContext(deviceDataJson, clients, clientHistory, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, protectCameraMacs, clientName);
+        var ctx = InitializeAuditContext(deviceDataJson, clients, clientHistory, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, protectCameras, clientName);
 
         // Execute audit phases
         ExecutePhase1_ExtractNetworks(ctx);
@@ -211,7 +216,7 @@ public class ConfigAuditEngine
         JsonElement? settingsData,
         JsonElement? firewallPoliciesData,
         DeviceAllowanceSettings? allowanceSettings,
-        HashSet<string>? protectCameraMacs,
+        ProtectCameraCollection? protectCameras,
         string? clientName)
     {
         if (clients != null)
@@ -220,8 +225,8 @@ public class ConfigAuditEngine
             _logger.LogInformation("Client history available for offline detection: {HistoryCount} historical clients", clientHistory.Count);
         if (fingerprintDb != null)
             _logger.LogInformation("Fingerprint database available: {DeviceCount} devices", fingerprintDb.DevIds.Count);
-        if (protectCameraMacs != null)
-            _logger.LogInformation("UniFi Protect cameras available for priority detection: {CameraCount} cameras", protectCameraMacs.Count);
+        if (protectCameras != null)
+            _logger.LogInformation("UniFi Protect cameras available for priority detection: {CameraCount} cameras", protectCameras.Count);
 
         // Create detection service with all available data sources
         var detectionService = new DeviceTypeDetectionService(
@@ -229,10 +234,10 @@ public class ConfigAuditEngine
             fingerprintDb,
             _ieeeOuiDb);
 
-        // Set UniFi Protect camera MACs (highest priority detection)
-        if (protectCameraMacs != null && protectCameraMacs.Count > 0)
+        // Set UniFi Protect cameras (highest priority detection)
+        if (protectCameras != null && protectCameras.Count > 0)
         {
-            detectionService.SetProtectCameraMacs(protectCameraMacs);
+            detectionService.SetProtectCameras(protectCameras);
         }
 
         // Set client history for enhanced offline device detection
@@ -430,7 +435,7 @@ public class ConfigAuditEngine
                         RecommendedNetwork = placement.RecommendedNetwork?.Name,
                         RecommendedVlan = placement.RecommendedNetwork?.VlanId,
                         RecommendedAction = placement.RecommendedNetwork != null
-                            ? $"Connect to {placement.RecommendedNetworkLabel}"
+                            ? $"Move to {placement.RecommendedNetworkLabel}"
                             : "Create IoT VLAN",
                         RuleId = "OFFLINE-IOT-VLAN",
                         ScoreImpact = scoreImpact,
@@ -475,7 +480,7 @@ public class ConfigAuditEngine
                         RecommendedNetwork = placement.RecommendedNetwork?.Name,
                         RecommendedVlan = placement.RecommendedNetwork?.VlanId,
                         RecommendedAction = placement.RecommendedNetwork != null
-                            ? $"Connect to {placement.RecommendedNetworkLabel}"
+                            ? $"Move to {placement.RecommendedNetworkLabel}"
                             : "Create Security VLAN",
                         RuleId = "OFFLINE-CAMERA-VLAN",
                         ScoreImpact = scoreImpact,

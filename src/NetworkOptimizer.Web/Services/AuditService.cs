@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NetworkOptimizer.Audit;
 using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Core.Enums;
+using NetworkOptimizer.Core.Models;
 using NetworkOptimizer.Storage.Interfaces;
 using NetworkOptimizer.Storage.Models;
 using AuditModels = NetworkOptimizer.Audit.Models;
@@ -572,14 +573,14 @@ public class AuditService
 
             _logger.LogInformation("Running audit engine on device data ({Length} bytes)", deviceDataJson.Length);
 
-            // Fetch UniFi Protect camera MACs for 100% confidence detection
-            HashSet<string>? protectCameraMacs = null;
+            // Fetch UniFi Protect cameras for 100% confidence detection
+            ProtectCameraCollection? protectCameras = null;
             try
             {
-                protectCameraMacs = await _connectionService.Client.GetProtectCameraMacsAsync();
-                if (protectCameraMacs.Count > 0)
+                protectCameras = await _connectionService.Client.GetProtectCamerasAsync();
+                if (protectCameras.Count > 0)
                 {
-                    _logger.LogInformation("Fetched {Count} UniFi Protect cameras for priority detection", protectCameraMacs.Count);
+                    _logger.LogInformation("Fetched {Count} UniFi Protect cameras for priority detection", protectCameras.Count);
                 }
             }
             catch (Exception ex)
@@ -598,7 +599,7 @@ public class AuditService
             };
 
             // Run the audit engine with all available data for comprehensive analysis
-            var auditResult = await _auditEngine.RunAuditAsync(deviceDataJson, clients, clientHistory, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, protectCameraMacs, "Network Audit");
+            var auditResult = await _auditEngine.RunAuditAsync(deviceDataJson, clients, clientHistory, fingerprintDb, settingsData, firewallPoliciesData, allowanceSettings, protectCameras, "Network Audit");
 
             // Convert audit result to web models
             var webResult = ConvertAuditResult(auditResult, options);
@@ -662,7 +663,7 @@ public class AuditService
             {
                 Severity = ConvertSeverity(issue.Severity),
                 Category = category,
-                Title = GetIssueTitle(issue.Type, issue.Message),
+                Title = GetIssueTitle(issue.Type, issue.Message, issue.Severity),
                 Description = issue.Message,
                 Recommendation = issue.RecommendedAction ?? GetDefaultRecommendation(issue.Type),
                 // Context fields
@@ -924,20 +925,23 @@ public class AuditService
         _ => "Info"
     };
 
-    private static string GetIssueTitle(string type, string message)
+    private static string GetIssueTitle(string type, string message, Audit.Models.AuditSeverity severity)
     {
         // Extract a short title from the issue type
+        // For informational IoT/Camera issues, use "Possibly" wording
+        var isInformational = severity == Audit.Models.AuditSeverity.Informational;
+
         return type switch
         {
             // Firewall rules
-            Audit.IssueTypes.FwAnyAny => "Any-Any Firewall Rule",
-            Audit.IssueTypes.PermissiveRule => "Overly Permissive Rule",
-            Audit.IssueTypes.BroadRule => "Broad Firewall Rule",
-            Audit.IssueTypes.OrphanedRule => "Orphaned Firewall Rule",
-            Audit.IssueTypes.AllowExceptionPattern => "Allow Exception Pattern",
-            Audit.IssueTypes.AllowSubvertsDeny => "Rule Order Issue",
-            Audit.IssueTypes.DenyShadowsAllow => "Ineffective Allow Rule",
-            Audit.IssueTypes.MissingIsolation => "Missing VLAN Isolation",
+            Audit.IssueTypes.FwAnyAny => "Firewall: Any-Any Rule",
+            Audit.IssueTypes.PermissiveRule => "Firewall: Overly Permissive Rule",
+            Audit.IssueTypes.BroadRule => "Firewall: Broad Rule",
+            Audit.IssueTypes.OrphanedRule => "Firewall: Orphaned Rule",
+            Audit.IssueTypes.AllowExceptionPattern => "Firewall: Allow Exception Pattern",
+            Audit.IssueTypes.AllowSubvertsDeny => "Firewall: Rule Order Issue",
+            Audit.IssueTypes.DenyShadowsAllow => "Firewall: Ineffective Allow Rule",
+            Audit.IssueTypes.MissingIsolation => "Firewall: Missing VLAN Isolation",
             "VLAN_VIOLATION" => "VLAN Policy Violation",
             "INTER_VLAN" => "Inter-VLAN Access Issue",
 
@@ -955,8 +959,12 @@ public class AuditService
             Audit.IssueTypes.IotNetworkNotIsolated => "IoT Network Not Isolated",
             Audit.IssueTypes.SecurityNetworkHasInternet => "Security Network Has Internet",
             Audit.IssueTypes.MgmtNetworkHasInternet => "Management Network Has Internet",
-            Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan or "OFFLINE-IOT-VLAN" => "IoT Device on Wrong VLAN",
-            Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" => "Camera on Wrong VLAN",
+            Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan or "OFFLINE-IOT-VLAN" =>
+                message.StartsWith("Printer")
+                    ? (isInformational ? "Printer Possibly on Wrong VLAN" : "Printer on Wrong VLAN")
+                    : (isInformational ? "IoT Device Possibly on Wrong VLAN" : "IoT Device on Wrong VLAN"),
+            Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" =>
+                isInformational ? "Camera Possibly on Wrong VLAN" : "Camera on Wrong VLAN",
 
             // Port security
             Audit.IssueTypes.MacRestriction => "Missing MAC Restriction",

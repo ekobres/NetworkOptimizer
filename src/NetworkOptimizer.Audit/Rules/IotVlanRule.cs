@@ -120,11 +120,43 @@ public class IotVlanRule : AuditRuleBase
         }
         else
         {
-            // Active port: use connected client name if available, fall back to detected category
+            // Active port: use connected client name if available
             var clientName = port.ConnectedClient?.Name ?? port.ConnectedClient?.Hostname;
-            deviceName = !string.IsNullOrEmpty(clientName)
-                ? $"{clientName} on {port.Switch.Name}"
-                : $"{detection.CategoryName} on {port.Switch.Name}";
+            if (!string.IsNullOrEmpty(clientName))
+            {
+                deviceName = $"{clientName} on {port.Switch.Name}";
+            }
+            else if (!string.IsNullOrEmpty(detection.ProductName))
+            {
+                // Use specific product name from detection (e.g., device name from API)
+                deviceName = $"{detection.ProductName} on {port.Switch.Name}";
+            }
+            else
+            {
+                // Fall back to OUI (manufacturer) with MAC suffix, or detection vendor, or just MAC
+                var oui = port.ConnectedClient?.Oui;
+                var mac = port.ConnectedClient?.Mac;
+                var macSuffix = !string.IsNullOrEmpty(mac) && mac.Length >= 8
+                    ? mac.Substring(mac.Length - 5).ToUpperInvariant()
+                    : null;
+
+                if (!string.IsNullOrEmpty(oui) && !string.IsNullOrEmpty(macSuffix))
+                {
+                    deviceName = $"{oui} ({macSuffix}) on {port.Switch.Name}";
+                }
+                else if (!string.IsNullOrEmpty(detection.VendorName) && !string.IsNullOrEmpty(macSuffix))
+                {
+                    deviceName = $"{detection.VendorName} ({macSuffix}) on {port.Switch.Name}";
+                }
+                else if (!string.IsNullOrEmpty(mac))
+                {
+                    deviceName = $"{mac} on {port.Switch.Name}";
+                }
+                else
+                {
+                    deviceName = $"{detection.CategoryName} on {port.Switch.Name}";
+                }
+            }
         }
 
         var message = $"{detection.CategoryName} on {network.Name} VLAN - should be isolated";

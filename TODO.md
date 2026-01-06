@@ -25,6 +25,17 @@
 
 ## Security Audit / PDF Report
 
+### ~~Collapsible Audit Findings by Category~~ (DONE)
+- ~~Collapse multiple findings of the same audit category into a single expandable row~~
+- ~~Example: "10 IoT devices on wrong VLAN" instead of 10 separate rows~~
+- ~~Click to expand and view all individual findings in that category~~
+- ~~Benefits:~~
+  - ~~Cleaner UI when many findings of same type exist~~
+  - ~~Faster scanning of audit results~~
+  - ~~Still allows drill-down to specific devices/issues~~
+- ~~Affected components: AlertsList, Audit.razor~~
+- DONE: Implemented collapsible category groups in Audit.razor with expand/collapse functionality
+
 ### ~~Excluded Features Still Affecting Score~~ (FIXED)
 - ~~Features unchecked in the Security Audit analysis are still factoring into scoring~~
 - ~~Expected behavior: Excluding a feature should not display results AND not affect the score~~
@@ -163,6 +174,27 @@ The UniFi v2 device API (`/proxy/network/v2/api/site/{site}/device`) returns mul
 - [x] Update `DeviceTypeDetectionService` to check Protect MACs first
 - [x] Wire up in audit engine to fetch and use Protect MACs
 - [x] Test camera detection with 100% confidence
+
+### ~~Cloud vs Self-Hosted Camera Detection~~ (DONE)
+- ~~Differentiate between cloud cameras and self-hosted/local cameras for VLAN recommendations~~
+- ~~**Cloud Cameras** (should recommend IoT VLAN):~~
+  - ~~Ring, Nest/Google, Wyze, Blink, Arlo (cloud-dependent)~~
+  - ~~These require internet access and cloud services to function~~
+  - ~~IoT VLAN with internet access is appropriate~~
+- ~~**Self-Hosted Cameras** (should recommend Security/Camera VLAN):~~
+  - ~~UniFi Protect / Ubiquiti cameras~~
+  - ~~Eufy (local storage models)~~
+  - ~~ONVIF/RTSP cameras recording to local NVR~~
+  - ~~These can operate without internet, benefit from isolated security VLAN~~
+- ~~Detection methods:~~
+  - ~~MAC OUI lookup for manufacturer identification~~
+  - ~~UniFi Protect API (already integrated) for Ubiquiti cameras~~
+  - ~~Hostname/fingerprint patterns for cloud services~~
+- ~~Implementation:~~
+  - ~~Extend `DeviceTypeDetectionService` with cloud vs local camera classification~~
+  - ~~Update `CameraVlanRule` to provide different recommendations based on camera type~~
+  - ~~Consider new category: `ClientDeviceCategory.CloudCamera` vs existing camera category~~
+- DONE: Added `ClientDeviceCategory.CloudCamera` enum, updated MacOuiDetector and DeviceTypeDetectionService for cloud vendor detection, CameraVlanRule skips cloud cameras (handled by IoT rules)
 
 ### Phase 2: Access Devices (Door Access)
 - [ ] Parse `access_devices` array

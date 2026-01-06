@@ -119,11 +119,10 @@ public class DeviceTypeDetectionServiceTests
     [Theory]
     [InlineData("Wyze Labs", "Front Door Cam")]
     [InlineData("Wyze", "Garage Camera")]
-    [InlineData("Cync by Savant", "Doorbell Camera")]
     [InlineData("Wyze", "Video Doorbell")]
-    public void DetectDeviceType_PlugVendorWithCameraName_ReturnsCamera(string oui, string deviceName)
+    public void DetectDeviceType_WyzeCameraName_ReturnsCloudCamera(string oui, string deviceName)
     {
-        // Arrange - If name indicates camera, use fingerprint detection
+        // Arrange - Wyze cameras are cloud cameras (require internet)
         var client = new UniFiClientResponse
         {
             Mac = "aa:bb:cc:dd:ee:ff",
@@ -135,14 +134,34 @@ public class DeviceTypeDetectionServiceTests
         // Act
         var result = _service.DetectDeviceType(client);
 
-        // Assert - Camera name overrides vendor default
+        // Assert - Wyze cameras are cloud cameras
+        result.Category.Should().Be(ClientDeviceCategory.CloudCamera);
+    }
+
+    [Theory]
+    [InlineData("Cync by Savant", "Doorbell Camera")]
+    public void DetectDeviceType_CyncCameraName_ReturnsSelfHostedCamera(string oui, string deviceName)
+    {
+        // Arrange - Cync is NOT a cloud camera vendor, so camera name makes it a self-hosted Camera
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = deviceName,
+            Oui = oui,
+            DevCat = 4 // Camera fingerprint
+        };
+
+        // Act
+        var result = _service.DetectDeviceType(client);
+
+        // Assert - Cync cameras are self-hosted (not a known cloud camera vendor)
         result.Category.Should().Be(ClientDeviceCategory.Camera);
     }
 
     [Fact]
-    public void DetectDeviceType_NonPlugVendor_UsesFingerprint()
+    public void DetectDeviceType_RingVendor_ReturnsCloudCamera()
     {
-        // Arrange - Ring is a camera vendor, should use fingerprint
+        // Arrange - Ring is a cloud camera vendor
         var client = new UniFiClientResponse
         {
             Mac = "aa:bb:cc:dd:ee:ff",
@@ -154,8 +173,8 @@ public class DeviceTypeDetectionServiceTests
         // Act
         var result = _service.DetectDeviceType(client);
 
-        // Assert - Ring should be detected as camera
-        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        // Assert - Ring cameras are cloud cameras
+        result.Category.Should().Be(ClientDeviceCategory.CloudCamera);
     }
 
     #endregion
@@ -168,10 +187,10 @@ public class DeviceTypeDetectionServiceTests
     [InlineData("Google, Inc.", "Front Door Camera")]
     [InlineData("Nest Labs Inc.", "Garage Cam")]
     [InlineData("Google, Inc.", "Video Doorbell Pro")]
-    public void DetectDeviceType_NestOrGoogleWithCameraName_ReturnsCamera(string oui, string deviceName)
+    public void DetectDeviceType_NestOrGoogleWithCameraName_ReturnsCloudCamera(string oui, string deviceName)
     {
         // Arrange - Nest/Google OUI would normally map to SmartThermostat/SmartSpeaker,
-        // but camera-indicating names should override that
+        // but camera-indicating names should override that to CloudCamera (requires internet)
         var client = new UniFiClientResponse
         {
             Mac = "18:b4:30:12:34:56", // Nest MAC prefix
@@ -183,8 +202,8 @@ public class DeviceTypeDetectionServiceTests
         // Act
         var result = _service.DetectDeviceType(client);
 
-        // Assert - Camera name should override Nest OUI mapping
-        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        // Assert - Camera name + Nest vendor = CloudCamera (not self-hosted Camera)
+        result.Category.Should().Be(ClientDeviceCategory.CloudCamera);
         result.ConfidenceScore.Should().BeGreaterThanOrEqualTo(95);
     }
 

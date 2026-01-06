@@ -13,7 +13,8 @@ public enum ClientDeviceCategory
 
     // Surveillance/Security (1-9)
     /// <summary>
-    /// IP cameras, NVRs, doorbells with video
+    /// Self-hosted IP cameras, NVRs, doorbells with video (UniFi, Eufy, Reolink, etc.)
+    /// These store footage locally and should be on Security VLAN
     /// </summary>
     Camera = 1,
 
@@ -21,6 +22,12 @@ public enum ClientDeviceCategory
     /// Alarm panels, security hubs
     /// </summary>
     SecuritySystem = 2,
+
+    /// <summary>
+    /// Cloud-based cameras requiring internet (Ring, Nest, Wyze, Blink, Arlo)
+    /// These depend on cloud services and should be on IoT VLAN
+    /// </summary>
+    CloudCamera = 3,
 
     // IoT/Smart Home (10-29)
     /// <summary>
@@ -189,18 +196,26 @@ public static class ClientDeviceCategoryExtensions
         ClientDeviceCategory.SmartTV => true,
         ClientDeviceCategory.StreamingDevice => true,
         ClientDeviceCategory.MediaPlayer => true,
+        ClientDeviceCategory.CloudCamera => true, // Cloud cameras need internet, belong on IoT VLAN
         _ => false
     };
 
     /// <summary>
-    /// Check if the category is surveillance-related
+    /// Check if the category is surveillance-related (any type of camera or security device)
     /// </summary>
     public static bool IsSurveillance(this ClientDeviceCategory category) => category switch
     {
         ClientDeviceCategory.Camera => true,
+        ClientDeviceCategory.CloudCamera => true,
         ClientDeviceCategory.SecuritySystem => true,
         _ => false
     };
+
+    /// <summary>
+    /// Check if the category is a cloud-based camera (requires internet for cloud services)
+    /// </summary>
+    public static bool IsCloudCamera(this ClientDeviceCategory category) =>
+        category == ClientDeviceCategory.CloudCamera;
 
     /// <summary>
     /// Check if the category is a low-risk IoT device.
@@ -269,6 +284,7 @@ public static class ClientDeviceCategoryExtensions
         ClientDeviceCategory.GameConsole => "Game Console",
         ClientDeviceCategory.SecuritySystem => "Security System",
         ClientDeviceCategory.AccessPoint => "Access Point",
+        ClientDeviceCategory.CloudCamera => "Cloud Camera",
         _ => category.ToString()
     };
 }

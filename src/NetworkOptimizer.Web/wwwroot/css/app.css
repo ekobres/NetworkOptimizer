@@ -1661,6 +1661,8 @@ select.form-control {
     display: flex;
     align-items: flex-start;
     padding-top: 0.125rem;
+    width: 24px;
+    min-height: 24px;
 }
 
 .issue-item.issue-critical .issue-icon {
@@ -1674,6 +1676,7 @@ select.form-control {
 
 .issue-item.issue-info .issue-icon {
     color: var(--info-color);
+    padding-top: 0.25rem;
 }
 
 .issue-body {
@@ -1756,6 +1759,7 @@ select.form-control {
 
 .issue-recommendation {
     margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
     padding: 0.75rem;
     background: var(--bg-tertiary);
     border-radius: var(--border-radius);
@@ -1781,6 +1785,182 @@ select.form-control {
 
 .issue-item.issue-dismissed .issue-icon {
     color: var(--text-muted);
+}
+
+/* Collapsible Issue Type Groups */
+.issue-type-group {
+    margin-bottom: 0.5rem;
+}
+
+.issue-type-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    font-weight: 500;
+    color: var(--text-primary);
+    border-left: 4px solid var(--border-color);
+}
+
+.issue-type-header:hover {
+    background: var(--bg-hover);
+}
+
+.issue-type-header.expanded {
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.issue-type-group .expand-wrapper .expand-content {
+    border-left: 4px solid var(--border-color);
+}
+
+.issue-type-group .expand-wrapper.expanded .expand-content {
+    background: var(--bg-primary);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+.issue-type-group.issue-critical .expand-wrapper .expand-content {
+    border-left-color: var(--danger-color);
+}
+
+.issue-type-group.issue-recommended .expand-wrapper .expand-content {
+    border-left-color: var(--warning-color);
+}
+
+.issue-type-group.issue-info .expand-wrapper .expand-content {
+    border-left-color: var(--info-color);
+}
+
+/* Issue type group severity colors - uses same classes as issue-item */
+.issue-type-group.issue-critical .issue-type-header {
+    border-left-color: var(--danger-color);
+}
+
+.issue-type-group.issue-recommended .issue-type-header {
+    border-left-color: var(--warning-color);
+}
+
+.issue-type-group.issue-info .issue-type-header {
+    border-left-color: var(--info-color);
+}
+
+.issue-type-icon {
+    display: flex;
+    align-items: flex-start;
+    padding-top: 0.125rem;
+    width: 24px;
+    min-height: 24px;
+    flex-shrink: 0;
+}
+
+.issue-type-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.issue-type-group.issue-critical .issue-type-icon {
+    color: var(--danger-color);
+}
+
+.issue-type-group.issue-recommended .issue-type-icon {
+    color: var(--warning-color);
+}
+
+.issue-type-group.issue-info .issue-type-icon {
+    color: var(--info-color);
+    padding-top: 0.25rem;
+}
+
+.issue-type-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.issue-type-body .issue-title {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.issue-type-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    width: 2rem;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.issue-type-name {
+    font-weight: 500;
+    flex: 1;
+}
+
+.issue-type-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: normal;
+    margin-right: 0.5rem;
+}
+
+.issue-type-description {
+    padding: 0.75rem 1rem 0.5rem 3.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.issue-type-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.25rem 1rem 0.75rem 3.5rem;
+}
+
+.issue-type-item .issue-context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.issue-type-item .issue-context .context-item {
+    display: inline-flex;
+    gap: 0.25rem;
+}
+
+.issue-type-item .issue-context .context-item strong {
+    color: var(--text-muted);
+}
+
+.issue-type-item .issue-action {
+    margin-left: auto;
+    background: var(--bg-secondary);
+}
+
+.issue-type-item .issue-item-description {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.issue-type-recommendation {
+    padding: 0.75rem 1rem 1.25rem 3.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
 }
 
 /* Footer */
@@ -2042,6 +2222,7 @@ select.form-control {
         grid-column: 2;
         grid-row: 2;
         font-size: 0.9rem;
+        margin-top: 0.125rem;
     }
 
     .issue-description {
@@ -2063,6 +2244,78 @@ select.form-control {
 
     .issue-action {
         margin-left: auto;
+    }
+
+    /* Collapsible group header - match single item layout */
+    .issue-type-header {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 0.5rem;
+        row-gap: 0.25rem;
+        position: relative;
+        padding-right: 2rem;
+    }
+
+    .issue-type-icon {
+        grid-column: 1;
+        grid-row: 2;
+        align-self: start;
+        padding-top: 0.1rem;
+    }
+
+    .issue-type-body {
+        display: contents;
+    }
+
+    .issue-type-body .issue-header {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.5rem;
+    }
+
+    .issue-type-body .issue-title {
+        grid-column: 2;
+        grid-row: 2;
+        font-size: 0.9rem;
+        margin-top: 0.125rem;
+    }
+
+    .issue-type-chevron {
+        position: absolute;
+        right: 0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    /* Expanded items - full width context */
+    .issue-type-description {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .issue-type-items-list {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .issue-type-recommendation {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .issue-type-item .issue-context {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.25rem;
+    }
+
+    .issue-type-item .issue-context .context-item {
+        width: 100%;
+    }
+
+    .issue-type-item .issue-action {
+        margin-top: 0.5rem;
     }
 }
 
