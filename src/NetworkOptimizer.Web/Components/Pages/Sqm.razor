@@ -1141,6 +1141,7 @@
         {
             // Load saved WAN configs from database
             await LoadSavedConfigsAsync();
+            StateHasChanged();
 
             // If cache was valid in OnInitialized, just load dashboard data
             if (!isLoading)
