@@ -599,7 +599,10 @@
 
         // Set serverHost for iperf3 instructions (main app host, not speedtest UI host)
         // Priority: HOST_NAME > HOST_IP > auto-detected IP from network interface
-        serverHost = hostName ?? hostIp ?? NetworkUtilities.DetectLocalIpFromInterfaces() ?? "<server IP>";
+        // Note: Configuration[] returns empty string (not null) for missing keys, so use IsNullOrEmpty
+        serverHost = !string.IsNullOrEmpty(hostName) ? hostName
+            : !string.IsNullOrEmpty(hostIp) ? hostIp
+            : NetworkUtilities.DetectLocalIpFromInterfaces() ?? "<server IP>";
 
         // Build display URL - prefer HTTPS when configured, else HTTP
         if (!string.IsNullOrEmpty(openSpeedTestHost))
@@ -617,10 +620,14 @@
                 openSpeedTestUrl = $"http://{openSpeedTestHost}:{openSpeedTestPort}";
             }
         }
-        else if (!string.IsNullOrEmpty(hostIp))
+        else
         {
-            // Fallback to HOST_IP (HTTP only)
-            openSpeedTestUrl = $"http://{hostIp}:{openSpeedTestPort}";
+            // Fallback: HOST_IP > auto-detected IP (HTTP only)
+            var fallbackIp = !string.IsNullOrEmpty(hostIp) ? hostIp : NetworkUtilities.DetectLocalIpFromInterfaces();
+            if (!string.IsNullOrEmpty(fallbackIp))
+            {
+                openSpeedTestUrl = $"http://{fallbackIp}:{openSpeedTestPort}";
+            }
         }
 
         // Check if OpenSpeedTest is actually reachable (using internal HTTP URL)

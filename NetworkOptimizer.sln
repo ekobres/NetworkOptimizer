@@ -1,9 +1,7 @@
-
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Core", "src\NetworkOptimizer.Core\NetworkOptimizer.Core.csproj", "{A1B2C3D4-0001-0001-0001-000000000001}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Storage", "src\NetworkOptimizer.Storage\NetworkOptimizer.Storage.csproj", "{A1B2C3D4-0002-0002-0002-000000000002}"
@@ -22,15 +20,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Reports", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Web", "src\NetworkOptimizer.Web\NetworkOptimizer.Web.csproj", "{A1B2C3D4-0009-0009-0009-000000000009}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{B1B2C3D4-TEST-TEST-TEST-000000000001}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5691A6DD-53B9-4CE0-A3C9-3D4F815E2120}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Audit.Tests", "tests\NetworkOptimizer.Audit.Tests\NetworkOptimizer.Audit.Tests.csproj", "{B1B2C3D4-TEST-TEST-TEST-000000000002}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Audit.Tests", "tests\NetworkOptimizer.Audit.Tests\NetworkOptimizer.Audit.Tests.csproj", "{0F787DF2-4792-43F8-89F8-1DA862AD9FE6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Storage.Tests", "tests\NetworkOptimizer.Storage.Tests\NetworkOptimizer.Storage.Tests.csproj", "{B1B2C3D4-TEST-TEST-TEST-000000000003}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Storage.Tests", "tests\NetworkOptimizer.Storage.Tests\NetworkOptimizer.Storage.Tests.csproj", "{5315FA3C-19CC-41FE-BF3E-3E20351AB9BF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Monitoring.Tests", "tests\NetworkOptimizer.Monitoring.Tests\NetworkOptimizer.Monitoring.Tests.csproj", "{B1B2C3D4-TEST-TEST-TEST-000000000004}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetworkOptimizer.Monitoring.Tests", "tests\NetworkOptimizer.Monitoring.Tests\NetworkOptimizer.Monitoring.Tests.csproj", "{6E45D264-3A7D-40EB-9B5E-C1685212B561}"
 EndProject
-
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,23 +70,18 @@ Global
 		{A1B2C3D4-0009-0009-0009-000000000009}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1B2C3D4-0009-0009-0009-000000000009}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1B2C3D4-0009-0009-0009-000000000009}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000002}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000002}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000002}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000003}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000003}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000003}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000004}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000004}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B1B2C3D4-TEST-TEST-TEST-000000000004}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{B1B2C3D4-TEST-TEST-TEST-000000000002} = {B1B2C3D4-TEST-TEST-TEST-000000000001}
-		{B1B2C3D4-TEST-TEST-TEST-000000000003} = {B1B2C3D4-TEST-TEST-TEST-000000000001}
-		{B1B2C3D4-TEST-TEST-TEST-000000000004} = {B1B2C3D4-TEST-TEST-TEST-000000000001}
+		{0F787DF2-4792-43F8-89F8-1DA862AD9FE6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F787DF2-4792-43F8-89F8-1DA862AD9FE6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F787DF2-4792-43F8-89F8-1DA862AD9FE6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F787DF2-4792-43F8-89F8-1DA862AD9FE6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5315FA3C-19CC-41FE-BF3E-3E20351AB9BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5315FA3C-19CC-41FE-BF3E-3E20351AB9BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5315FA3C-19CC-41FE-BF3E-3E20351AB9BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5315FA3C-19CC-41FE-BF3E-3E20351AB9BF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E45D264-3A7D-40EB-9B5E-C1685212B561}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E45D264-3A7D-40EB-9B5E-C1685212B561}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E45D264-3A7D-40EB-9B5E-C1685212B561}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E45D264-3A7D-40EB-9B5E-C1685212B561}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

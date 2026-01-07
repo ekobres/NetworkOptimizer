@@ -12,6 +12,7 @@ using NetworkOptimizer.Audit.Analyzers;
 using NetworkOptimizer.Audit.Services;
 using NetworkOptimizer.Storage.Models;
 using NetworkOptimizer.UniFi;
+using NetworkOptimizer.Core.Helpers;
 
 // TODO(i18n): Add internationalization/localization support. Community volunteers available for translations.
 // See: https://learn.microsoft.com/en-us/aspnet/core/blazor/globalization-localization
@@ -199,9 +200,11 @@ var openSpeedTestHttps = builder.Configuration["OPENSPEEDTEST_HTTPS"]?.Equals("t
 var openSpeedTestHttpsPort = builder.Configuration["OPENSPEEDTEST_HTTPS_PORT"] ?? "443";
 
 // HTTP origins (direct access via IP or hostname)
-if (!string.IsNullOrEmpty(hostIp))
+// Use HOST_IP if set, otherwise auto-detect from network interfaces
+var corsIp = !string.IsNullOrEmpty(hostIp) ? hostIp : NetworkUtilities.DetectLocalIpFromInterfaces();
+if (!string.IsNullOrEmpty(corsIp))
 {
-    corsOriginsList.Add($"http://{hostIp}:{openSpeedTestPort}");
+    corsOriginsList.Add($"http://{corsIp}:{openSpeedTestPort}");
 }
 if (!string.IsNullOrEmpty(openSpeedTestHost))
 {
