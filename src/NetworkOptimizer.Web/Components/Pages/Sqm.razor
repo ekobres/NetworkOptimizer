@@ -29,11 +29,6 @@
             }
         </div>
         <div class="card-body">
-            @if (!string.IsNullOrEmpty(statusMessage))
-            {
-                <div class="alert @(statusSuccess ? "alert-success" : "alert-danger")">@statusMessage</div>
-            }
-
             <div class="deployment-status-content" style="min-height: 90px;">
                 @if (isLoading)
                 {
@@ -86,6 +81,13 @@
                     </div>
                     </div>
 
+                    @if (!string.IsNullOrEmpty(deploymentStatus?.Error))
+                    {
+                        <div class="alert alert-danger" style="margin-top: 1rem;">
+                            <strong>Status Check Error:</strong> @deploymentStatus.Error
+                        </div>
+                    }
+
                     @if (gatewayConnected && deploymentStatus?.UdmBootInstalled != true)
                     {
                         <div class="alert alert-warning" style="margin-top: 1rem;">
@@ -114,9 +116,21 @@
     {
         <div class="card">
             <div class="card-body">
-                <div class="alert alert-info">
-                    <strong>Smart Queues Required:</strong> Adaptive SQM requires at least one WAN connection with UniFi Smart Queues (SQM) enabled.
-                    Enable Smart Queues in your UniFi controller under <strong>Settings &rarr; Internet &rarr; <em>WAN Connection</em> &rarr; Advanced &rarr; Smart Queues</strong>.
+                <div class="alert alert-info" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <div>
+                        <strong>Smart Queues Required:</strong> Adaptive SQM requires at least one WAN connection with UniFi Smart Queues (SQM) enabled.
+                        Enable Smart Queues in your UniFi controller under <strong>Settings &rarr; Internet &rarr; <em>WAN Connection</em> &rarr; Advanced &rarr; Smart Queues</strong>.
+                    </div>
+                    <button class="btn btn-primary btn-sm" @onclick="ManualRefresh" disabled="@isLoading" style="white-space: nowrap;">
+                        @if (isLoading)
+                        {
+                            <span>Checking...</span>
+                        }
+                        else
+                        {
+                            <span>Check Again</span>
+                        }
+                    </button>
                 </div>
             </div>
         </div>
@@ -283,7 +297,7 @@
                     <strong>Warning:</strong> Running a speedtest will temporarily saturate your WAN connection and may interrupt active video calls, gaming, or other real-time activities.
                 </div>
                 <div class="adjustment-buttons">
-                    @if (wan1Config.Enabled && sqmMonitorData?.Wan1?.Active == true)
+                    @if (wan1Config.Enabled && IsWanActiveInMonitor(wan1Config.Name))
                     {
                         <button class="btn btn-primary" @onclick="() => TriggerSqmAdjustment(wan1Config.Name)" disabled="@isRunningAdjustment">
                             @if (isRunningAdjustment && adjustmentWan == wan1Config.Name)
@@ -297,7 +311,7 @@
                             }
                         </button>
                     }
-                    @if (wan2Config.Enabled && sqmMonitorData?.Wan2?.Active == true)
+                    @if (wan2Config.Enabled && IsWanActiveInMonitor(wan2Config.Name))
                     {
                         <button class="btn btn-primary" @onclick="() => TriggerSqmAdjustment(wan2Config.Name)" disabled="@isRunningAdjustment">
                             @if (isRunningAdjustment && adjustmentWan == wan2Config.Name)
@@ -322,15 +336,15 @@
         </div>
     }
 
-    <!-- WAN 1 Configuration (only show if at least one WAN has Smart Queues enabled) -->
+    <!-- Primary WAN Configuration (only show if at least one WAN has Smart Queues enabled) -->
     @if (sqmEligibleWans.Any())
     {
     <div class="card">
         <div class="card-header">
-            <h2 class="card-title">@(sqmEligibleWans.Count == 1 ? "WAN Configuration" : "WAN 1 Configuration")</h2>
+            <h2 class="card-title">@(sqmEligibleWans.Count == 1 ? "WAN Configuration" : "Primary WAN Configuration")</h2>
             <label class="toggle-label">
-                <input type="checkbox" @bind="wan1Config.Enabled" />
-                <span>Enable SQM</span>
+                <input type="checkbox" @bind="wan1Config.Enabled" @bind:after="() => OnEnabledChanged(wan1Config, wan1AvailableInterfaces)" />
+                <span>Enable Adaptive SQM</span>
             </label>
         </div>
         <div class="card-body @(!wan1Config.Enabled ? "disabled-section" : "")">
@@ -341,10 +355,14 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">WAN Interface</label>
-                    <select class="form-control" @bind="wan1Config.Interface">
-                        @if (sqmEligibleWans.Any())
+                    <select class="form-control" @bind="wan1Config.Interface" @bind:after="() => OnInterfaceChanged(wan1Config)">
+                        @if (wan1AvailableInterfaces.Any())
                         {
-                            @foreach (var wan in sqmEligibleWans)
+                            @if (string.IsNullOrEmpty(wan1Config.Interface))
+                            {
+                                <option value="">-- Select Interface --</option>
+                            }
+                            @foreach (var wan in wan1AvailableInterfaces)
                             {
                                 <option value="@wan.Interface">@wan.Interface (@wan.Name)</option>
                             }
@@ -458,15 +476,15 @@
     </div>
     }
 
-    <!-- WAN 2 Configuration (only show if 2+ WANs have Smart Queues enabled) -->
+    <!-- Secondary WAN Configuration (only show if 2+ WANs have Smart Queues enabled) -->
     @if (sqmEligibleWans.Count >= 2)
     {
     <div class="card">
         <div class="card-header">
-            <h2 class="card-title">WAN 2 Configuration</h2>
+            <h2 class="card-title">Secondary WAN Configuration</h2>
             <label class="toggle-label">
-                <input type="checkbox" @bind="wan2Config.Enabled" />
-                <span>Enable SQM</span>
+                <input type="checkbox" @bind="wan2Config.Enabled" @bind:after="() => OnEnabledChanged(wan2Config, wan2AvailableInterfaces)" />
+                <span>Enable Adaptive SQM</span>
             </label>
         </div>
         <div class="card-body @(!wan2Config.Enabled ? "disabled-section" : "")">
@@ -477,10 +495,14 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">WAN Interface</label>
-                    <select class="form-control" @bind="wan2Config.Interface">
-                        @if (sqmEligibleWans.Any())
+                    <select class="form-control" @bind="wan2Config.Interface" @bind:after="() => OnInterfaceChanged(wan2Config)">
+                        @if (wan2AvailableInterfaces.Any())
                         {
-                            @foreach (var wan in sqmEligibleWans)
+                            @if (string.IsNullOrEmpty(wan2Config.Interface))
+                            {
+                                <option value="">-- Select Interface --</option>
+                            }
+                            @foreach (var wan in wan2AvailableInterfaces)
                             {
                                 <option value="@wan.Interface">@wan.Interface (@wan.Name)</option>
                             }
@@ -606,7 +628,7 @@
             </p>
 
             <div class="action-buttons">
-                <button class="btn btn-primary" @onclick="DeploySqm" disabled="@(isDeploying || (!wan1Config.Enabled && !wan2Config.Enabled))">
+                <button class="btn btn-primary" @onclick="DeploySqm" disabled="@isDeploying">
                     @if (isDeploying)
                     {
                         <span class="spinner-border spinner-border-sm"></span>
@@ -617,13 +639,20 @@
                         <span>@(deploymentStatus?.IsDeployed == true ? "Deploy Settings" : "Deploy SQM Scripts")</span>
                     }
                 </button>
-                <button class="btn btn-secondary" @onclick="DeployTcMonitor" disabled="@isDeploying">
-                    Deploy SQM Monitor Only
-                </button>
+                <span title="@(deploymentStatus?.IsDeployed != true ? "Deploy SQM scripts first" : "")">
+                    <button class="btn btn-secondary" @onclick="DeployTcMonitor" disabled="@(isDeploying || deploymentStatus?.IsDeployed != true)">
+                        Deploy SQM Monitor Only
+                    </button>
+                </span>
                 <button class="btn btn-danger" @onclick="RemoveSqm" disabled="@(isDeploying || deploymentStatus?.IsDeployed != true)">
                     Remove Adaptive SQM
                 </button>
             </div>
+
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <div class="alert @(statusSuccess ? "alert-success" : "alert-danger")" style="margin-top: 1rem;">@statusMessage</div>
+            }
 
             @if (deploymentSteps.Any())
             {
@@ -1084,10 +1113,21 @@
     // WANs with Smart Queues enabled (eligible for Adaptive SQM)
     private List<WanInterfaceInfo> sqmEligibleWans => wanInterfaces.Where(w => w.SmartqEnabled).ToList();
 
+    // Filtered interface lists - exclude interfaces already selected by other WAN
+    private List<WanInterfaceInfo> wan1AvailableInterfaces => sqmEligibleWans
+        .Where(w => string.IsNullOrEmpty(wan2Config.Interface) ||
+                    !w.Interface.Equals(wan2Config.Interface, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private List<WanInterfaceInfo> wan2AvailableInterfaces => sqmEligibleWans
+        .Where(w => string.IsNullOrEmpty(wan1Config.Interface) ||
+                    !w.Interface.Equals(wan1Config.Interface, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
     // WAN configurations (defaults overwritten by ApplyDetectedWanInterfaces)
     private WanConfigModel wan1Config = new()
     {
-        Enabled = true,
+        Enabled = false,  // Start disabled - user must select interface and enable
         Name = "WAN1",
         Interface = "",
         ConnectionType = ConnectionType.DocsisCable,
@@ -1178,9 +1218,29 @@
         }
     }
 
-    private bool hasSavedConfigs = false;
+    // Track which WANs have saved configurations
     private bool wan1HasSavedConfig = false;
     private bool wan2HasSavedConfig = false;
+    // Derived property - true if any WAN has saved config
+    private bool hasSavedConfigs => wan1HasSavedConfig || wan2HasSavedConfig;
+
+    // Helper to check if a WAN name is active in monitor data (matches by name, not slot position)
+    private bool IsWanActiveInMonitor(string wanName)
+    {
+        if (sqmMonitorData == null || string.IsNullOrEmpty(wanName))
+            return false;
+
+        // Check if name matches either Wan1 or Wan2 in monitor data
+        if (sqmMonitorData.Wan1?.Active == true &&
+            string.Equals(sqmMonitorData.Wan1.Name, wanName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (sqmMonitorData.Wan2?.Active == true &&
+            string.Equals(sqmMonitorData.Wan2.Name, wanName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
 
     private async Task LoadSavedConfigsAsync()
     {
@@ -1194,6 +1254,9 @@
                     .Select(w => w.Interface)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+                // Track interfaces already loaded to prevent duplicates (stale DB data protection)
+                var loadedInterfaces = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var saved in savedConfigs)
                 {
                     // Skip loading config if interface is no longer available
@@ -1204,7 +1267,13 @@
                         continue;
                     }
 
-                    hasSavedConfigs = true;
+                    // Skip loading config if interface already loaded (duplicate protection)
+                    if (!string.IsNullOrEmpty(saved.Interface) && loadedInterfaces.Contains(saved.Interface))
+                    {
+                        continue;
+                    }
+
+                    // Mark this WAN as having a saved config
                     if (saved.WanNumber == 1)
                         wan1HasSavedConfig = true;
                     else
@@ -1224,6 +1293,10 @@
                     config.EveningHour = saved.SpeedtestEveningHour;
                     config.EveningMinute = saved.SpeedtestEveningMinute;
                     UpdateCalculatedSpeeds(config);
+
+                    // Track this interface as loaded
+                    if (!string.IsNullOrEmpty(saved.Interface))
+                        loadedInterfaces.Add(saved.Interface);
                 }
             }
         }
@@ -1237,9 +1310,9 @@
     {
         try
         {
-            if (wan1Config.Enabled || wan2Config.Enabled)
+            // Save WAN1 config if it has an interface configured (preserves settings when disabled)
+            if (!string.IsNullOrEmpty(wan1Config.Interface))
             {
-                // Save WAN 1 config
                 var wan1Saved = new SqmWanConfiguration
                 {
                     WanNumber = 1,
@@ -1257,8 +1330,12 @@
                     SpeedtestEveningMinute = wan1Config.EveningMinute
                 };
                 await SpeedTestRepository.SaveSqmWanConfigAsync(wan1Saved);
+                wan1HasSavedConfig = true;
+            }
 
-                // Save WAN 2 config
+            // Save WAN2 config if it has an interface configured (preserves settings when disabled)
+            if (!string.IsNullOrEmpty(wan2Config.Interface))
+            {
                 var wan2Saved = new SqmWanConfiguration
                 {
                     WanNumber = 2,
@@ -1276,6 +1353,7 @@
                     SpeedtestEveningMinute = wan2Config.EveningMinute
                 };
                 await SpeedTestRepository.SaveSqmWanConfigAsync(wan2Saved);
+                wan2HasSavedConfig = true;
             }
         }
         catch
@@ -1308,16 +1386,28 @@
             usedInterfaces.Add(wan2Config.Interface);
 
         // Get available WANs not already used by saved configs
-        var availableWans = wanInterfaces.Where(w => !usedInterfaces.Contains(w.Interface)).ToList();
+        var availableWans = sqmEligibleWans.Where(w => !usedInterfaces.Contains(w.Interface)).ToList();
 
         // Apply first available WAN to wan1Config (only if no saved config for WAN1)
         if (!wan1HasSavedConfig)
         {
-            if (availableWans.Count > 0)
+            if (availableWans.Count == 1)
             {
-                ApplyWanInterfaceToConfig(availableWans[0], wan1Config);
+                // Only one WAN available - pre-populate interface and ping host but don't auto-enable
+                // User must consciously enable SQM via checkbox
+                wan1Config.Name = availableWans[0].Name;
+                wan1Config.Interface = availableWans[0].Interface;
+                wan1Config.Enabled = false;
+                if (!string.IsNullOrEmpty(availableWans[0].SuggestedPingIp))
+                    wan1Config.PingHost = availableWans[0].SuggestedPingIp;
                 usedInterfaces.Add(availableWans[0].Interface);
                 availableWans.RemoveAt(0);
+            }
+            else if (availableWans.Count > 1)
+            {
+                // Multiple WANs - don't auto-select, let user choose
+                wan1Config.Enabled = false;
+                wan1Config.Interface = "";
             }
             else
             {
@@ -1328,14 +1418,9 @@
         // Apply next available WAN to wan2Config (only if no saved config for WAN2)
         if (!wan2HasSavedConfig)
         {
-            if (availableWans.Count > 0)
-            {
-                ApplyWanInterfaceToConfig(availableWans[0], wan2Config);
-            }
-            else
-            {
-                wan2Config.Enabled = false;
-            }
+            // WAN2 never auto-selects - user chooses if they want dual-WAN
+            wan2Config.Enabled = false;
+            wan2Config.Interface = "";
         }
     }
 
@@ -1345,18 +1430,10 @@
         config.Interface = wan.Interface;
         config.Enabled = true;
 
-        if (!string.IsNullOrEmpty(wan.SuggestedPingIp))
-            config.PingHost = wan.SuggestedPingIp;
+        // Note: PingHost is NOT auto-set here - it's set via OnInterfaceChanged when user selects
 
-        // Apply Starlink defaults when detected
-        if (wan.Name.Equals("Starlink", StringComparison.OrdinalIgnoreCase))
-        {
-            config.ConnectionType = ConnectionType.Starlink;
-            config.NominalDownload = 400;
-            config.NominalUpload = 40;
-        }
-
-        UpdateCalculatedSpeeds(config);
+        // Apply connection-specific defaults (Starlink, etc.)
+        ApplyConnectionDefaults(config, wan.Name);
     }
 
     private void UpdateCalculatedSpeeds(WanConfigModel config)
@@ -1374,6 +1451,99 @@
         config.Overhead = profile.OverheadMultiplier;
         config.BaselineLatency = profile.BaselineLatency;
         config.LatencyThreshold = profile.LatencyThreshold;
+    }
+
+    private void ResetWanConfigs()
+    {
+        // Reset WAN1 to defaults
+        wan1Config.Enabled = false;
+        wan1Config.Name = "WAN1";
+        wan1Config.Interface = "";
+        wan1Config.ConnectionType = ConnectionType.DocsisCable;
+        wan1Config.NominalDownload = 0;
+        wan1Config.NominalUpload = 0;
+        wan1Config.PingHost = "1.1.1.1";
+        wan1Config.SpeedtestServerId = "";
+        wan1Config.MorningHour = 6;
+        wan1Config.MorningMinute = 0;
+        wan1Config.EveningHour = 19;
+        wan1Config.EveningMinute = 0;
+        UpdateCalculatedSpeeds(wan1Config);
+
+        // Reset WAN2 to defaults
+        wan2Config.Enabled = false;
+        wan2Config.Name = "WAN2";
+        wan2Config.Interface = "";
+        wan2Config.ConnectionType = ConnectionType.DocsisCable;
+        wan2Config.NominalDownload = 0;
+        wan2Config.NominalUpload = 0;
+        wan2Config.PingHost = "1.1.1.1";
+        wan2Config.SpeedtestServerId = "";
+        wan2Config.MorningHour = 5;
+        wan2Config.MorningMinute = 0;
+        wan2Config.EveningHour = 18;
+        wan2Config.EveningMinute = 0;
+        UpdateCalculatedSpeeds(wan2Config);
+    }
+
+    /// <summary>
+    /// Applies connection-specific defaults based on WAN name.
+    /// Centralizes logic for Starlink and other connection types.
+    /// Always updates calculated speeds after applying defaults.
+    /// </summary>
+    private void ApplyConnectionDefaults(WanConfigModel config, string wanName)
+    {
+        if (wanName.Equals("Starlink", StringComparison.OrdinalIgnoreCase))
+        {
+            config.ConnectionType = ConnectionType.Starlink;
+            config.NominalDownload = 400;
+            config.NominalUpload = 40;
+            config.SpeedtestServerId = "59762";
+        }
+        // Add other connection-specific defaults here as needed
+
+        // Always update calculated speeds after applying defaults
+        UpdateCalculatedSpeeds(config);
+    }
+
+    private void OnEnabledChanged(WanConfigModel config, List<WanInterfaceInfo> availableInterfaces)
+    {
+        // When enabling, auto-select if only one interface available
+        if (config.Enabled && string.IsNullOrEmpty(config.Interface) && availableInterfaces.Count == 1)
+        {
+            var wan = availableInterfaces[0];
+            config.Interface = wan.Interface;
+
+            // Apply all defaults as if user selected it
+            if (!string.IsNullOrEmpty(wan.SuggestedPingIp))
+                config.PingHost = wan.SuggestedPingIp;
+
+            if (string.IsNullOrEmpty(config.Name) || config.Name == "WAN1" || config.Name == "WAN2")
+                config.Name = wan.Name;
+
+            ApplyConnectionDefaults(config, wan.Name);
+        }
+    }
+
+    private void OnInterfaceChanged(WanConfigModel config)
+    {
+        // Find the WAN info for the selected interface
+        var wanInfo = wanInterfaces.FirstOrDefault(w =>
+            w.Interface.Equals(config.Interface, StringComparison.OrdinalIgnoreCase));
+
+        if (wanInfo == null)
+            return;
+
+        // Set suggested ping IP
+        if (!string.IsNullOrEmpty(wanInfo.SuggestedPingIp))
+            config.PingHost = wanInfo.SuggestedPingIp;
+
+        // Set name from WAN
+        if (string.IsNullOrEmpty(config.Name) || config.Name == "WAN1" || config.Name == "WAN2")
+            config.Name = wanInfo.Name;
+
+        // Apply connection-specific defaults (Starlink, etc.)
+        ApplyConnectionDefaults(config, wanInfo.Name);
     }
 
     private async Task ScrollDeploymentLog()
@@ -1507,11 +1677,56 @@
 
     private async Task DeploySqm()
     {
-        if (!wan1Config.Enabled && !wan2Config.Enabled)
+        // Validate: enabled configs must have interface selected
+        var wan1Ready = wan1Config.Enabled && !string.IsNullOrEmpty(wan1Config.Interface);
+        var wan2Ready = wan2Config.Enabled && !string.IsNullOrEmpty(wan2Config.Interface);
+
+        if (!wan1Ready && !wan2Ready)
         {
-            statusMessage = "Enable at least one WAN interface";
+            statusMessage = "Enable at least one WAN configuration and select its interface";
             statusSuccess = false;
             return;
+        }
+
+        // Validate enabled configs have valid settings
+        var errors = new List<string>();
+        if (wan1Ready)
+        {
+            if (wan1Config.NominalDownload <= 0)
+                errors.Add($"{wan1Config.Name}: Download speed must be greater than 0");
+            if (wan1Config.NominalUpload <= 0)
+                errors.Add($"{wan1Config.Name}: Upload speed must be greater than 0");
+            if (string.IsNullOrWhiteSpace(wan1Config.PingHost))
+                errors.Add($"{wan1Config.Name}: Ping host is required");
+        }
+        if (wan2Ready)
+        {
+            if (wan2Config.NominalDownload <= 0)
+                errors.Add($"{wan2Config.Name}: Download speed must be greater than 0");
+            if (wan2Config.NominalUpload <= 0)
+                errors.Add($"{wan2Config.Name}: Upload speed must be greater than 0");
+            if (string.IsNullOrWhiteSpace(wan2Config.PingHost))
+                errors.Add($"{wan2Config.Name}: Ping host is required");
+        }
+        if (errors.Count > 0)
+        {
+            statusMessage = string.Join("; ", errors);
+            statusSuccess = false;
+            return;
+        }
+
+        // Disable any configs without interfaces (safety check)
+        if (wan1Config.Enabled && string.IsNullOrEmpty(wan1Config.Interface))
+            wan1Config.Enabled = false;
+        if (wan2Config.Enabled && string.IsNullOrEmpty(wan2Config.Interface))
+            wan2Config.Enabled = false;
+
+        // Prevent duplicate interface deployment (both WANs using same interface)
+        if (wan1Config.Enabled && wan2Config.Enabled &&
+            wan1Config.Interface.Equals(wan2Config.Interface, StringComparison.OrdinalIgnoreCase))
+        {
+            wan2Config.Enabled = false;
+            // Note: This shouldn't happen with proper UI, but protects against stale DB data
         }
 
         isDeploying = true;
@@ -1552,7 +1767,7 @@
             deploymentSteps.Add("WAN configurations saved");
             await ScrollDeploymentLog();
 
-            // Deploy WAN 1 (initial speedtest immediately)
+            // Deploy first WAN (initial speedtest immediately)
             if (wan1Config.Enabled)
             {
                 deploymentSteps.Add($"Deploying SQM for {wan1Config.Name} ({wan1Config.Interface})...");
@@ -1564,15 +1779,15 @@
                 if (result.Success)
                 {
                     deploymentSteps.AddRange(result.Steps);
-                    deploymentSteps.Add($"WAN 1 ({wan1Config.Name}) deployed successfully (speedtest in 5s)");
+                    deploymentSteps.Add($"{wan1Config.Name} deployed successfully (speedtest in 5s)");
                 }
                 else
                 {
-                    throw new Exception($"WAN 1 deployment failed: {result.Error}");
+                    throw new Exception($"{wan1Config.Name} deployment failed: {result.Error}");
                 }
             }
 
-            // Deploy WAN 2 (initial speedtest 45 seconds after WAN1, staggered cron schedule)
+            // Deploy second WAN (initial speedtest 45 seconds after first, staggered cron schedule)
             if (wan2Config.Enabled)
             {
                 deploymentSteps.Add($"Deploying SQM for {wan2Config.Name} ({wan2Config.Interface})...");
@@ -1584,11 +1799,11 @@
                 if (result.Success)
                 {
                     deploymentSteps.AddRange(result.Steps);
-                    deploymentSteps.Add($"WAN 2 ({wan2Config.Name}) deployed successfully (speedtest in 50s)");
+                    deploymentSteps.Add($"{wan2Config.Name} deployed successfully (speedtest in 50s)");
                 }
                 else
                 {
-                    throw new Exception($"WAN 2 deployment failed: {result.Error}");
+                    throw new Exception($"{wan2Config.Name} deployment failed: {result.Error}");
                 }
             }
 
@@ -1689,6 +1904,16 @@
 
             if (success)
             {
+                // Clear saved configurations from database
+                await SpeedTestRepository.ClearAllSqmWanConfigsAsync();
+                deploymentSteps.Add("Cleared saved configurations");
+                await ScrollDeploymentLog();
+
+                // Reset UI state and clear saved config flags
+                ResetWanConfigs();
+                wan1HasSavedConfig = false;
+                wan2HasSavedConfig = false;
+
                 statusMessage = "SQM and SQM Monitor removed successfully";
                 statusSuccess = true;
                 InvalidateCache();
