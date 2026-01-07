@@ -1300,20 +1300,37 @@
         if (wanInterfaces.Count == 0)
             return;
 
-        // Apply first WAN to wan1Config (only if no saved config for WAN1)
+        // Track interfaces already used by saved configs to avoid duplicates
+        var usedInterfaces = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (wan1HasSavedConfig && !string.IsNullOrEmpty(wan1Config.Interface))
+            usedInterfaces.Add(wan1Config.Interface);
+        if (wan2HasSavedConfig && !string.IsNullOrEmpty(wan2Config.Interface))
+            usedInterfaces.Add(wan2Config.Interface);
+
+        // Get available WANs not already used by saved configs
+        var availableWans = wanInterfaces.Where(w => !usedInterfaces.Contains(w.Interface)).ToList();
+
+        // Apply first available WAN to wan1Config (only if no saved config for WAN1)
         if (!wan1HasSavedConfig)
         {
-            var wan1 = wanInterfaces[0];
-            ApplyWanInterfaceToConfig(wan1, wan1Config);
+            if (availableWans.Count > 0)
+            {
+                ApplyWanInterfaceToConfig(availableWans[0], wan1Config);
+                usedInterfaces.Add(availableWans[0].Interface);
+                availableWans.RemoveAt(0);
+            }
+            else
+            {
+                wan1Config.Enabled = false;
+            }
         }
 
-        // Apply second WAN to wan2Config if available (only if no saved config for WAN2)
+        // Apply next available WAN to wan2Config (only if no saved config for WAN2)
         if (!wan2HasSavedConfig)
         {
-            if (wanInterfaces.Count > 1)
+            if (availableWans.Count > 0)
             {
-                var wan2 = wanInterfaces[1];
-                ApplyWanInterfaceToConfig(wan2, wan2Config);
+                ApplyWanInterfaceToConfig(availableWans[0], wan2Config);
             }
             else
             {
