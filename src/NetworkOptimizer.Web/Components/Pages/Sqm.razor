@@ -624,7 +624,7 @@
             @if (!sqmEligibleWans.Any() && deploymentStatus?.IsDeployed == true)
             {
                 <!-- Orphaned scripts - Smart Queues disabled but scripts still deployed -->
-                <div class="alert alert-warning">
+                <div class="alert alert-warning" style="margin-bottom: 1rem;">
                     <strong>Orphaned SQM Scripts Detected:</strong> Adaptive SQM scripts are deployed, but no WAN connections have Smart Queues enabled in UniFi.
                     The scripts and scheduled tasks will not function correctly. You should either re-enable Smart Queues in UniFi, or remove the deployed scripts.
                 </div>
