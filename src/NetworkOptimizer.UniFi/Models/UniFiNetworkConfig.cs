@@ -1,6 +1,34 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace NetworkOptimizer.UniFi.Models;
+
+/// <summary>
+/// JSON converter that handles int values that may come as strings, empty strings, or null.
+/// UniFi API sometimes returns VLAN IDs as strings or empty strings instead of numbers.
+/// </summary>
+public class FlexibleIntConverter : JsonConverter<int?>
+{
+    public override int? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        return reader.TokenType switch
+        {
+            JsonTokenType.Number => reader.GetInt32(),
+            JsonTokenType.String when int.TryParse(reader.GetString(), out var value) => value,
+            JsonTokenType.String => null, // Empty string or non-numeric string
+            JsonTokenType.Null => null,
+            _ => null
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, int? value, JsonSerializerOptions options)
+    {
+        if (value.HasValue)
+            writer.WriteNumberValue(value.Value);
+        else
+            writer.WriteNullValue();
+    }
+}
 
 /// <summary>
 /// Response from GET /api/s/{site}/rest/networkconf
@@ -30,6 +58,7 @@ public class UniFiNetworkConfig
     public bool VlanEnabled { get; set; }
 
     [JsonPropertyName("vlan")]
+    [JsonConverter(typeof(FlexibleIntConverter))]
     public int? Vlan { get; set; }
 
     // IP configuration
