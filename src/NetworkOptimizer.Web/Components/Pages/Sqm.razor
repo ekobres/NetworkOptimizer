@@ -1279,6 +1279,10 @@
         if (wanInterfaces.Count == 0)
             return;
 
+        // Don't overwrite saved configs with detected defaults
+        if (hasSavedConfigs)
+            return;
+
         // Apply first WAN to wan1Config
         var wan1 = wanInterfaces[0];
         ApplyWanInterfaceToConfig(wan1, wan1Config);
