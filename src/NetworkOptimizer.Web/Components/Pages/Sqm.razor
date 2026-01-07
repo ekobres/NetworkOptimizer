@@ -1179,6 +1179,8 @@
     }
 
     private bool hasSavedConfigs = false;
+    private bool wan1HasSavedConfig = false;
+    private bool wan2HasSavedConfig = false;
 
     private async Task LoadSavedConfigsAsync()
     {
@@ -1203,6 +1205,11 @@
                     }
 
                     hasSavedConfigs = true;
+                    if (saved.WanNumber == 1)
+                        wan1HasSavedConfig = true;
+                    else
+                        wan2HasSavedConfig = true;
+
                     var config = saved.WanNumber == 1 ? wan1Config : wan2Config;
                     config.Enabled = saved.Enabled;
                     config.ConnectionType = (ConnectionType)saved.ConnectionType;
@@ -1293,23 +1300,25 @@
         if (wanInterfaces.Count == 0)
             return;
 
-        // Don't overwrite saved configs with detected defaults
-        if (hasSavedConfigs)
-            return;
-
-        // Apply first WAN to wan1Config
-        var wan1 = wanInterfaces[0];
-        ApplyWanInterfaceToConfig(wan1, wan1Config);
-
-        // Apply second WAN to wan2Config if available
-        if (wanInterfaces.Count > 1)
+        // Apply first WAN to wan1Config (only if no saved config for WAN1)
+        if (!wan1HasSavedConfig)
         {
-            var wan2 = wanInterfaces[1];
-            ApplyWanInterfaceToConfig(wan2, wan2Config);
+            var wan1 = wanInterfaces[0];
+            ApplyWanInterfaceToConfig(wan1, wan1Config);
         }
-        else
+
+        // Apply second WAN to wan2Config if available (only if no saved config for WAN2)
+        if (!wan2HasSavedConfig)
         {
-            wan2Config.Enabled = false;
+            if (wanInterfaces.Count > 1)
+            {
+                var wan2 = wanInterfaces[1];
+                ApplyWanInterfaceToConfig(wan2, wan2Config);
+            }
+            else
+            {
+                wan2Config.Enabled = false;
+            }
         }
     }
 
