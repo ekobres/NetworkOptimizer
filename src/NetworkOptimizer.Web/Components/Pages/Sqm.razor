@@ -1483,11 +1483,6 @@
 
         try
         {
-            // Save WAN configs to database before deploying
-            await SaveWanConfigsAsync();
-            deploymentSteps.Add("WAN configurations saved");
-            await ScrollDeploymentLog();
-
             // Clean ALL existing SQM scripts and cron entries first (handles renamed connections)
             deploymentSteps.Add("Cleaning existing SQM scripts and cron entries...");
             await ScrollDeploymentLog();
@@ -1497,6 +1492,26 @@
                 throw new Exception($"Failed to clean existing scripts: {cleanResult.message}");
             }
             deploymentSteps.Add("Existing scripts cleaned");
+            await ScrollDeploymentLog();
+
+            // Validate WANs still have Smart Queues enabled - disable any that don't
+            var availableInterfaces = wanInterfaces.Select(w => w.Interface).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (wan1Config.Enabled && !availableInterfaces.Contains(wan1Config.Interface))
+            {
+                wan1Config.Enabled = false;
+                deploymentSteps.Add($"Skipping {wan1Config.Name} - Smart Queues no longer enabled in UniFi");
+                await ScrollDeploymentLog();
+            }
+            if (wan2Config.Enabled && !availableInterfaces.Contains(wan2Config.Interface))
+            {
+                wan2Config.Enabled = false;
+                deploymentSteps.Add($"Skipping {wan2Config.Name} - Smart Queues no longer enabled in UniFi");
+                await ScrollDeploymentLog();
+            }
+
+            // Save WAN configs to database (after validation so disabled WANs are persisted)
+            await SaveWanConfigsAsync();
+            deploymentSteps.Add("WAN configurations saved");
             await ScrollDeploymentLog();
 
             // Deploy WAN 1 (initial speedtest immediately)
