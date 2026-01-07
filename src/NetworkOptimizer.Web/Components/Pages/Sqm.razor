@@ -5,6 +5,7 @@
 @inject UniFiConnectionService ConnectionService
 @inject NetworkOptimizer.Storage.Interfaces.ISpeedTestRepository SpeedTestRepository
 @inject TcMonitorClient SqmMonitorClient
+@inject IJSRuntime JS
 @rendermode InteractiveServer
 @using SqmConfig = NetworkOptimizer.Sqm.Models.SqmConfiguration
 @using NetworkOptimizer.Sqm.Models
@@ -628,7 +629,7 @@
             {
                 <div class="deployment-log" style="margin-top: 1rem;">
                     <h4>Deployment Progress</h4>
-                    <ul class="step-list">
+                    <ul class="step-list" id="deployment-step-list">
                         @foreach (var step in deploymentSteps)
                         {
                             <li>@step</li>
@@ -1336,6 +1337,14 @@
         config.LatencyThreshold = profile.LatencyThreshold;
     }
 
+    private async Task ScrollDeploymentLog()
+    {
+        StateHasChanged();
+        await Task.Yield();
+        await JS.InvokeVoidAsync("eval",
+            "document.querySelector('#deployment-step-list li:last-child')?.scrollIntoView({behavior:'smooth',block:'nearest'})");
+    }
+
     private async Task ManualRefresh()
     {
         statusMessage = null;
@@ -1476,24 +1485,24 @@
             // Save WAN configs to database before deploying
             await SaveWanConfigsAsync();
             deploymentSteps.Add("WAN configurations saved");
-            StateHasChanged();
+            await ScrollDeploymentLog();
 
             // Clean ALL existing SQM scripts and cron entries first (handles renamed connections)
             deploymentSteps.Add("Cleaning existing SQM scripts and cron entries...");
-            StateHasChanged();
+            await ScrollDeploymentLog();
             var cleanResult = await DeploymentService.CleanAllSqmScriptsAsync();
             if (!cleanResult.success)
             {
                 throw new Exception($"Failed to clean existing scripts: {cleanResult.message}");
             }
             deploymentSteps.Add("Existing scripts cleaned");
-            StateHasChanged();
+            await ScrollDeploymentLog();
 
             // Deploy WAN 1 (initial speedtest immediately)
             if (wan1Config.Enabled)
             {
                 deploymentSteps.Add($"Deploying SQM for {wan1Config.Name} ({wan1Config.Interface})...");
-                StateHasChanged();
+                await ScrollDeploymentLog();
 
                 var config = CreateSqmConfiguration(wan1Config);
                 var result = await DeploymentService.DeployAsync(config, initialDelaySeconds: 5);
@@ -1513,7 +1522,7 @@
             if (wan2Config.Enabled)
             {
                 deploymentSteps.Add($"Deploying SQM for {wan2Config.Name} ({wan2Config.Interface})...");
-                StateHasChanged();
+                await ScrollDeploymentLog();
 
                 var config = CreateSqmConfiguration(wan2Config);
                 var result = await DeploymentService.DeployAsync(config, initialDelaySeconds: 50);
@@ -1533,7 +1542,7 @@
             if (wan1Config.Enabled || wan2Config.Enabled)
             {
                 deploymentSteps.Add("Deploying SQM Monitor...");
-                StateHasChanged();
+                await ScrollDeploymentLog();
 
                 var w1 = wan1Config.Enabled ? wan1Config : wan2Config;
                 var w2 = wan2Config.Enabled ? wan2Config : wan1Config;
@@ -1574,7 +1583,7 @@
         try
         {
             deploymentSteps.Add("Deploying SQM Monitor...");
-            StateHasChanged();
+            await ScrollDeploymentLog();
 
             var success = await DeploymentService.DeploySqmMonitorAsync(
                 $"ifb{wan1Config.Interface}", wan1Config.Name,
@@ -1612,13 +1621,13 @@
         statusMessage = null;
         deploymentSteps.Clear();
         deploymentSteps.Add("Removing SQM and SQM Monitor...");
-        StateHasChanged();
+        await ScrollDeploymentLog();
 
         try
         {
             var (success, steps) = await DeploymentService.RemoveAsync(includeTcMonitor: true);
             deploymentSteps.AddRange(steps);
-            StateHasChanged();
+            await ScrollDeploymentLog();
 
             if (success)
             {
