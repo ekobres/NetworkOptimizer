@@ -167,4 +167,56 @@ public class UniFiClientResponse
     // Blocked/allowed status
     [JsonPropertyName("blocked")]
     public bool Blocked { get; set; }
+
+    // Wi-Fi 7 MLO (Multi-Link Operation)
+    [JsonPropertyName("is_mlo")]
+    public bool? IsMlo { get; set; }
+
+    [JsonPropertyName("mlo_details")]
+    public List<MloLinkDetail>? MloDetails { get; set; }
+}
+
+/// <summary>
+/// Details for each link in a Wi-Fi 7 MLO (Multi-Link Operation) connection
+/// </summary>
+public class MloLinkDetail
+{
+    [JsonPropertyName("mac")]
+    public string? Mac { get; set; }
+
+    [JsonPropertyName("radio")]
+    public string? Radio { get; set; }  // "ng", "na", "6e"
+
+    [JsonPropertyName("radio_name")]
+    public string? RadioName { get; set; }  // "wifi0", "wifi1", "wifi2"
+
+    [JsonPropertyName("radio_proto")]
+    public string? RadioProto { get; set; }  // "be" for Wi-Fi 7
+
+    [JsonPropertyName("channel")]
+    public int? Channel { get; set; }
+
+    [JsonPropertyName("channel_width")]
+    public int? ChannelWidth { get; set; }  // 20, 40, 80, 160, 320
+
+    [JsonPropertyName("signal")]
+    public int? Signal { get; set; }  // dBm
+
+    [JsonPropertyName("noise")]
+    public int? Noise { get; set; }  // dBm
+
+    [JsonPropertyName("rssi")]
+    public int? Rssi { get; set; }
+
+    [JsonPropertyName("nss")]
+    public int? Nss { get; set; }  // Number of spatial streams
+
+    [JsonPropertyName("tx_rate")]
+    public long? TxRate { get; set; }  // Kbps
+
+    [JsonPropertyName("rx_rate")]
+    public long? RxRate { get; set; }  // Kbps
+
+    [JsonPropertyName("satisfaction")]
+    public int? Satisfaction { get; set; }
 }

@@ -77,7 +77,14 @@ public class UniFiDiscovery
                 UplinkSpeedMbps = d.Uplink?.Type == "wireless" && d.Uplink.TxRate > 0
                     ? (int)(d.Uplink.TxRate / 1000)
                     : d.Uplink?.Speed ?? 0,
+                // Wireless uplink rates in Kbps
+                UplinkTxRateKbps = d.Uplink?.TxRate ?? 0,
+                UplinkRxRateKbps = d.Uplink?.RxRate ?? 0,
                 UplinkType = d.Uplink?.Type,
+                UplinkRadioBand = d.Uplink?.RadioBand,
+                UplinkChannel = d.Uplink?.Channel,
+                UplinkSignalDbm = d.Uplink?.Signal,
+                UplinkNoiseDbm = d.Uplink?.Noise,
                 CpuUsage = d.SystemStats?.Cpu,
                 MemoryUsage = d.SystemStats?.Mem,
                 LoadAverage = d.SystemStats?.LoadAvg1?.ToString("F2"),
@@ -86,6 +93,13 @@ public class UniFiDiscovery
                 PortCount = d.PortTable?.Count ?? 0
             };
         }).ToList();
+
+        // Log wireless uplink details for debugging
+        foreach (var d in devices.Where(d => d.Uplink?.Type == "wireless"))
+        {
+            _logger.LogDebug("Wireless uplink for {Name}: Radio={Radio}, TxRate={Tx}Kbps, RxRate={Rx}Kbps, Channel={Ch}, IsMlo={Mlo}",
+                d.Name, d.Uplink?.RadioBand ?? "null", d.Uplink?.TxRate, d.Uplink?.RxRate, d.Uplink?.Channel, d.Uplink?.IsMlo);
+        }
 
         return discoveredDevices;
     }
@@ -145,6 +159,20 @@ public class UniFiDiscovery
 
         _logger.LogInformation("Discovered {Count} connected clients", clients.Count);
 
+        // Log any MLO clients found
+        var mloClients = clients.Where(c => c.IsMlo == true).ToList();
+        if (mloClients.Any())
+        {
+            foreach (var c in mloClients)
+            {
+                var linksInfo = c.MloDetails != null
+                    ? string.Join(", ", c.MloDetails.Select(m => $"{m.Radio ?? "?"} ch{m.Channel} {m.Signal}dBm {m.ChannelWidth}MHz"))
+                    : "none";
+                _logger.LogDebug("MLO client found: {Name} ({Mac}), Radio={Radio}, Links: [{Links}]",
+                    c.Name ?? c.Hostname, c.Mac, c.Radio ?? "null", linksInfo);
+            }
+        }
+
         var discoveredClients = clients.Select(c => new DiscoveredClient
         {
             Id = c.Id,
@@ -170,6 +198,19 @@ public class UniFiDiscovery
             SignalStrength = c.Signal,
             NoiseLevel = c.Noise,
             RadioProtocol = c.RadioProto,
+            Radio = c.Radio,
+            // Wi-Fi 7 MLO
+            IsMlo = c.IsMlo ?? false,
+            MloLinks = c.MloDetails?.Select(m => new MloLink
+            {
+                Radio = m.Radio ?? "",
+                Channel = m.Channel,
+                ChannelWidth = m.ChannelWidth,
+                SignalDbm = m.Signal,
+                NoiseDbm = m.Noise,
+                TxRateKbps = m.TxRate,
+                RxRateKbps = m.RxRate
+            }).ToList(),
             // Traffic stats
             TxBytes = c.TxBytes,
             RxBytes = c.RxBytes,
@@ -392,7 +433,15 @@ public class DiscoveredDevice
     public string? UplinkDeviceName { get; set; }
     public bool IsUplinkConnected { get; set; }
     public int UplinkSpeedMbps { get; set; }
+    /// <summary>TX rate in Kbps for wireless uplinks</summary>
+    public long UplinkTxRateKbps { get; set; }
+    /// <summary>RX rate in Kbps for wireless uplinks</summary>
+    public long UplinkRxRateKbps { get; set; }
     public string? UplinkType { get; set; }  // "wire" or "wireless"
+    public string? UplinkRadioBand { get; set; }  // "ng" (2.4GHz), "na" (5GHz), "6e" (6GHz)
+    public int? UplinkChannel { get; set; }
+    public int? UplinkSignalDbm { get; set; }
+    public int? UplinkNoiseDbm { get; set; }
     public List<string>? DownstreamDevices { get; set; }
     public string? CpuUsage { get; set; }
     public string? MemoryUsage { get; set; }
@@ -427,6 +476,10 @@ public class DiscoveredClient
     public int? SignalStrength { get; set; }
     public int? NoiseLevel { get; set; }
     public string? RadioProtocol { get; set; }
+    public string? Radio { get; set; }  // "ng" (2.4GHz), "na" (5GHz), "6e" (6GHz)
+    // Wi-Fi 7 MLO (Multi-Link Operation)
+    public bool IsMlo { get; set; }
+    public List<MloLink>? MloLinks { get; set; }
     // Traffic
     public long TxBytes { get; set; }
     public long RxBytes { get; set; }
@@ -442,6 +495,20 @@ public class DiscoveredClient
     public string? FixedIp { get; set; }
     public string? Note { get; set; }
     public string Oui { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// MLO link info for Wi-Fi 7 multi-link clients
+/// </summary>
+public class MloLink
+{
+    public string Radio { get; set; } = string.Empty;  // "ng", "na", "6e"
+    public int? Channel { get; set; }
+    public int? ChannelWidth { get; set; }  // 20, 40, 80, 160, 320
+    public int? SignalDbm { get; set; }
+    public int? NoiseDbm { get; set; }
+    public long? TxRateKbps { get; set; }
+    public long? RxRateKbps { get; set; }
 }
 
 public class NetworkTopology

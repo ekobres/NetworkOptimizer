@@ -706,6 +706,21 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 deviceHop.EgressPortName = "wireless mesh";
                 deviceHop.IsWirelessIngress = true;
                 deviceHop.IsWirelessEgress = true;
+                deviceHop.WirelessIngressBand = targetDevice.UplinkRadioBand;
+                deviceHop.WirelessEgressBand = targetDevice.UplinkRadioBand;
+                deviceHop.WirelessChannel = targetDevice.UplinkChannel;
+                deviceHop.WirelessSignalDbm = targetDevice.UplinkSignalDbm;
+                deviceHop.WirelessNoiseDbm = targetDevice.UplinkNoiseDbm;
+                deviceHop.WirelessTxRateMbps = targetDevice.UplinkTxRateKbps > 0
+                    ? (int)(targetDevice.UplinkTxRateKbps / 1000)
+                    : null;
+                deviceHop.WirelessRxRateMbps = targetDevice.UplinkRxRateKbps > 0
+                    ? (int)(targetDevice.UplinkRxRateKbps / 1000)
+                    : null;
+                _logger.LogDebug("Wireless mesh device {Name}: UplinkType={UplinkType}, TxRate={Tx}Mbps, RxRate={Rx}Mbps, Band={Band}, Ch={Ch}, Signal={Sig}dBm",
+                    targetDevice.Name, targetDevice.UplinkType,
+                    deviceHop.WirelessTxRateMbps, deviceHop.WirelessRxRateMbps,
+                    targetDevice.UplinkRadioBand ?? "null", targetDevice.UplinkChannel, targetDevice.UplinkSignalDbm);
             }
             else if (!string.IsNullOrEmpty(currentMac) && currentPort.HasValue)
             {
@@ -734,14 +749,32 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
 
             if (!targetClient.IsWired)
             {
-                // Wireless client - use max of Tx/Rx rates as theoretical link capacity
-                var txMbps = (int)(targetClient.TxRate / 1000);
-                var rxMbps = (int)(targetClient.RxRate / 1000);
+                int txMbps, rxMbps;
+
+                // For MLO clients, sum speeds from all links
+                if (targetClient.IsMlo && targetClient.MloLinks?.Count > 0)
+                {
+                    txMbps = (int)(targetClient.MloLinks.Sum(l => l.TxRateKbps ?? 0) / 1000);
+                    rxMbps = (int)(targetClient.MloLinks.Sum(l => l.RxRateKbps ?? 0) / 1000);
+                    _logger.LogDebug("MLO client {Name}: Summed TxRate={Tx}Mbps, RxRate={Rx}Mbps from {Links} links",
+                        targetClient.Name ?? targetClient.IpAddress, txMbps, rxMbps, targetClient.MloLinks.Count);
+                }
+                else
+                {
+                    // Single-link wireless - use reported rates
+                    txMbps = (int)(targetClient.TxRate / 1000);
+                    rxMbps = (int)(targetClient.RxRate / 1000);
+                }
+
                 var maxRate = Math.Max(txMbps, rxMbps);
                 hop.EgressSpeedMbps = maxRate;
                 hop.IngressSpeedMbps = maxRate;
                 hop.IsWirelessEgress = true;
                 hop.IsWirelessIngress = true;
+                hop.WirelessEgressBand = targetClient.Radio;
+                hop.WirelessIngressBand = targetClient.Radio;
+                _logger.LogDebug("Wireless client {Name}: TxRate={Tx}Mbps, RxRate={Rx}Mbps, Radio={Radio}, MLO={IsMlo}",
+                    targetClient.Name ?? targetClient.IpAddress, txMbps, rxMbps, targetClient.Radio ?? "null", targetClient.IsMlo);
             }
             else if (!string.IsNullOrEmpty(currentMac) && currentPort.HasValue)
             {
@@ -876,22 +909,14 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 // Traffic must go to gateway for L3 routing even if it passes through server's switch
                 bool stopAtServerSwitch = isServerSwitch && !path.RequiresRouting;
 
-                // Determine ingress speed - use device's uplink speed for wireless mesh, otherwise port speed
-                int ingressSpeed;
-                string? ingressPortName;
+                // Check if this device has a wireless uplink (for egress, not ingress)
                 bool isWirelessUplink = device.UplinkType?.Equals("wireless", StringComparison.OrdinalIgnoreCase) == true
                     && device.UplinkSpeedMbps > 0;
 
-                if (isWirelessUplink)
-                {
-                    ingressSpeed = device.UplinkSpeedMbps;
-                    ingressPortName = "wireless mesh";
-                }
-                else
-                {
-                    ingressSpeed = GetPortSpeedFromRawDevices(rawDevices, currentMac, currentPort);
-                    ingressPortName = GetPortName(rawDevices, currentMac, currentPort);
-                }
+                // Ingress speed comes from the port/connection from the PREVIOUS hop, not this device's uplink
+                // For APs after a wireless client, ingress is the client's wireless connection (handled by client hop's egress)
+                int ingressSpeed = GetPortSpeedFromRawDevices(rawDevices, currentMac, currentPort);
+                string? ingressPortName = GetPortName(rawDevices, currentMac, currentPort);
 
                 var hop = new NetworkHop
                 {
@@ -903,8 +928,8 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                     DeviceIp = device.IpAddress,
                     IngressPort = currentPort,
                     IngressPortName = ingressPortName,
-                    IngressSpeedMbps = ingressSpeed,
-                    IsWirelessIngress = isWirelessUplink
+                    IngressSpeedMbps = ingressSpeed
+                    // Note: IsWirelessIngress is set by the PREVIOUS hop's egress, not this device's uplink
                 };
 
                 if (stopAtServerSwitch)
@@ -916,15 +941,25 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 }
                 else if (!string.IsNullOrEmpty(device.UplinkMac))
                 {
-                    // Continue up the chain - get next hop's uplink speed if wireless
-                    if (deviceDict.TryGetValue(device.UplinkMac, out var uplinkDevice)
-                        && uplinkDevice.UplinkType?.Equals("wireless", StringComparison.OrdinalIgnoreCase) == true
-                        && uplinkDevice.UplinkSpeedMbps > 0)
+                    // Continue up the chain - check if THIS device has a wireless uplink to its uplink device
+                    if (isWirelessUplink)
                     {
+                        // This device connects to its uplink via wireless mesh
                         hop.EgressPort = device.UplinkPort;
-                        hop.EgressSpeedMbps = uplinkDevice.UplinkSpeedMbps;
+                        hop.EgressSpeedMbps = device.UplinkSpeedMbps;
                         hop.EgressPortName = "wireless mesh";
                         hop.IsWirelessEgress = true;
+                        hop.WirelessEgressBand = device.UplinkRadioBand;
+                        // Signal stats come from the device with the wireless uplink
+                        hop.WirelessChannel = device.UplinkChannel;
+                        hop.WirelessSignalDbm = device.UplinkSignalDbm;
+                        hop.WirelessNoiseDbm = device.UplinkNoiseDbm;
+                        hop.WirelessTxRateMbps = device.UplinkTxRateKbps > 0
+                            ? (int)(device.UplinkTxRateKbps / 1000)
+                            : null;
+                        hop.WirelessRxRateMbps = device.UplinkRxRateKbps > 0
+                            ? (int)(device.UplinkRxRateKbps / 1000)
+                            : null;
                     }
                     else
                     {
@@ -935,6 +970,14 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 }
 
                 hops.Add(hop);
+
+                // Debug: log hop wireless info
+                if (hop.IsWirelessIngress || hop.IsWirelessEgress)
+                {
+                    _logger.LogDebug("Hop {Name}: IsWirelessIngress={WI}, IngressBand={IB}, IsWirelessEgress={WE}, EgressBand={EB}",
+                        hop.DeviceName, hop.IsWirelessIngress, hop.WirelessIngressBand ?? "null",
+                        hop.IsWirelessEgress, hop.WirelessEgressBand ?? "null");
+                }
 
                 if (stopAtServerSwitch)
                     break;

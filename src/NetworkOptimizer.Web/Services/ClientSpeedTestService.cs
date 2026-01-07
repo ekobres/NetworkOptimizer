@@ -200,16 +200,38 @@ public class ClientSpeedTestService
 
     /// <summary>
     /// Get recent client speed test results (ClientToServer and BrowserToServer directions).
+    /// Retries path analysis for results missing valid paths.
     /// </summary>
     public async Task<List<Iperf3Result>> GetResultsAsync(int count = 50)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
-        return await db.Iperf3Results
+        var results = await db.Iperf3Results
             .Where(r => r.Direction == SpeedTestDirection.ClientToServer
                      || r.Direction == SpeedTestDirection.BrowserToServer)
             .OrderByDescending(r => r.TestTime)
             .Take(count)
             .ToListAsync();
+
+        // Retry path analysis for recent results (last 30 min) without a valid path
+        var retryWindow = DateTime.UtcNow.AddMinutes(-30);
+        var needsRetry = results.Where(r =>
+            r.TestTime > retryWindow &&
+            (r.PathAnalysis == null ||
+             r.PathAnalysis.Path == null ||
+             !r.PathAnalysis.Path.IsValid))
+            .ToList();
+
+        if (needsRetry.Count > 0)
+        {
+            _logger.LogInformation("Retrying path analysis for {Count} results without valid paths", needsRetry.Count);
+            foreach (var result in needsRetry)
+            {
+                await AnalyzePathAsync(result);
+            }
+            await db.SaveChangesAsync();
+        }
+
+        return results;
     }
 
     /// <summary>
@@ -245,13 +267,14 @@ public class ClientSpeedTestService
     /// <summary>
     /// Analyze network path for the speed test result.
     /// For client tests, the path is from server (LocalIp) to client (DeviceHost).
+    /// If target not found, invalidates topology cache and retries once.
     /// </summary>
-    private async Task AnalyzePathAsync(Iperf3Result result)
+    private async Task AnalyzePathAsync(Iperf3Result result, bool isRetry = false)
     {
         try
         {
-            _logger.LogDebug("Analyzing network path to {Client} from {Server}",
-                result.DeviceHost, result.LocalIp ?? "auto");
+            _logger.LogDebug("Analyzing network path to {Client} from {Server}{Retry}",
+                result.DeviceHost, result.LocalIp ?? "auto", isRetry ? " (retry)" : "");
 
             // Calculate path from server to client
             var path = await _pathAnalyzer.CalculatePathAsync(result.DeviceHost, result.LocalIp);
@@ -275,7 +298,17 @@ public class ClientSpeedTestService
             }
             else
             {
-                _logger.LogDebug("Path analysis: path not found or invalid");
+                // If target not found and this isn't already a retry, invalidate cache and try again
+                if (!isRetry && analysis.Path.ErrorMessage?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    _logger.LogDebug("Target not found, invalidating topology cache and retrying");
+                    _pathAnalyzer.InvalidateTopologyCache();
+                    await AnalyzePathAsync(result, isRetry: true);
+                }
+                else
+                {
+                    _logger.LogDebug("Path analysis: path not found or invalid");
+                }
             }
         }
         catch (Exception ex)

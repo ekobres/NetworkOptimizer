@@ -127,6 +127,22 @@ public class Iperf3Result
     [MaxLength(10)]
     public string? WifiRadioProto { get; set; }
 
+    /// <summary>Wi-Fi radio band - ng (2.4GHz), na (5GHz), 6e (6GHz) (wireless clients only)</summary>
+    [MaxLength(10)]
+    public string? WifiRadio { get; set; }
+
+    /// <summary>Wi-Fi TX rate in Kbps (wireless clients only)</summary>
+    public long? WifiTxRateKbps { get; set; }
+
+    /// <summary>Wi-Fi RX rate in Kbps (wireless clients only)</summary>
+    public long? WifiRxRateKbps { get; set; }
+
+    /// <summary>Wi-Fi 7 MLO (Multi-Link Operation) enabled</summary>
+    public bool WifiIsMlo { get; set; }
+
+    /// <summary>MLO link details as JSON array (wireless clients with MLO only)</summary>
+    public string? WifiMloLinksJson { get; set; }
+
     /// <summary>Raw iperf3 JSON output for upload test</summary>
     public string? RawUploadJson { get; set; }
 

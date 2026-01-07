@@ -216,6 +216,36 @@ public class UplinkInfo
     /// </summary>
     [JsonPropertyName("rx_rate")]
     public long RxRate { get; set; }
+
+    /// <summary>
+    /// Radio band for wireless uplinks (ng=2.4GHz, na=5GHz, 6e=6GHz)
+    /// </summary>
+    [JsonPropertyName("radio")]
+    public string? RadioBand { get; set; }
+
+    /// <summary>
+    /// Channel for wireless uplinks
+    /// </summary>
+    [JsonPropertyName("channel")]
+    public int? Channel { get; set; }
+
+    /// <summary>
+    /// Whether this is a Multi-Link Operation (MLO) connection (Wi-Fi 7)
+    /// </summary>
+    [JsonPropertyName("is_mlo")]
+    public bool? IsMlo { get; set; }
+
+    /// <summary>
+    /// Signal strength in dBm for wireless uplinks
+    /// </summary>
+    [JsonPropertyName("signal")]
+    public int? Signal { get; set; }
+
+    /// <summary>
+    /// Noise floor in dBm for wireless uplinks
+    /// </summary>
+    [JsonPropertyName("noise")]
+    public int? Noise { get; set; }
 }
 
 public class DeviceStats

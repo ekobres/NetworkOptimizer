@@ -50,6 +50,27 @@ public class NetworkHop
     /// <summary>Whether the egress link is a wireless mesh uplink</summary>
     public bool IsWirelessEgress { get; set; }
 
+    /// <summary>Radio band for wireless ingress (ng=2.4GHz, na=5GHz, 6e=6GHz)</summary>
+    public string? WirelessIngressBand { get; set; }
+
+    /// <summary>Radio band for wireless egress (ng=2.4GHz, na=5GHz, 6e=6GHz)</summary>
+    public string? WirelessEgressBand { get; set; }
+
+    /// <summary>Channel for wireless link</summary>
+    public int? WirelessChannel { get; set; }
+
+    /// <summary>Signal strength in dBm for wireless link</summary>
+    public int? WirelessSignalDbm { get; set; }
+
+    /// <summary>Noise floor in dBm for wireless link</summary>
+    public int? WirelessNoiseDbm { get; set; }
+
+    /// <summary>TX rate in Mbps for wireless link (from device to uplink)</summary>
+    public int? WirelessTxRateMbps { get; set; }
+
+    /// <summary>RX rate in Mbps for wireless link (from uplink to device)</summary>
+    public int? WirelessRxRateMbps { get; set; }
+
     /// <summary>Additional notes (e.g., "L3 routing", "Wireless uplink")</summary>
     public string? Notes { get; set; }
 }
