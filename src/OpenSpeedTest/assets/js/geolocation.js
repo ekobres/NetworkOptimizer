@@ -1,56 +1,70 @@
 /**
  * Geolocation support for OpenSpeedTest
- * Captures location when test starts and appends to result URL
+ * Continuously tracks location for accurate position at result submission
  */
 
 var geoLocation = {
     latitude: null,
     longitude: null,
     accuracy: null,
-    requested: false,
-    error: null
+    watchId: null
 };
 
 /**
- * Request geolocation permission and capture position
- * Called when the speed test starts
+ * Start watching location with high accuracy
  */
-function requestLocationForSpeedTest() {
+function startLocationWatch() {
     if (!navigator.geolocation) {
-        console.log("Geolocation not supported");
         return;
     }
 
-    if (geoLocation.requested) {
-        return; // Already requested
-    }
-
-    geoLocation.requested = true;
-
+    // First, get a quick low-accuracy fix to trigger permission prompt
     navigator.geolocation.getCurrentPosition(
         function(position) {
             geoLocation.latitude = position.coords.latitude;
             geoLocation.longitude = position.coords.longitude;
             geoLocation.accuracy = position.coords.accuracy;
-            console.log("Location captured:", geoLocation.latitude, geoLocation.longitude);
+            startHighAccuracyWatch();
         },
         function(error) {
-            geoLocation.error = error.message;
-            console.log("Location denied or unavailable:", error.message);
+            // Still try to start watch even if initial request fails
+            startHighAccuracyWatch();
         },
         {
             enableHighAccuracy: false,
             timeout: 5000,
-            maximumAge: 300000 // Cache for 5 minutes
+            maximumAge: 300000
         }
     );
 }
 
 /**
- * Get location parameters to append to save URL
- * Returns empty string if location not available
+ * Start high-accuracy location watch
  */
-function getLocationParams() {
+function startHighAccuracyWatch() {
+    if (geoLocation.watchId !== null) {
+        return;
+    }
+
+    geoLocation.watchId = navigator.geolocation.watchPosition(
+        function(position) {
+            geoLocation.latitude = position.coords.latitude;
+            geoLocation.longitude = position.coords.longitude;
+            geoLocation.accuracy = position.coords.accuracy;
+        },
+        function(error) {},
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        }
+    );
+}
+
+/**
+ * Get location as form-encoded string to append to POST body
+ */
+function getLocationFormData() {
     if (geoLocation.latitude === null || geoLocation.longitude === null) {
         return "";
     }
@@ -60,28 +74,59 @@ function getLocationParams() {
 }
 
 /**
- * Intercept XMLHttpRequest to append location params to speed test results
- * This hooks into the existing OpenSpeedTest save mechanism
+ * Intercept XMLHttpRequest to append location to POST body
  */
 (function() {
     var originalOpen = XMLHttpRequest.prototype.open;
+    var originalSend = XMLHttpRequest.prototype.send;
+
     XMLHttpRequest.prototype.open = function(method, url) {
-        // Check if this is a request to save speed test results
-        if (typeof url === 'string' && url.indexOf('/api/public/speedtest/results') !== -1) {
-            // Append location params if available
-            var locationParams = getLocationParams();
-            if (locationParams) {
-                url = url + locationParams;
-                console.log("Appended location to speed test result URL");
+        this._isSpeedTestResult = (typeof url === 'string' &&
+            url.indexOf('/api/public/speedtest/results') !== -1);
+        return originalOpen.apply(this, arguments);
+    };
+
+    XMLHttpRequest.prototype.send = function(body) {
+        var xhr = this;
+        var args = arguments;
+
+        if (this._isSpeedTestResult && body) {
+            // If we already have location, send immediately
+            var locationData = getLocationFormData();
+            if (locationData) {
+                body = body + locationData;
+                return originalSend.call(xhr, body);
+            }
+
+            // No location yet - try one quick getCurrentPosition before sending
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        geoLocation.latitude = position.coords.latitude;
+                        geoLocation.longitude = position.coords.longitude;
+                        geoLocation.accuracy = position.coords.accuracy;
+                        var locData = getLocationFormData();
+                        if (locData) {
+                            body = body + locData;
+                        }
+                        originalSend.call(xhr, body);
+                    },
+                    function(error) {
+                        // Failed - send without location
+                        originalSend.call(xhr, body);
+                    },
+                    { enableHighAccuracy: true, timeout: 2000, maximumAge: 60000 }
+                );
+                return; // Don't call send yet - callback will do it
             }
         }
-        return originalOpen.apply(this, arguments);
+        return originalSend.call(xhr, body);
     };
 })();
 
-// Request location when page loads (silent browser permission popup)
+// Start location tracking when page loads
 if (document.readyState === 'complete') {
-    requestLocationForSpeedTest();
+    startLocationWatch();
 } else {
-    window.addEventListener('load', requestLocationForSpeedTest);
+    window.addEventListener('load', startLocationWatch);
 }

@@ -1,0 +1,619 @@
+@using NetworkOptimizer.Storage.Models
+@using NetworkOptimizer.UniFi
+@using NetworkOptimizer.UniFi.Models
+@using Microsoft.JSInterop
+@implements IDisposable
+@inject IJSRuntime JS
+
+<HeadContent>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+</HeadContent>
+
+@if (HasLocationData)
+{
+    <div class="card speed-test-map-card">
+        <div class="card-header">
+            <h2 class="card-title">Speed / Coverage Map</h2>
+            <div class="map-filters">
+                <button class="btn btn-sm @(ShowLan ? "btn-primary" : "btn-secondary")"
+                        @onclick="() => ToggleFilter(true)">
+                    LAN (@LanCount)
+                </button>
+                <button class="btn btn-sm @(ShowExternal ? "btn-primary" : "btn-secondary")"
+                        @onclick="() => ToggleFilter(false)">
+                    External (@ExternalCount)
+                </button>
+                <button class="btn btn-sm @(HighAccuracyOnly ? "btn-primary" : "btn-secondary")"
+                        @onclick="ToggleAccuracyFilter"
+                        title="Filter out low GPS accuracy results (>15m)">
+                    ≤15m
+                </button>
+                <button class="btn btn-sm btn-secondary map-action-btn"
+                        @onclick="FitToMarkers"
+                        title="Fit map to all markers">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                </button>
+                <button class="btn btn-sm btn-secondary map-action-btn"
+                        @onclick="RefreshMap"
+                        title="Refresh results">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="@mapId" class="speed-test-map"></div>
+            <div class="map-legend">
+                <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span>&lt;50 Mbps</span>
+                <span class="legend-item"><span class="legend-dot" style="background: #f97316;"></span>50-100</span>
+                <span class="legend-item"><span class="legend-dot" style="background: #eab308;"></span>100-200</span>
+                <span class="legend-item"><span class="legend-dot" style="background: #84cc16;"></span>200-500</span>
+                <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span>&gt;500 Mbps</span>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public IEnumerable<Iperf3Result> Results { get; set; } = Enumerable.Empty<Iperf3Result>();
+
+    [Parameter]
+    public EventCallback OnRefresh { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnResultClick { get; set; }
+
+    private string mapId = $"map-{Guid.NewGuid():N}";
+    private DotNetObjectReference<SpeedTestMap>? dotNetRef;
+    private bool mapInitialized = false;
+    private bool ShowLan { get; set; } = true;
+    private bool ShowExternal { get; set; } = false;
+    private bool HighAccuracyOnly { get; set; } = false;
+    private int lastResultCount = 0;
+
+    // All tests with valid location data
+    private IEnumerable<Iperf3Result> LocationResults => Results
+        .Where(r => r.Latitude.HasValue && r.Longitude.HasValue)
+        .Where(r => !HighAccuracyOnly || (r.LocationAccuracyMeters.HasValue && r.LocationAccuracyMeters.Value <= 15));
+
+    // LAN = has valid L2 path AND has Wi-Fi signal (excludes wired clients)
+    private IEnumerable<Iperf3Result> LanResults => LocationResults
+        .Where(r => r.PathAnalysis?.Path?.IsValid == true && r.WifiSignalDbm.HasValue);
+
+    // External = no valid L2 path (Tailscale, remote, etc.)
+    private IEnumerable<Iperf3Result> ExternalResults => LocationResults
+        .Where(r => r.PathAnalysis?.Path?.IsValid != true);
+
+    private int LanCount => LanResults.Count();
+    private int ExternalCount => ExternalResults.Count();
+
+    // Filtered results based on toggle state
+    private IEnumerable<Iperf3Result> FilteredResults
+    {
+        get
+        {
+            var results = Enumerable.Empty<Iperf3Result>();
+            if (ShowLan) results = results.Concat(LanResults);
+            if (ShowExternal) results = results.Concat(ExternalResults);
+            return results;
+        }
+    }
+
+    private bool HasLocationData => LocationResults.Any();
+
+    private async Task ToggleFilter(bool isLan)
+    {
+        if (isLan)
+            ShowLan = !ShowLan;
+        else
+            ShowExternal = !ShowExternal;
+
+        // Ensure at least one is selected
+        if (!ShowLan && !ShowExternal)
+        {
+            if (isLan)
+                ShowExternal = true;
+            else
+                ShowLan = true;
+        }
+
+        if (mapInitialized)
+        {
+            await UpdateMarkers(fitBounds: true);
+        }
+    }
+
+    private async Task ToggleAccuracyFilter()
+    {
+        HighAccuracyOnly = !HighAccuracyOnly;
+
+        if (mapInitialized)
+        {
+            await UpdateMarkers(fitBounds: true);
+        }
+    }
+
+    private async Task RefreshMap()
+    {
+        if (OnRefresh.HasDelegate)
+        {
+            await OnRefresh.InvokeAsync();
+        }
+    }
+
+    private async Task FitToMarkers()
+    {
+        if (mapInitialized)
+        {
+            await UpdateMarkers(fitBounds: true);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && HasLocationData)
+        {
+            // Small delay to ensure DOM is ready
+            await Task.Delay(100);
+            await InitializeMap();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only update markers if results actually changed (new tests added)
+        var currentCount = Results.Count();
+        if (mapInitialized && currentCount != lastResultCount)
+        {
+            lastResultCount = currentCount;
+            await UpdateMarkers(fitBounds: false);
+        }
+    }
+
+    private async Task InitializeMap()
+    {
+        try
+        {
+            // Create .NET object reference for JS callbacks
+            dotNetRef = DotNetObjectReference.Create(this);
+
+            // Initialize the map using inline JS
+            await JS.InvokeVoidAsync("eval", $@"
+                (function() {{
+                    if (typeof L === 'undefined') return;
+                    const container = document.getElementById('{mapId}');
+                    if (!container) return;
+
+                    window._speedTestMaps = window._speedTestMaps || {{}};
+                    if (window._speedTestMaps['{mapId}']) return;
+
+                    const map = L.map('{mapId}', {{ maxZoom: 22 }}).setView([36.17, -92.68], 10);
+                    L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+                        maxZoom: 22,
+                        maxNativeZoom: 19,
+                        attribution: '© OpenStreetMap'
+                    }}).addTo(map);
+
+                    // Speed color function for clusters
+                    function getSpeedColor(speed) {{
+                        if (speed < 50) return 'rgb(239,68,68)';
+                        if (speed < 100) return 'rgb(249,115,22)';
+                        if (speed < 200) return 'rgb(234,179,8)';
+                        if (speed < 500) return 'rgb(132,204,22)';
+                        return 'rgb(34,197,94)';
+                    }}
+
+                    // Create marker cluster group with speed-based coloring
+                    const clusterGroup = L.markerClusterGroup({{
+                        maxClusterRadius: 24,
+                        spiderfyOnMaxZoom: true,
+                        showCoverageOnHover: false,
+                        zoomToBoundsOnClick: true,
+                        iconCreateFunction: function(cluster) {{
+                            const markers = cluster.getAllChildMarkers();
+                            let totalSpeed = 0;
+                            markers.forEach(m => {{ totalSpeed += m.options.speed || 0; }});
+                            const avgSpeed = totalSpeed / markers.length;
+                            const color = getSpeedColor(avgSpeed);
+
+                            return L.divIcon({{
+                                html: ""<div class='speed-cluster' style='background:"" + color + ""'>"" + markers.length + ""</div>"",
+                                className: 'speed-cluster-icon',
+                                iconSize: L.point(40, 40)
+                            }});
+                        }}
+                    }});
+                    map.addLayer(clusterGroup);
+
+                    // Bring spiderified markers to front when cluster expands
+                    clusterGroup.on('spiderfied', function(e) {{
+                        e.markers.forEach(m => m.bringToFront());
+                    }});
+
+                    window._speedTestMaps['{mapId}'] = {{ map: map, clusterGroup: clusterGroup }};
+                }})();
+            ");
+
+            // Register click handler with .NET callback
+            await JS.InvokeVoidAsync("eval", @"
+                window._registerSpeedTestMapCallback = function(dotNetRef) {
+                    window._speedTestMapClick = function(id) {
+                        dotNetRef.invokeMethodAsync('OnMapResultClick', id);
+                    };
+                };
+            ");
+            await JS.InvokeVoidAsync("_registerSpeedTestMapCallback", dotNetRef);
+
+            mapInitialized = true;
+            lastResultCount = Results.Count();
+            await UpdateMarkers(fitBounds: true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Map init error: {ex.Message}");
+        }
+    }
+
+    private async Task UpdateMarkers(bool fitBounds)
+    {
+        if (!mapInitialized) return;
+
+        try
+        {
+            var markers = FilteredResults.Select(r => new
+            {
+                lat = r.Latitude!.Value,
+                lng = r.Longitude!.Value,
+                speed = r.DownloadMbps,
+                color = GetSpeedColor(r.DownloadMbps),
+                isExternal = r.PathAnalysis?.Path?.IsValid != true,
+                popup = BuildPopup(r, r.PathAnalysis?.Path?.IsValid != true)
+            }).ToArray();
+
+            var markersJson = System.Text.Json.JsonSerializer.Serialize(markers);
+            var shouldFitBounds = fitBounds ? "true" : "false";
+
+            await JS.InvokeVoidAsync("eval", $@"
+                (function() {{
+                    const mapData = window._speedTestMaps && window._speedTestMaps['{mapId}'];
+                    if (!mapData) return;
+
+                    const map = mapData.map;
+                    const clusterGroup = mapData.clusterGroup;
+
+                    // Clear existing markers
+                    clusterGroup.clearLayers();
+
+                    const markers = {markersJson};
+                    const bounds = [];
+
+                    markers.forEach(m => {{
+                        const marker = L.circleMarker([m.lat, m.lng], {{
+                            radius: 8,
+                            fillColor: m.color,
+                            color: m.isExternal ? '#888' : '#fff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.8,
+                            speed: m.speed
+                        }});
+
+                        marker.bindPopup(m.popup);
+                        clusterGroup.addLayer(marker);
+                        bounds.push([m.lat, m.lng]);
+                    }});
+
+                    if ({shouldFitBounds} && bounds.length > 0) {{
+                        if (bounds.length === 1) {{
+                            map.setView(bounds[0], 18);
+                        }} else {{
+                            map.fitBounds(bounds, {{ padding: [20, 20], maxZoom: 22 }});
+                        }}
+                    }}
+
+                    setTimeout(() => map.invalidateSize(), 100);
+                }})();
+            ");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Marker update error: {ex.Message}");
+        }
+    }
+
+    private string GetSpeedColor(double mbps)
+    {
+        if (mbps < 50) return "#ef4444";
+        if (mbps < 100) return "#f97316";
+        if (mbps < 200) return "#eab308";
+        if (mbps < 500) return "#84cc16";
+        return "#22c55e";
+    }
+
+    private string BuildPopup(Iperf3Result result, bool isExternal)
+    {
+        var deviceName = result.DeviceName ?? result.DeviceHost;
+        var time = result.TestTime.ToLocalTime().ToString("MMM d, h:mm tt");
+        var badge = isExternal ? "External" : "LAN";
+        var badgeClass = isExternal ? "map-badge-external" : "map-badge-lan";
+
+        // Get AP name from path analysis
+        var apName = result.PathAnalysis?.Path?.Hops?
+            .FirstOrDefault(h => h.Type == HopType.AccessPoint)?.DeviceName;
+
+        // Escape for JS string
+        deviceName = deviceName?.Replace("'", "\\'").Replace("\"", "&quot;") ?? "Unknown";
+        apName = apName?.Replace("'", "\\'").Replace("\"", "&quot;");
+
+        var html = $"<div class='map-popup'>";
+
+        // Header with badge and device name
+        html += $"<div class='wifi-tooltip-header'><span class='map-badge {badgeClass}'>{badge}</span> {deviceName}</div>";
+
+        // Speed row
+        html += $"<div class='wifi-tooltip-row wifi-tooltip-speed'>";
+        html += $"<span class='wifi-speed-rx'>↓ {result.DownloadMbps:F0}</span> · ";
+        html += $"<span class='wifi-speed-tx'>↑ {result.UploadMbps:F0}</span> Mbps";
+        html += "</div>";
+
+        // AP name if available
+        if (!string.IsNullOrEmpty(apName))
+        {
+            html += $"<div class='wifi-tooltip-link map-tooltip-ap'>AP: {apName}</div>";
+        }
+
+        // Band and signal if available
+        if (result.WifiSignalDbm.HasValue || !string.IsNullOrEmpty(result.WifiRadio))
+        {
+            html += "<div class='wifi-tooltip-link-signal'>";
+            if (!string.IsNullOrEmpty(result.WifiRadio))
+            {
+                var radio = result.WifiRadio.ToLowerInvariant();
+                html += $"<span class='wifi-band-badge wifi-band-{radio}'>{RadioFormatHelper.FormatBand(radio)}</span> ";
+            }
+            if (result.WifiSignalDbm.HasValue)
+            {
+                html += $"{result.WifiSignalDbm} dBm";
+            }
+            html += "</div>";
+        }
+
+        // Time and view link
+        html += "<div class='wifi-tooltip-divider'></div>";
+        html += $"<div class='map-popup-footer'>";
+        html += $"<span class='map-popup-time'>{time}</span>";
+        html += $"<a href='javascript:void(0)' onclick='window._speedTestMapClick({result.Id})' class='map-popup-link'>View →</a>";
+        html += "</div>";
+
+        html += "</div>";
+        return html;
+    }
+
+    [JSInvokable]
+    public async Task OnMapResultClick(int resultId)
+    {
+        if (OnResultClick.HasDelegate)
+        {
+            await OnResultClick.InvokeAsync(resultId);
+        }
+    }
+
+    public void Dispose()
+    {
+        dotNetRef?.Dispose();
+    }
+}
+
+<style>
+    .speed-test-map-card {
+        margin-top: 1.5rem;
+    }
+
+    .speed-test-map-card .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .speed-test-map-card .card-title {
+        margin: 0;
+    }
+
+    .map-filters {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .map-action-btn {
+        margin-left: 0.5rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .map-action-btn svg {
+        display: block;
+    }
+
+    .speed-test-map {
+        height: 520px;
+        width: 100%;
+        border-radius: 6px;
+        z-index: 1;
+    }
+
+    .map-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 0.75rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid #fff;
+    }
+
+    /* Map popup styling */
+    .map-popup {
+        min-width: 200px;
+    }
+
+    .map-badge {
+        display: inline-block;
+        padding: 0.1rem 0.4rem;
+        border-radius: 3px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-right: 0.4rem;
+    }
+
+    .map-badge-lan {
+        background: rgba(34, 197, 94, 0.2);
+        color: #4ade80;
+    }
+
+    .map-badge-external {
+        background: rgba(100, 116, 139, 0.3);
+        color: #94a3b8;
+    }
+
+    .map-popup-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.75rem;
+    }
+
+    .map-popup-time {
+        color: #64748b;
+    }
+
+    .map-popup-link {
+        color: #60a5fa;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .map-popup-link:hover {
+        color: #93c5fd;
+        text-decoration: underline;
+    }
+
+    .map-tooltip-ap {
+        padding-left: 0.3rem;
+        margin-bottom: 0.35rem;
+    }
+
+    /* Dark theme for Leaflet */
+    .leaflet-popup-content-wrapper {
+        background: #1e293b;
+        color: #f1f5f9;
+        border-radius: 6px;
+    }
+
+    .leaflet-popup-tip {
+        background: #1e293b;
+    }
+
+    .leaflet-popup-content {
+        margin: 10px 12px;
+    }
+
+    .leaflet-container a.leaflet-popup-close-button {
+        color: #94a3b8;
+    }
+
+    .leaflet-container a.leaflet-popup-close-button:hover {
+        color: #f1f5f9;
+    }
+
+    /* Speed-colored cluster icons */
+    .speed-cluster {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .speed-cluster-icon {
+        background: transparent !important;
+    }
+
+    /* Dark theme for marker clusters */
+    .marker-cluster-small {
+        background-color: rgba(59, 130, 246, 0.6);
+    }
+    .marker-cluster-small div {
+        background-color: rgba(59, 130, 246, 0.9);
+    }
+    .marker-cluster-medium {
+        background-color: rgba(234, 179, 8, 0.6);
+    }
+    .marker-cluster-medium div {
+        background-color: rgba(234, 179, 8, 0.9);
+    }
+    .marker-cluster-large {
+        background-color: rgba(239, 68, 68, 0.6);
+    }
+    .marker-cluster-large div {
+        background-color: rgba(239, 68, 68, 0.9);
+    }
+    .marker-cluster {
+        background-clip: padding-box;
+        border-radius: 20px;
+    }
+    .marker-cluster div {
+        width: 30px;
+        height: 30px;
+        margin-left: 5px;
+        margin-top: 5px;
+        text-align: center;
+        border-radius: 15px;
+        font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+        font-weight: bold;
+        color: #fff;
+        line-height: 30px;
+    }
+
+    /* Ensure spiderified markers render above clusters */
+    .leaflet-marker-icon:not(.marker-cluster):not(.speed-cluster-icon) {
+        z-index: 10000 !important;
+    }
+
+    /* Spider legs should render above everything */
+    .leaflet-overlay-pane svg g path {
+        z-index: 9999 !important;
+    }
+
+    /* Bump up cluster z-index but keep below spider markers */
+    .marker-cluster, .speed-cluster-icon {
+        z-index: 1000 !important;
+    }
+</style>
