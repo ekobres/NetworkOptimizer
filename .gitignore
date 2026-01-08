@@ -52,3 +52,6 @@ archive/
 # Coverage reports
 coverage/
 TestResults/
+
+# Backup
+backup/
