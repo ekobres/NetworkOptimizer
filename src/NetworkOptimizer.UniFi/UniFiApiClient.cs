@@ -378,12 +378,18 @@ public class UniFiApiClient : IDisposable
     private string BuildApiPath(string endpoint)
     {
         // For UniFi OS (UDM/UCG), APIs are proxied through /proxy/network
+        string url;
         if (_isUniFiOs)
         {
-            return $"{_controllerUrl}/proxy/network/api/s/{_site}/{endpoint}";
+            url = $"{_controllerUrl}/proxy/network/api/s/{_site}/{endpoint}";
         }
-        // For standalone controllers
-        return $"{_controllerUrl}/api/s/{_site}/{endpoint}";
+        else
+        {
+            // For standalone controllers
+            url = $"{_controllerUrl}/api/s/{_site}/{endpoint}";
+        }
+        _logger.LogDebug("BuildApiPath: _isUniFiOs={IsUniFiOs}, endpoint={Endpoint}, url={Url}", _isUniFiOs, endpoint, url);
+        return url;
     }
 
     /// <summary>
@@ -392,12 +398,18 @@ public class UniFiApiClient : IDisposable
     private string BuildV2ApiPath(string endpoint)
     {
         // For UniFi OS (UDM/UCG), V2 APIs are proxied through /proxy/network
+        string url;
         if (_isUniFiOs)
         {
-            return $"{_controllerUrl}/proxy/network/v2/api/{endpoint}";
+            url = $"{_controllerUrl}/proxy/network/v2/api/{endpoint}";
         }
-        // For standalone controllers
-        return $"{_controllerUrl}/v2/api/{endpoint}";
+        else
+        {
+            // For standalone controllers
+            url = $"{_controllerUrl}/v2/api/{endpoint}";
+        }
+        _logger.LogDebug("BuildV2ApiPath: _isUniFiOs={IsUniFiOs}, endpoint={Endpoint}, url={Url}", _isUniFiOs, endpoint, url);
+        return url;
     }
 
     /// <summary>
@@ -412,11 +424,12 @@ public class UniFiApiClient : IDisposable
         _logger.LogDebug("Detecting controller type (UniFi OS vs standalone)...");
 
         // Try UniFi OS path first (UDM/UCG) - this is the modern path
+        var unifiOsProbeUrl = $"{_controllerUrl}/proxy/network/api/s/{_site}/stat/sysinfo";
         try
         {
-            var response = await _httpClient!.GetAsync(
-                $"{_controllerUrl}/proxy/network/api/s/{_site}/stat/sysinfo",
-                cancellationToken);
+            _logger.LogDebug("Probing UniFi OS path: {Url}", unifiOsProbeUrl);
+            var response = await _httpClient!.GetAsync(unifiOsProbeUrl, cancellationToken);
+            _logger.LogDebug("UniFi OS probe response: {StatusCode} ({StatusCodeInt})", response.StatusCode, (int)response.StatusCode);
 
             if (response.IsSuccessStatusCode)
             {
@@ -432,11 +445,12 @@ public class UniFiApiClient : IDisposable
         }
 
         // Fall back to standalone controller path
+        var standaloneProbeUrl = $"{_controllerUrl}/api/s/{_site}/stat/sysinfo";
         try
         {
-            var response = await _httpClient!.GetAsync(
-                $"{_controllerUrl}/api/s/{_site}/stat/sysinfo",
-                cancellationToken);
+            _logger.LogDebug("Probing standalone path: {Url}", standaloneProbeUrl);
+            var response = await _httpClient!.GetAsync(standaloneProbeUrl, cancellationToken);
+            _logger.LogDebug("Standalone probe response: {StatusCode} ({StatusCodeInt})", response.StatusCode, (int)response.StatusCode);
 
             if (response.IsSuccessStatusCode)
             {
