@@ -298,10 +298,16 @@ public class ClientSpeedTestService
             }
             else
             {
-                // If target not found and this isn't already a retry, invalidate cache and try again
-                if (!isRetry && analysis.Path.ErrorMessage?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
+                // If target not found or data stale and this isn't already a retry, invalidate cache and try again
+                var errorMsg = analysis.Path.ErrorMessage ?? "";
+                var shouldRetry = !isRetry && (
+                    errorMsg.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+                    errorMsg.Contains("not yet available", StringComparison.OrdinalIgnoreCase));
+
+                if (shouldRetry)
                 {
-                    _logger.LogDebug("Target not found, invalidating topology cache and retrying");
+                    _logger.LogDebug("Path invalid ({Reason}), invalidating topology cache and retrying",
+                        errorMsg.Contains("not yet") ? "stale data" : "target not found");
                     _pathAnalyzer.InvalidateTopologyCache();
                     await AnalyzePathAsync(result, isRetry: true);
                 }

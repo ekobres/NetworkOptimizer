@@ -737,6 +737,16 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
             currentMac = targetClient.ConnectedToDeviceMac;
             currentPort = targetClient.SwitchPort;
 
+            // Warn if wireless client has no AP MAC - indicates stale data from UniFi API
+            if (!targetClient.IsWired && string.IsNullOrEmpty(currentMac))
+            {
+                _logger.LogWarning("Wireless client {Name} ({Ip}) has no AP MAC - UniFi API data may be stale. Path will be incomplete.",
+                    targetClient.Name ?? targetClient.Hostname, targetClient.IpAddress);
+                path.IsValid = false;
+                path.ErrorMessage = "Wireless client connection data not yet available from UniFi";
+                return; // Don't build incomplete path - caller should retry
+            }
+
             var hop = new NetworkHop
             {
                 Order = 0,
