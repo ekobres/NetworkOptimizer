@@ -1,9 +1,11 @@
 @using NetworkOptimizer.Storage.Models
 @using NetworkOptimizer.UniFi
 @using NetworkOptimizer.UniFi.Models
+@using NetworkOptimizer.Web.Services
 @using Microsoft.JSInterop
 @implements IDisposable
 @inject IJSRuntime JS
+@inject UniFiConnectionService ConnectionService
 
 @if (HasLocationData)
 {
@@ -66,6 +68,7 @@
     private bool ShowExternal { get; set; } = false;
     private bool HighAccuracyOnly { get; set; } = false;
     private int lastResultCount = 0;
+    private List<NetworkInfo>? _networks;
 
     // All tests with valid location data
     private IEnumerable<Iperf3Result> LocationResults => Results
@@ -143,6 +146,12 @@
         {
             await UpdateMarkers(fitBounds: true);
         }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load networks for VPN detection
+        _networks = await ConnectionService.GetNetworksAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -452,12 +461,98 @@
         return "#22c55e";
     }
 
+    /// <summary>
+    /// Detects VPN type based on client IP and known network subnets.
+    /// Returns "Tailscale", "Teleport", or null for regular external.
+    /// </summary>
+    // TODO: Consider unifying with ClientSpeedTest.DetectVpnType (different signature - this takes IP string, that takes Iperf3Result and checks PathAnalysis first)
+    private string? DetectVpnType(string? clientIp)
+    {
+        if (string.IsNullOrEmpty(clientIp) || !System.Net.IPAddress.TryParse(clientIp, out var ip))
+            return null;
+
+        // Check for Tailscale CGNAT range: 100.64.0.0/10 (100.64.0.0 - 100.127.255.255)
+        if (clientIp.StartsWith("100."))
+        {
+            var parts = clientIp.Split('.');
+            if (parts.Length >= 2 && int.TryParse(parts[1], out int secondOctet))
+            {
+                if (secondOctet >= 64 && secondOctet <= 127)
+                    return "Tailscale";
+            }
+        }
+
+        // Check for 192.168.x.x not in any known network → Teleport
+        if (clientIp.StartsWith("192.168.") && _networks != null)
+        {
+            var isInKnownNetwork = _networks.Any(n => IsIpInSubnet(clientIp, n.IpSubnet));
+            if (!isInKnownNetwork)
+                return "Teleport";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if an IP address is within a CIDR subnet.
+    /// </summary>
+    // TODO: Extract to shared utility (duplicated in ClientSpeedTest.razor, VlanAnalyzer.cs)
+    private static bool IsIpInSubnet(string ipAddress, string? cidr)
+    {
+        if (string.IsNullOrEmpty(cidr))
+            return false;
+
+        var parts = cidr.Split('/');
+        if (parts.Length != 2 ||
+            !System.Net.IPAddress.TryParse(ipAddress, out var ip) ||
+            !System.Net.IPAddress.TryParse(parts[0], out var subnetIp) ||
+            !int.TryParse(parts[1], out var prefixLength))
+            return false;
+
+        var ipBytes = ip.GetAddressBytes();
+        var subnetBytes = subnetIp.GetAddressBytes();
+
+        if (ipBytes.Length != subnetBytes.Length)
+            return false;
+
+        int fullBytes = prefixLength / 8;
+        int remainingBits = prefixLength % 8;
+
+        for (int i = 0; i < fullBytes && i < ipBytes.Length; i++)
+        {
+            if (ipBytes[i] != subnetBytes[i])
+                return false;
+        }
+
+        if (fullBytes < ipBytes.Length && remainingBits > 0)
+        {
+            byte mask = (byte)(0xFF << (8 - remainingBits));
+            if ((ipBytes[fullBytes] & mask) != (subnetBytes[fullBytes] & mask))
+                return false;
+        }
+
+        return true;
+    }
+
     private string BuildPopup(Iperf3Result result, bool isExternal)
     {
         var deviceName = result.DeviceName ?? result.DeviceHost;
         var time = result.TestTime.ToLocalTime().ToString("MMM d, h:mm tt");
-        var badge = isExternal ? "External" : "LAN";
-        var badgeClass = isExternal ? "map-badge-external" : "map-badge-lan";
+
+        // Determine badge based on VPN detection
+        string badge;
+        string badgeClass;
+        if (isExternal)
+        {
+            var vpnType = DetectVpnType(result.DeviceHost);
+            badge = vpnType ?? "External";
+            badgeClass = vpnType != null ? $"map-badge-{vpnType.ToLowerInvariant()}" : "map-badge-external";
+        }
+        else
+        {
+            badge = "LAN";
+            badgeClass = "map-badge-lan";
+        }
 
         // Get AP name from path analysis
         var apName = result.PathAnalysis?.Path?.Hops?
@@ -626,6 +721,16 @@
     .map-badge-external {
         background: rgba(100, 116, 139, 0.3);
         color: #94a3b8;
+    }
+
+    .map-badge-tailscale {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+    }
+
+    .map-badge-teleport {
+        background: rgba(168, 85, 247, 0.2);
+        color: #c084fc;
     }
 
     .map-popup-footer {

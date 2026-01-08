@@ -5,11 +5,13 @@
 @using NetworkOptimizer.Storage.Models
 @using NetworkOptimizer.Web.Components.Shared
 @using NetworkOptimizer.Core.Helpers
+@using NetworkOptimizer.UniFi
 @inject ClientSpeedTestService ClientSpeedTestService
 @inject NavigationManager NavigationManager
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
 @inject IHttpClientFactory HttpClientFactory
+@inject UniFiConnectionService ConnectionService
 
 @* Uses unified Iperf3Result model with Direction field to distinguish test sources *@
 
@@ -40,7 +42,13 @@
                         <h3>Browser Speed Test</h3>
                         <span class="badge badge-primary">Recommended</span>
                     </div>
-                    <p>Run a speed test directly from any web browser using <a href="https://openspeedtest.com" target="_blank">OpenSpeedTest™</a>. Works on all devices.</p>
+                    <p>
+                        Run a speed test directly from any web browser using <a href="https://openspeedtest.com" target="_blank">OpenSpeedTest™</a>. Works on all devices.
+                        @if (openSpeedTestUrl?.StartsWith("https://") == true)
+                        {
+                            <text> Location data is collected with each test (with your permission), and results can be seen in the <a href="javascript:void(0)" onclick="document.getElementById('coverage-map').scrollIntoView({behavior: 'smooth'})">Speed / Coverage Map</a> below.</text>
+                        }
+                    </p>
 
                     @if (openSpeedTestAvailable)
                     {
@@ -78,6 +86,12 @@
                     {
                         <div class="alert alert-info" style="border-color: var(--text-muted); background: var(--bg-secondary);">
                             <strong>Not Available:</strong> OpenSpeedTest™ is not running. This feature requires Docker deployment. Use iperf3 for native installs.
+                        </div>
+                    }
+                    @if (openSpeedTestUrl?.StartsWith("https://") != true)
+                    {
+                        <div class="alert alert-info" style="border-color: var(--text-muted); background: var(--bg-secondary);">
+                            <strong>Coverage Map:</strong> The browser test can capture your device's location (with permission), which feeds into the Speed / Coverage Map. If you want location data from mobile devices, you'll need HTTPS - browsers require a secure connection for location access on mobile. This means reverse-proxying the speedtest server through something like Caddy or nginx.
                         </div>
                     }
                 </div>
@@ -200,6 +214,13 @@
                                         }
                                     </td>
                                     <td>
+                                        @{
+                                            var vpnType = DetectVpnType(result);
+                                        }
+                                        @if (vpnType != null)
+                                        {
+                                            <span class="badge badge-vpn-@vpnType.ToLowerInvariant()">@vpnType</span>
+                                        }
                                         <span class="badge @GetSourceBadgeClass(result.Direction)">
                                             @GetSourceLabel(result.Direction)
                                         </span>
@@ -262,7 +283,9 @@
     </div>
 
     <!-- Test Locations Map -->
-    <SpeedTestMap Results="testHistory" OnRefresh="() => LoadHistory()" OnResultClick="ScrollToResult" />
+    <div id="coverage-map">
+        <SpeedTestMap Results="testHistory" OnRefresh="() => LoadHistory()" OnResultClick="ScrollToResult" />
+    </div>
 
     <!-- How it Works -->
     <div class="card">
@@ -445,6 +468,18 @@
         color: white;
     }
 
+    .badge-vpn-tailscale {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+        margin-right: 0.25rem;
+    }
+
+    .badge-vpn-teleport {
+        background: rgba(168, 85, 247, 0.2);
+        color: #c084fc;
+        margin-right: 0.25rem;
+    }
+
     .code-block {
         background: var(--bg-primary);
         border-radius: var(--border-radius);
@@ -556,6 +591,7 @@
     private List<Iperf3Result> testHistory = new();
     private bool loading = false;
     private System.Threading.Timer? _pollTimer;
+    private List<NetworkInfo>? _networks;
 
     // Configuration
     private string? openSpeedTestUrl;
@@ -583,6 +619,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Load networks for VPN detection
+        _networks = await ConnectionService.GetNetworksAsync();
+
         // Load configuration
         iperf3ServerEnabled = Configuration.GetValue("Iperf3Server:Enabled", false);
 
@@ -722,6 +761,84 @@
             SpeedTestDirection.ClientToServer => "badge-iperf3",
             _ => "badge-secondary"
         };
+    }
+
+    /// <summary>
+    /// Detects VPN type based on client IP and known network subnets.
+    /// Returns "Tailscale", "Teleport", or null for LAN/unknown.
+    /// </summary>
+    // TODO: Consider unifying with SpeedTestMap.DetectVpnType (different signature - this takes Iperf3Result and checks PathAnalysis, that takes IP string directly)
+    private string? DetectVpnType(Iperf3Result result)
+    {
+        // Only check external clients (no valid path)
+        if (result.PathAnalysis?.Path?.IsValid == true)
+            return null;
+
+        var clientIp = result.DeviceHost;
+        if (string.IsNullOrEmpty(clientIp) || !System.Net.IPAddress.TryParse(clientIp, out _))
+            return null;
+
+        // Check for Tailscale CGNAT range: 100.64.0.0/10 (100.64.0.0 - 100.127.255.255)
+        if (clientIp.StartsWith("100."))
+        {
+            var parts = clientIp.Split('.');
+            if (parts.Length >= 2 && int.TryParse(parts[1], out int secondOctet))
+            {
+                if (secondOctet >= 64 && secondOctet <= 127)
+                    return "Tailscale";
+            }
+        }
+
+        // Check for 192.168.x.x not in any known network → Teleport
+        if (clientIp.StartsWith("192.168.") && _networks != null)
+        {
+            var isInKnownNetwork = _networks.Any(n => IsIpInSubnet(clientIp, n.IpSubnet));
+            if (!isInKnownNetwork)
+                return "Teleport";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if an IP address is within a CIDR subnet.
+    /// </summary>
+    // TODO: Extract to shared utility (duplicated in SpeedTestMap.razor, VlanAnalyzer.cs)
+    private static bool IsIpInSubnet(string ipAddress, string? cidr)
+    {
+        if (string.IsNullOrEmpty(cidr))
+            return false;
+
+        var parts = cidr.Split('/');
+        if (parts.Length != 2 ||
+            !System.Net.IPAddress.TryParse(ipAddress, out var ip) ||
+            !System.Net.IPAddress.TryParse(parts[0], out var subnetIp) ||
+            !int.TryParse(parts[1], out var prefixLength))
+            return false;
+
+        var ipBytes = ip.GetAddressBytes();
+        var subnetBytes = subnetIp.GetAddressBytes();
+
+        if (ipBytes.Length != subnetBytes.Length)
+            return false;
+
+        int fullBytes = prefixLength / 8;
+        int remainingBits = prefixLength % 8;
+
+        for (int i = 0; i < fullBytes && i < ipBytes.Length; i++)
+        {
+            if (ipBytes[i] != subnetBytes[i])
+                return false;
+        }
+
+        if (fullBytes < ipBytes.Length && remainingBits > 0)
+        {
+            byte mask = (byte)(0xFF << (8 - remainingBits));
+            if ((ipBytes[fullBytes] & mask) != (subnetBytes[fullBytes] & mask))
+                return false;
+        }
+
+        return true;
     }
 
     private void ToggleHistoryExpand(int resultId)

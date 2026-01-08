@@ -34,6 +34,11 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
     private DateTime _deviceCacheTime = DateTime.MinValue;
     private static readonly TimeSpan DeviceCacheDuration = TimeSpan.FromSeconds(30);
 
+    // Network cache (5 minute TTL - networks change rarely)
+    private List<NetworkInfo>? _cachedNetworks;
+    private DateTime _networkCacheTime = DateTime.MinValue;
+    private static readonly TimeSpan NetworkCacheDuration = TimeSpan.FromMinutes(5);
+
     // Lazy initialization for async config loading
     private Task? _initializationTask;
     private readonly object _initLock = new();
@@ -581,6 +586,35 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
     {
         _cachedDevices = null;
         _deviceCacheTime = DateTime.MinValue;
+    }
+
+    /// <summary>
+    /// Gets the list of configured networks from the UniFi controller.
+    /// Results are cached for 5 minutes.
+    /// </summary>
+    public async Task<List<NetworkInfo>> GetNetworksAsync(CancellationToken cancellationToken = default)
+    {
+        if (_client == null || !_isConnected)
+        {
+            _logger.LogWarning("Cannot get networks - not connected to controller");
+            return new List<NetworkInfo>();
+        }
+
+        // Return cached networks if still fresh
+        if (_cachedNetworks != null && DateTime.UtcNow - _networkCacheTime < NetworkCacheDuration)
+        {
+            return _cachedNetworks;
+        }
+
+        var discoveryLogger = _loggerFactory.CreateLogger<UniFiDiscovery>();
+        var discovery = new UniFiDiscovery(_client, discoveryLogger);
+        var topology = await discovery.DiscoverTopologyAsync(cancellationToken);
+
+        // Cache the result
+        _cachedNetworks = topology.Networks;
+        _networkCacheTime = DateTime.UtcNow;
+
+        return _cachedNetworks;
     }
 
     /// <summary>
