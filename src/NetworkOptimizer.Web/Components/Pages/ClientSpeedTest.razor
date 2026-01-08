@@ -46,7 +46,7 @@
                         Run a speed test directly from any web browser using <a href="https://openspeedtest.com" target="_blank">OpenSpeedTest™</a>. Works on all devices.
                         @if (openSpeedTestUrl?.StartsWith("https://") == true)
                         {
-                            <text> Location data is collected with each test (with your permission), and results can be seen in the Speed / Coverage Map below.</text>
+                            <text> Location data is collected with each test (with your permission), and results can be seen in the <a href="#coverage-map">Speed / Coverage Map</a> below.</text>
                         }
                     </p>
 
@@ -283,7 +283,9 @@
     </div>
 
     <!-- Test Locations Map -->
-    <SpeedTestMap Results="testHistory" OnRefresh="() => LoadHistory()" OnResultClick="ScrollToResult" />
+    <div id="coverage-map">
+        <SpeedTestMap Results="testHistory" OnRefresh="() => LoadHistory()" OnResultClick="ScrollToResult" />
+    </div>
 
     <!-- How it Works -->
     <div class="card">
@@ -765,6 +767,7 @@
     /// Detects VPN type based on client IP and known network subnets.
     /// Returns "Tailscale", "Teleport", or null for LAN/unknown.
     /// </summary>
+    // TODO: Consider unifying with SpeedTestMap.DetectVpnType (different signature - this takes Iperf3Result and checks PathAnalysis, that takes IP string directly)
     private string? DetectVpnType(Iperf3Result result)
     {
         // Only check external clients (no valid path)
@@ -800,6 +803,7 @@
     /// <summary>
     /// Checks if an IP address is within a CIDR subnet.
     /// </summary>
+    // TODO: Extract to shared utility (duplicated in SpeedTestMap.razor, VlanAnalyzer.cs)
     private static bool IsIpInSubnet(string ipAddress, string? cidr)
     {
         if (string.IsNullOrEmpty(cidr))

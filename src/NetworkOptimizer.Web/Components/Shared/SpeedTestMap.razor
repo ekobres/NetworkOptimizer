@@ -465,6 +465,7 @@
     /// Detects VPN type based on client IP and known network subnets.
     /// Returns "Tailscale", "Teleport", or null for regular external.
     /// </summary>
+    // TODO: Consider unifying with ClientSpeedTest.DetectVpnType (different signature - this takes IP string, that takes Iperf3Result and checks PathAnalysis first)
     private string? DetectVpnType(string? clientIp)
     {
         if (string.IsNullOrEmpty(clientIp) || !System.Net.IPAddress.TryParse(clientIp, out var ip))
@@ -495,6 +496,7 @@
     /// <summary>
     /// Checks if an IP address is within a CIDR subnet.
     /// </summary>
+    // TODO: Extract to shared utility (duplicated in ClientSpeedTest.razor, VlanAnalyzer.cs)
     private static bool IsIpInSubnet(string ipAddress, string? cidr)
     {
         if (string.IsNullOrEmpty(cidr))
