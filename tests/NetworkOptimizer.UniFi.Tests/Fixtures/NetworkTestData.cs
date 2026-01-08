@@ -187,6 +187,38 @@ public static class NetworkTestData
     }
 
     /// <summary>
+    /// Creates a wireless client with stale/missing AP data.
+    /// This simulates the condition where UniFi API hasn't fully populated the client's connection info.
+    /// </summary>
+    public static DiscoveredClient CreateStaleWirelessClient(
+        string mac = ClientWirelessMac,
+        string ip = ClientWirelessIp,
+        string hostname = "client-wifi-stale",
+        string network = "Default",
+        int? vlanId = 1)
+    {
+        return new DiscoveredClient
+        {
+            Mac = mac,
+            IpAddress = ip,
+            Hostname = hostname,
+            Name = hostname,
+            IsWired = false,
+            ConnectedToDeviceMac = null, // Key: no AP MAC yet
+            TxRate = 0,
+            RxRate = 0,
+            Radio = null, // No radio info
+            Channel = null,
+            SignalStrength = null,
+            NoiseLevel = null,
+            Network = network,
+            NetworkId = vlanId?.ToString() ?? "1",
+            IsMlo = false,
+            RadioProtocol = null
+        };
+    }
+
+    /// <summary>
     /// Creates a wireless client (single-link, non-MLO)
     /// </summary>
     public static DiscoveredClient CreateWirelessClient(
