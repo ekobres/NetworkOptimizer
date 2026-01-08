@@ -213,9 +213,11 @@ public class ClientSpeedTestService
             .ToListAsync();
 
         // Retry path analysis for recent results (last 30 min) without a valid path
+        // Skip IPs that will never be in UniFi topology (Tailscale, external VPNs, etc.)
         var retryWindow = DateTime.UtcNow.AddMinutes(-30);
         var needsRetry = results.Where(r =>
             r.TestTime > retryWindow &&
+            !IsNonRoutableIp(r.DeviceHost) &&
             (r.PathAnalysis == null ||
              r.PathAnalysis.Path == null ||
              !r.PathAnalysis.Path.IsValid))
@@ -232,6 +234,29 @@ public class ClientSpeedTestService
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Checks if an IP is non-routable through local UniFi infrastructure.
+    /// These IPs will never appear in UniFi topology so path analysis should not be retried.
+    /// </summary>
+    private static bool IsNonRoutableIp(string? ip)
+    {
+        if (string.IsNullOrEmpty(ip))
+            return true;
+
+        // Tailscale/CGNAT range: 100.64.0.0/10 (100.64.0.0 - 100.127.255.255)
+        // Tailscale uses this for its virtual IPs
+        if (ip.StartsWith("100."))
+        {
+            if (int.TryParse(ip.Split('.')[1], out int secondOctet))
+            {
+                if (secondOctet >= 64 && secondOctet <= 127)
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
