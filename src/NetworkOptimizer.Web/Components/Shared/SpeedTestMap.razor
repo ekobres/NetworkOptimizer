@@ -40,8 +40,7 @@
             <div id="@mapId" class="speed-test-map"></div>
             <div class="map-legend">
                 <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span>&lt;50 Mbps</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #f97316;"></span>50-100</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #eab308;"></span>100-200</span>
+                <span class="legend-item"><span class="legend-dot" style="background: #facc15;"></span>50-200</span>
                 <span class="legend-item"><span class="legend-dot" style="background: #84cc16;"></span>200-500</span>
                 <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span>&gt;500 Mbps</span>
             </div>
@@ -239,8 +238,7 @@
                     // Speed color function for clusters
                     function getSpeedColor(speed) {{
                         if (speed < 50) return 'rgb(239,68,68)';
-                        if (speed < 100) return 'rgb(249,115,22)';
-                        if (speed < 200) return 'rgb(234,179,8)';
+                        if (speed < 200) return 'rgb(250,204,21)';
                         if (speed < 500) return 'rgb(132,204,22)';
                         return 'rgb(34,197,94)';
                     }}
@@ -449,8 +447,7 @@
     private string GetSpeedColor(double mbps)
     {
         if (mbps < 50) return "#ef4444";
-        if (mbps < 100) return "#f97316";
-        if (mbps < 200) return "#eab308";
+        if (mbps < 200) return "#facc15";
         if (mbps < 500) return "#84cc16";
         return "#22c55e";
     }
@@ -549,6 +546,7 @@
     .map-filters {
         display: flex;
         gap: 0.5rem;
+        flex-wrap: wrap;
     }
 
     .map-action-btn {
@@ -587,6 +585,22 @@
         height: 12px;
         border-radius: 50%;
         border: 2px solid #fff;
+    }
+
+    @@media (max-width: 768px) {
+        .speed-test-map-card .card-header {
+            justify-content: center;
+        }
+
+        .map-filters {
+            justify-content: center;
+        }
+
+        .map-legend {
+            justify-content: center;
+            gap: 0.8rem;
+            font-size: 0.75rem;
+        }
     }
 
     /* Map popup styling */
