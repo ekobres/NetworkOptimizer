@@ -391,14 +391,14 @@
             </p>
 
             <div class="form-row">
-                <div class="form-group" style="flex: 2;">
-                    <label class="form-label">Username</label>
-                    <input type="text" class="form-control" @bind="sshUsername" placeholder="root" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore />
-                    <small class="form-help">Usually 'root' for UniFi devices</small>
-                </div>
                 <div class="form-group" style="flex: 1;">
                     <label class="form-label">Port</label>
                     <input type="number" class="form-control" @bind="sshPort" />
+                </div>
+                <div class="form-group" style="flex: 2;">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-control" @bind="sshUsername" placeholder="Your Device SSH username" autocomplete="off" data-1p-ignore data-lpignore="true" data-bwignore />
+                    <small class="form-help">Set in UniFi: Devices &gt; Device Updates and Settings &gt; Device SSH</small>
                 </div>
             </div>
 
