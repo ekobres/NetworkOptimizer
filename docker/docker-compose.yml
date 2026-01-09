@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: ozark-connect/network-optimizer:latest
+    image: ghcr.io/ozark-connect/network-optimizer:latest
     container_name: network-optimizer
     restart: unless-stopped
     network_mode: host
@@ -50,7 +50,7 @@ services:
     build:
       context: ..
       dockerfile: docker/openspeedtest/Dockerfile
-    image: ozark-connect/speedtest:latest
+    image: ghcr.io/ozark-connect/speedtest:latest
     container_name: network-optimizer-speedtest
     restart: unless-stopped
     ports:
