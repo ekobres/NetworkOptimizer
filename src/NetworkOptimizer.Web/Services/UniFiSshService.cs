@@ -49,7 +49,7 @@ public class UniFiSshService : IUniFiSshService
             // Create default settings
             settings = new UniFiSshSettings
             {
-                Username = "root",
+                Username = "",
                 Port = 22,
                 Enabled = false,
                 CreatedAt = DateTime.UtcNow,

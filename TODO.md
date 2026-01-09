@@ -158,6 +158,20 @@
   3. Support both patterns in app (check env var first, fall back to config)
 - Low priority but would improve consistency
 
+### Scroll Position Restoration Between Routes
+- Fix scroll position behavior when navigating between pages
+- **Expected behavior:**
+  - Navigating forward (clicking a link): Reset scroll to top
+  - Navigating back (browser back button): Restore previous scroll position
+- **Current behavior:** Scroll position is inconsistent/unpredictable
+- **Implementation notes:**
+  - Blazor Server doesn't have built-in scroll restoration
+  - Browser's native scroll restoration doesn't work with SPAs (content renders after navigation)
+  - Requires custom JS interop to save/restore scroll positions
+  - Use browser history state or client-side cache keyed by route
+  - Consider: `NavigationManager.LocationChanged` event + JS interop
+- **Reference:** Similar to how browsers handle multi-page apps, but needs manual implementation for SPA
+
 ### Uniform Date/Time Formatting in UI
 - Audit all date/time displays across the UI for consistency
 - Standardize format (e.g., "Jan 4, 2026 3:45 PM" vs "2026-01-04 15:45:00")
