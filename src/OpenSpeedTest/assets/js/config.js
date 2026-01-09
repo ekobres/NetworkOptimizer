@@ -6,9 +6,16 @@
 
 // These will be replaced by the entrypoint script
 // __SAVE_DATA__ becomes true/false
-// __SAVE_DATA_URL__ becomes the actual URL
+// __SAVE_DATA_URL__ becomes the actual URL or __DYNAMIC__
+// __API_PATH__ becomes the API endpoint path
 var saveData = __SAVE_DATA__;
 var saveDataURL = "__SAVE_DATA_URL__";
+var apiPath = "__API_PATH__";
+
+// If __DYNAMIC__, construct URL from browser location (same host, port 8042)
+if (saveDataURL === "__DYNAMIC__") {
+    saveDataURL = window.location.protocol + "//" + window.location.hostname + ":8042" + apiPath;
+}
 
 // Fix for missing variable bug in OpenSpeedTest
 var OpenSpeedTestdb = "";

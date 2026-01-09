@@ -2,19 +2,21 @@
 # Ozark Connect Speed Test - Entrypoint
 # Injects runtime configuration into config.js
 
+# API endpoint path (single source of truth)
+API_PATH="/api/public/speedtest/results"
+
 # Construct the save URL from environment variables
 # Priority: REVERSE_PROXIED_HOST_NAME > HOST_NAME > HOST_IP
 if [ -n "$REVERSE_PROXIED_HOST_NAME" ]; then
     # Behind reverse proxy - use https and no port (proxy handles it)
-    SAVE_DATA_URL="https://${REVERSE_PROXIED_HOST_NAME}/api/public/speedtest/results"
+    SAVE_DATA_URL="https://${REVERSE_PROXIED_HOST_NAME}${API_PATH}"
 elif [ -n "$HOST_NAME" ]; then
-    SAVE_DATA_URL="http://${HOST_NAME}:8042/api/public/speedtest/results"
+    SAVE_DATA_URL="http://${HOST_NAME}:8042${API_PATH}"
 elif [ -n "$HOST_IP" ]; then
-    SAVE_DATA_URL="http://${HOST_IP}:8042/api/public/speedtest/results"
+    SAVE_DATA_URL="http://${HOST_IP}:8042${API_PATH}"
 else
-    echo "Warning: No host configured for result reporting"
-    echo "Set HOST_IP, HOST_NAME, or REVERSE_PROXIED_HOST_NAME in .env"
-    SAVE_DATA_URL=""
+    # No explicit host configured - use dynamic URL (constructed client-side from browser location)
+    SAVE_DATA_URL="__DYNAMIC__"
 fi
 
 # Inject configuration into config.js
@@ -23,18 +25,18 @@ CONFIG_FILE="/usr/share/nginx/html/assets/js/config.js"
 if [ -f "$CONFIG_FILE" ]; then
     echo "Configuring speed test..."
 
-    # Determine if saveData should be enabled
-    if [ -n "$SAVE_DATA_URL" ]; then
-        SAVE_DATA_VALUE="true"
-        echo "Results will be sent to: $SAVE_DATA_URL"
+    # saveData is always enabled - URL is either explicit or dynamic
+    SAVE_DATA_VALUE="true"
+    if [ "$SAVE_DATA_URL" = "__DYNAMIC__" ]; then
+        echo "Results will be sent to: (dynamic - based on browser location):8042"
     else
-        SAVE_DATA_VALUE="false"
-        echo "Result reporting disabled (no host configured)"
+        echo "Results will be sent to: $SAVE_DATA_URL"
     fi
 
     # Replace placeholders with actual values
     sed -i "s|__SAVE_DATA__|$SAVE_DATA_VALUE|g" "$CONFIG_FILE"
     sed -i "s|__SAVE_DATA_URL__|$SAVE_DATA_URL|g" "$CONFIG_FILE"
+    sed -i "s|__API_PATH__|$API_PATH|g" "$CONFIG_FILE"
 
     echo "Configuration complete"
 else
