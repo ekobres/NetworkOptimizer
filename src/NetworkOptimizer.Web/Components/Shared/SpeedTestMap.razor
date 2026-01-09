@@ -192,16 +192,21 @@
             // Dynamically load Leaflet if not present
             await JS.InvokeVoidAsync("eval", @"
                 (function() {
-                    if (typeof L !== 'undefined') return Promise.resolve();
-
                     function loadScript(src) {
                         return new Promise((resolve, reject) => {
-                            if (document.querySelector('script[src=""' + src + '""]')) {
-                                resolve(); return;
+                            const existing = document.querySelector('script[src=""' + src + '""]');
+                            if (existing) {
+                                // Script tag exists - wait for it to load if still loading
+                                if (existing.dataset.loaded === 'true') {
+                                    resolve(); return;
+                                }
+                                existing.addEventListener('load', () => resolve());
+                                existing.addEventListener('error', () => reject());
+                                return;
                             }
                             const s = document.createElement('script');
                             s.src = src;
-                            s.onload = resolve;
+                            s.onload = () => { s.dataset.loaded = 'true'; resolve(); };
                             s.onerror = reject;
                             document.head.appendChild(s);
                         });
@@ -214,17 +219,29 @@
                         document.head.appendChild(l);
                     }
 
+                    // Always load CSS
                     loadCss('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
                     loadCss('https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css');
                     loadCss('https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css');
 
+                    // If both are already loaded, skip
+                    if (typeof L !== 'undefined' && typeof L.markerClusterGroup === 'function') {
+                        return Promise.resolve();
+                    }
+
+                    // Load Leaflet first, then MarkerCluster (must be sequential)
                     return loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js')
                         .then(() => loadScript('https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js'));
                 })();
             ");
 
-            // Wait a bit for scripts to initialize
-            await Task.Delay(100);
+            // Poll until both Leaflet and MarkerCluster are ready (up to 3s)
+            for (int i = 0; i < 30; i++)
+            {
+                var ready = await JS.InvokeAsync<bool>("eval", "typeof L !== 'undefined' && typeof L.markerClusterGroup === 'function'");
+                if (ready) break;
+                await Task.Delay(100);
+            }
 
             // Initialize the map using inline JS
             await JS.InvokeVoidAsync("eval", $@"
