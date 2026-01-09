@@ -122,6 +122,8 @@ public class CellularModemStats
         var signal = PrimarySignal;
         if (signal == null) return 0;
 
+        bool is5g = Nr5g?.Rsrp.HasValue == true;
+
         // Composite quality using RSRP, RSRQ, and SNR with weighted scoring
         // RSRP: 50% weight (primary strength indicator)
         // SNR:  30% weight (signal-to-noise, critical for throughput)
@@ -130,16 +132,28 @@ public class CellularModemStats
         double totalWeight = 0;
         double weightedScore = 0;
 
-        // RSRP: -80 dBm (excellent) to -120 dBm (poor)
+        // RSRP: Use different ranges for 5G vs LTE (industry standards)
+        // 5G NR: -80 dBm (excellent) to -110 dBm (poor) - tighter thresholds
+        // LTE:   -90 dBm (excellent) to -120 dBm (poor) - more relaxed
         if (signal.Rsrp.HasValue)
         {
             var rsrp = signal.Rsrp.Value;
-            var rsrpScore = Math.Clamp((rsrp + 120) * 2.5, 0, 100);
+            double rsrpScore;
+            if (is5g)
+            {
+                // 5G: -80 = 100%, -110 = 0% (30 dBm range)
+                rsrpScore = Math.Clamp((rsrp + 110) * (100.0 / 30.0), 0, 100);
+            }
+            else
+            {
+                // LTE: -90 = 100%, -120 = 0% (30 dBm range)
+                rsrpScore = Math.Clamp((rsrp + 120) * (100.0 / 30.0), 0, 100);
+            }
             weightedScore += rsrpScore * 0.5;
             totalWeight += 0.5;
         }
 
-        // SNR: 30 dB (excellent) to 0 dB (poor)
+        // SNR: 30 dB (excellent) to 0 dB (poor) - same for both technologies
         if (signal.Snr.HasValue)
         {
             var snr = signal.Snr.Value;
@@ -148,7 +162,7 @@ public class CellularModemStats
             totalWeight += 0.3;
         }
 
-        // RSRQ: -3 dB (excellent) to -20 dB (poor)
+        // RSRQ: -3 dB (excellent) to -20 dB (poor) - same for both technologies
         if (signal.Rsrq.HasValue)
         {
             var rsrq = signal.Rsrq.Value;
