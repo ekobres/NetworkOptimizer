@@ -77,7 +77,7 @@ public class CellularModemStatsTests
     [Theory]
     [InlineData(-80, 100)]  // Excellent (clamped)
     [InlineData(-90, 100)]  // Excellent (top of LTE range)
-    [InlineData(-100, 67)]  // Good
+    [InlineData(-100, 66)]  // Good - (20 * 100/30 = 66.67 truncated)
     [InlineData(-110, 33)]  // Fair
     [InlineData(-120, 0)]   // Poor
     [InlineData(-70, 100)]  // Clamped to max
@@ -101,7 +101,7 @@ public class CellularModemStatsTests
     [Theory]
     [InlineData(-70, 100)]  // Excellent (clamped)
     [InlineData(-80, 100)]  // Excellent (top of 5G range)
-    [InlineData(-90, 67)]   // Good
+    [InlineData(-90, 66)]   // Good - (20 * 100/30 = 66.67 truncated)
     [InlineData(-100, 33)]  // Fair
     [InlineData(-110, 0)]   // Poor
     [InlineData(-120, 0)]   // Clamped to min
@@ -133,8 +133,8 @@ public class CellularModemStatsTests
         };
 
         lteStats.SignalQuality.Should().BeGreaterThan(nr5gStats.SignalQuality);
-        lteStats.SignalQuality.Should().Be(67);  // LTE: (-100+120)*(100/30) = 67
-        nr5gStats.SignalQuality.Should().Be(33); // 5G: (-100+110)*(100/30) = 33
+        lteStats.SignalQuality.Should().Be(66);  // LTE: (-100+120)*(100/30) = 66.67 truncated
+        nr5gStats.SignalQuality.Should().Be(33); // 5G: (-100+110)*(100/30) = 33.33 truncated
     }
 
     #endregion
