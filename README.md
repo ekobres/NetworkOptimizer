@@ -1,8 +1,6 @@
 # Network Optimizer for UniFi
 
-> **Early Access Testers:** This project is under active development. Until official beta releases are cut, please **[pull from `main` regularly](docker/DEPLOYMENT.md#upgrade-procedure)** to get the latest fixes and features. Breaking changes may occur between updates.
->
-> **Private Repo Access:** Set up [HTTPS with a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) or [SSH keys](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) to clone this repository.
+> **Early Access Testers:** This project is under active development. For the latest fixes and features, either pull the latest Docker image (`docker compose pull`) or [update from source](docker/DEPLOYMENT.md#upgrade-procedure). Breaking changes may occur between updates.
 
 ## New: Client-Based LAN Speed Testing
 
@@ -78,11 +76,26 @@ Docker Desktop on macOS and Windows adds virtualization overhead that limits net
 
 ### Quick Start (Linux Docker)
 
+**Option A: Pull Docker Image (Recommended)**
+
+```bash
+mkdir network-optimizer && cd network-optimizer
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.yml
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
+cp .env.example .env
+docker compose up -d
+
+# Check logs for the auto-generated admin password
+docker logs network-optimizer 2>&1 | grep -A5 "AUTO-GENERATED"
+```
+
+**Option B: Build from Source**
+
 ```bash
 git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
-# or via SSH: git clone git@github.com:Ozark-Connect/NetworkOptimizer.git
 cd NetworkOptimizer/docker
 cp .env.example .env
+docker compose build
 docker compose up -d
 
 # Check logs for the auto-generated admin password

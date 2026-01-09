@@ -4,45 +4,69 @@ Complete Docker infrastructure for the Ozark Connect Network Optimizer for UniFi
 
 ## Quick Start
 
-### macOS
+### Option A: Pull Docker Image (Recommended)
+
+The fastest way to get started. No build required.
+
+**Linux / Windows:**
+```bash
+mkdir network-optimizer && cd network-optimizer
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.yml
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
+cp .env.example .env
+docker compose up -d
+```
+
+**macOS:**
+```bash
+mkdir network-optimizer && cd network-optimizer
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.macos.yml
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
+cp .env.example .env
+docker compose -f docker-compose.macos.yml up -d
+```
+
+### Option B: Build from Source
+
+Clone the repository and build locally.
+
+**Linux / Windows:**
+```bash
+git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
+cd NetworkOptimizer/docker
+cp .env.example .env
+docker compose build
+docker compose up -d
+```
+
+**macOS:**
 
 macOS doesn't support `network_mode: host`, so use the macOS-specific compose file:
 
 ```bash
-cd docker
+git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
+cd NetworkOptimizer/docker
+cp .env.example .env
 docker compose -f docker-compose.macos.yml build
 docker compose -f docker-compose.macos.yml up -d
 ```
 
-Access at http://localhost:8042 (wait ~60 seconds for startup)
+### First Run
 
-**No `.env` file required** - defaults work out of the box. Optionally create one to set `APP_PASSWORD`.
-
-### Linux / Windows
-
-1. **Copy the environment template (optional):**
-   ```bash
-   cd docker
-   cp .env.example .env
-   nano .env  # Set timezone, etc.
-   ```
-
-2. **Start the stack:**
-   ```bash
-   docker compose up -d
-   ```
-
-3. **Get the auto-generated admin password:**
+1. **Get the auto-generated admin password:**
    ```bash
    docker logs network-optimizer 2>&1 | grep -A5 "AUTO-GENERATED"
    ```
    On first run, a secure password is generated and displayed in the logs.
 
-4. **Access the Web UI:**
+2. **Access the Web UI:**
    - Network Optimizer: http://localhost:8042 (use password from logs)
+   - Wait ~60 seconds on first startup
 
-5. **Set a permanent password:**
+3. **Set a permanent password:**
    After logging in, go to Settings → Admin Password to set your own password (recommended).
+
+**No `.env` file required** - defaults work out of the box. Optionally edit `.env` to set `APP_PASSWORD` or timezone.
 
 ## Architecture
 

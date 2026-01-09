@@ -31,20 +31,33 @@ Deploy on any Linux server using Docker Compose. This is the recommended approac
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
 # Log out and back in for group changes
+```
 
-# Clone repository
-git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
-# or via SSH: git clone git@github.com:Ozark-Connect/NetworkOptimizer.git
-cd network-optimizer/docker
+**Option A: Pull Docker Image (Recommended)**
 
-# Configure environment (optional - defaults work out of the box)
+```bash
+mkdir network-optimizer && cd network-optimizer
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.yml
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
 cp .env.example .env
-nano .env  # Set timezone and other options
+nano .env  # Set timezone and other options (optional)
+docker compose up -d
+```
 
-# Build and start with host networking (recommended for Linux)
+**Option B: Build from Source**
+
+```bash
+git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
+cd NetworkOptimizer/docker
+cp .env.example .env
+nano .env  # Set timezone and other options (optional)
 docker compose build
 docker compose up -d
+```
 
+**Verify Installation:**
+
+```bash
 # Check logs for the auto-generated admin password
 docker logs network-optimizer 2>&1 | grep -A5 "AUTO-GENERATED"
 
@@ -185,9 +198,18 @@ See [Native Deployment Guide](NATIVE-DEPLOYMENT.md) for detailed instructions.
 
 ### 1. Download Files
 
+**Option A: Pull Docker Image (Recommended)**
+
+```bash
+mkdir network-optimizer && cd network-optimizer
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.yml
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
+```
+
+**Option B: Build from Source**
+
 ```bash
 git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
-# or via SSH: git clone git@github.com:Ozark-Connect/NetworkOptimizer.git
 cd NetworkOptimizer/docker
 ```
 
@@ -491,18 +513,33 @@ docker compose logs --tail=100 network-optimizer
 
 ## Upgrade Procedure
 
-Currently, Network Optimizer is deployed by building from source. Pre-built images will be published in a future release.
+### Option A: Using Docker Image (Recommended)
 
-### Quick Update (Most Common)
-
-Pull latest from `main` and rebuild:
+If you deployed using the pre-built Docker image:
 
 ```bash
 cd /path/to/network-optimizer
+docker compose pull
+docker compose up -d
+```
+
+### Option B: Building from Source
+
+If you cloned the repository and build locally:
+
+```bash
+cd /path/to/NetworkOptimizer
 git fetch origin
 git checkout main
 git pull
 cd docker && docker compose build && docker compose up -d
+```
+
+For significant updates (major version changes or Dockerfile modifications), use `--no-cache`:
+
+```bash
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ### Verify Update
@@ -510,15 +547,6 @@ cd docker && docker compose build && docker compose up -d
 ```bash
 docker compose ps
 docker compose logs -f
-```
-
-### Full Rebuild
-
-For significant updates (major version changes or Dockerfile modifications), use `--no-cache`:
-
-```bash
-docker compose build --no-cache
-docker compose up -d
 ```
 
 ## Troubleshooting

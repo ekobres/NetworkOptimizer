@@ -2,18 +2,41 @@
 
 ## Quick Start
 
-### macOS
+### Option A: Pull Docker Image (Recommended)
+
+**Linux / Windows:**
 ```bash
-cd docker
-docker compose -f docker-compose.macos.yml build
+mkdir network-optimizer && cd network-optimizer
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.yml
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
+cp .env.example .env
+docker compose up -d
+```
+
+**macOS:**
+```bash
+mkdir network-optimizer && cd network-optimizer
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.macos.yml
+curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
+cp .env.example .env
 docker compose -f docker-compose.macos.yml up -d
 ```
 
-### Linux / Windows
+### Option B: Build from Source
+
+**Linux / Windows:**
 ```bash
-cd docker
-docker compose build
-docker compose up -d
+git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
+cd NetworkOptimizer/docker
+docker compose build && docker compose up -d
+```
+
+**macOS:**
+```bash
+git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
+cd NetworkOptimizer/docker
+docker compose -f docker-compose.macos.yml build
+docker compose -f docker-compose.macos.yml up -d
 ```
 
 ### First Run - Get Admin Password
@@ -39,10 +62,15 @@ docker-compose logs -f network-optimizer
 ```
 
 ### Updates
+
+**Docker Image:**
 ```bash
-docker-compose down
-docker-compose pull
-docker-compose up -d
+docker compose pull && docker compose up -d
+```
+
+**From Source:**
+```bash
+git pull && docker compose build && docker compose up -d
 ```
 
 ## Configuration
