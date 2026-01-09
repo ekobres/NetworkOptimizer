@@ -72,18 +72,19 @@ public class CellularModemStatsTests
 
     #endregion
 
-    #region SignalQuality Tests - RSRP Only
+    #region SignalQuality Tests - RSRP Only (LTE)
 
     [Theory]
-    [InlineData(-80, 100)]  // Excellent
-    [InlineData(-90, 75)]   // Good
-    [InlineData(-100, 50)]  // Fair
-    [InlineData(-110, 25)]  // Poor
-    [InlineData(-120, 0)]   // Very poor
+    [InlineData(-80, 100)]  // Excellent (clamped)
+    [InlineData(-90, 100)]  // Excellent (top of LTE range)
+    [InlineData(-100, 67)]  // Good
+    [InlineData(-110, 33)]  // Fair
+    [InlineData(-120, 0)]   // Poor
     [InlineData(-70, 100)]  // Clamped to max
     [InlineData(-130, 0)]   // Clamped to min
-    public void SignalQuality_WithRsrpOnly_CalculatesCorrectly(double rsrp, int expectedQuality)
+    public void SignalQuality_LteWithRsrpOnly_CalculatesCorrectly(double rsrp, int expectedQuality)
     {
+        // LTE uses range: -90 dBm (excellent) to -120 dBm (poor)
         var stats = new CellularModemStats
         {
             Lte = new SignalInfo { Rsrp = rsrp }
@@ -95,10 +96,53 @@ public class CellularModemStatsTests
 
     #endregion
 
+    #region SignalQuality Tests - RSRP Only (5G)
+
+    [Theory]
+    [InlineData(-70, 100)]  // Excellent (clamped)
+    [InlineData(-80, 100)]  // Excellent (top of 5G range)
+    [InlineData(-90, 67)]   // Good
+    [InlineData(-100, 33)]  // Fair
+    [InlineData(-110, 0)]   // Poor
+    [InlineData(-120, 0)]   // Clamped to min
+    public void SignalQuality_5gWithRsrpOnly_CalculatesCorrectly(double rsrp, int expectedQuality)
+    {
+        // 5G uses tighter range: -80 dBm (excellent) to -110 dBm (poor)
+        var stats = new CellularModemStats
+        {
+            Nr5g = new SignalInfo { Rsrp = rsrp }
+        };
+
+        // With only RSRP, it gets 100% of the weight, so result should match
+        stats.SignalQuality.Should().Be(expectedQuality);
+    }
+
+    [Fact]
+    public void SignalQuality_SameRsrp_5gScoresLowerThanLte()
+    {
+        // At -100 dBm, LTE should score higher than 5G because
+        // -100 is "good" for LTE but "fair" for 5G
+        var lteStats = new CellularModemStats
+        {
+            Lte = new SignalInfo { Rsrp = -100 }
+        };
+
+        var nr5gStats = new CellularModemStats
+        {
+            Nr5g = new SignalInfo { Rsrp = -100 }
+        };
+
+        lteStats.SignalQuality.Should().BeGreaterThan(nr5gStats.SignalQuality);
+        lteStats.SignalQuality.Should().Be(67);  // LTE: (-100+120)*(100/30) = 67
+        nr5gStats.SignalQuality.Should().Be(33); // 5G: (-100+110)*(100/30) = 33
+    }
+
+    #endregion
+
     #region SignalQuality Tests - All Metrics
 
     [Fact]
-    public void SignalQuality_WithAllMetrics_CalculatesWeightedScore()
+    public void SignalQuality_LteWithAllMetrics_CalculatesWeightedScore()
     {
         // User's actual scenario: RSRP -92, RSRQ -9, SNR 24.6
         var stats = new CellularModemStats
@@ -106,11 +150,27 @@ public class CellularModemStatsTests
             Lte = new SignalInfo { Rsrp = -92, Rsrq = -9, Snr = 24.6 }
         };
 
-        // RSRP: (-92 + 120) * 2.5 = 70, weight 0.5 -> 35
+        // LTE RSRP: (-92 + 120) * (100/30) = 93.3, weight 0.5 -> 46.7
         // SNR: 24.6 * (100/30) = 82, weight 0.3 -> 24.6
         // RSRQ: (-9 + 20) * (100/17) = 64.7, weight 0.2 -> 12.9
-        // Total = 35 + 24.6 + 12.9 = 72.5 -> 72
-        stats.SignalQuality.Should().BeInRange(72, 73);
+        // Total = 46.7 + 24.6 + 12.9 = 84.2 -> 84
+        stats.SignalQuality.Should().BeInRange(83, 85);
+    }
+
+    [Fact]
+    public void SignalQuality_5gWithAllMetrics_CalculatesWeightedScore()
+    {
+        // 5G scenario with same metrics
+        var stats = new CellularModemStats
+        {
+            Nr5g = new SignalInfo { Rsrp = -92, Rsrq = -9, Snr = 24.6 }
+        };
+
+        // 5G RSRP: (-92 + 110) * (100/30) = 60, weight 0.5 -> 30
+        // SNR: 24.6 * (100/30) = 82, weight 0.3 -> 24.6
+        // RSRQ: (-9 + 20) * (100/17) = 64.7, weight 0.2 -> 12.9
+        // Total = 30 + 24.6 + 12.9 = 67.5 -> 67-68
+        stats.SignalQuality.Should().BeInRange(67, 69);
     }
 
     [Fact]
@@ -147,9 +207,10 @@ public class CellularModemStatsTests
             Nr5g = new SignalInfo() // Empty object with no RSRP
         };
 
-        // Should NOT return 50 (unknown), should use LTE data
+        // Should NOT return 0 (no signal), should use LTE data
+        // LTE RSRP at -92 with new formula gives ~84%
         stats.SignalQuality.Should().BeGreaterThan(50);
-        stats.SignalQuality.Should().BeInRange(70, 75);
+        stats.SignalQuality.Should().BeInRange(82, 86);
     }
 
     [Fact]
