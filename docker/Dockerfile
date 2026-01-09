@@ -27,12 +27,12 @@ RUN dotnet restore "src/NetworkOptimizer.Web/NetworkOptimizer.Web.csproj"
 COPY src/ src/
 
 # Build and publish Web UI (includes all dependent projects)
-# Pass version directly to MSBuild to override MinVer (which can't access .git)
+# MinVerVersionOverride tells MinVer to use this version instead of reading git tags
 RUN dotnet publish "src/NetworkOptimizer.Web/NetworkOptimizer.Web.csproj" \
     -c Release \
     -o /app/publish \
     --no-restore \
-    -p:Version=${VERSION}
+    -p:MinVerVersionOverride=${VERSION}
 
 # Stage 2: Build iperf3 from source for latest version
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS iperf-build
