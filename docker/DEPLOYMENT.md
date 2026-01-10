@@ -198,6 +198,8 @@ See [Native Deployment Guide](NATIVE-DEPLOYMENT.md) for detailed instructions.
 
 These detailed steps are for NAS deployment. For other deployment options, see the guides above.
 
+> **Note:** If `docker compose` doesn't work on older NAS firmware, try `docker-compose` (hyphenated).
+
 ### 1. Download Files
 
 **Option A: Pull Docker Image (Recommended)**
