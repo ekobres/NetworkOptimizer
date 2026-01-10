@@ -194,7 +194,9 @@ See [Native Deployment Guide](NATIVE-DEPLOYMENT.md) for detailed instructions.
 - [ ] SSL certificates ready (if using HTTPS)
 - [ ] SSH enabled on UniFi devices (required for SQM and LAN speed testing, see below)
 
-## Installation Steps
+## Installation Steps (NAS)
+
+These detailed steps are for NAS deployment. For other deployment options, see the guides above.
 
 ### 1. Download Files
 
@@ -241,17 +243,17 @@ Optionally, set `APP_PASSWORD` in `.env` if you want to configure a password bef
 ### 3. Deploy Stack
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 4. Verify Deployment
 
 ```bash
 # Check service health
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Test health endpoint
 curl http://localhost:8042/api/health
@@ -402,13 +404,13 @@ Add to crontab:
 
 ```bash
 # Stop services
-docker-compose down
+docker compose down
 
 # Restore data
 tar xzf /backups/network-optimizer/data-20240101-020000.tar.gz -C /path/to/docker/
 
 # Start services
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Monitoring and Alerting
@@ -418,7 +420,7 @@ docker-compose up -d
 Use Docker healthchecks:
 ```bash
 # Check all services
-watch docker-compose ps
+watch docker compose ps
 
 # Monitor resource usage
 docker stats
@@ -470,7 +472,7 @@ services:
 
 Apply with:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Logging Configuration
