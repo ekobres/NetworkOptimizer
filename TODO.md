@@ -185,7 +185,7 @@ The UniFi v2 device API (`/proxy/network/v2/api/site/{site}/device`) returns mul
 | Array | Description | VLAN Recommendation | Status |
 |-------|-------------|---------------------|--------|
 | `network_devices` | APs, Switches, Gateways | Management VLAN | Existing |
-| `protect_devices` | Cameras, Doorbells, NVRs, Sensors | Security VLAN | **In Progress** |
+| `protect_devices` | Cameras, Doorbells, NVRs, Sensors | Security VLAN | Done |
 | `access_devices` | Door locks, readers | Security VLAN | TODO |
 | `connect_devices` | EV chargers, other Connect devices | IoT VLAN | TODO |
 | `talk_devices` | Intercoms, phones | IoT/VoIP VLAN | TODO |
