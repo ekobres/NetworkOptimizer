@@ -728,7 +728,11 @@
     </div>
 
     <!-- Test Locations Map -->
-    <SpeedTestMap Results="testHistory" OnRefresh="LoadHistory" OnResultClick="ScrollToResult" />
+    <SpeedTestMap Results="testHistory"
+                  SelectedDateRange="@mapDateRange"
+                  OnDateRangeChanged="OnMapDateRangeChanged"
+                  OnRefresh="LoadHistory"
+                  OnResultClick="ScrollToResult" />
 
     <!-- How it Works -->
     <div class="card">
@@ -1006,6 +1010,7 @@
     private List<Iperf3Result> testHistory = new();
     private Iperf3Result? currentResult;
     private bool sshConfigured = false;
+    private int mapDateRange = 30; // Default to last 30 days
 
     // Pagination
     private int historyPage = 1;
@@ -1219,7 +1224,8 @@
     {
         try
         {
-            testHistory = await SpeedTestService.GetRecentResultsAsync(1000);
+            // Load all results within the date range (no count limit)
+            testHistory = await SpeedTestService.GetRecentResultsAsync(count: 0, days: mapDateRange);
             historyPage = 1; // Reset to first page when loading fresh data
 
             // Only set currentResult on initial page load (when it's null)
@@ -1256,6 +1262,12 @@
             // History load errors are not critical, ignore silently
         }
         StateHasChanged();
+    }
+
+    private async Task OnMapDateRangeChanged(int days)
+    {
+        mapDateRange = days;
+        await LoadHistory();
     }
 
     private async Task ClearHistory()

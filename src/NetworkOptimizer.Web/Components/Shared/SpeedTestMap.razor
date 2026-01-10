@@ -13,6 +13,13 @@
         <div class="card-header">
             <h2 class="card-title">Speed / Coverage Map</h2>
             <div class="map-filters">
+                <select class="form-select form-select-sm map-date-filter" @bind="SelectedDateRange" @bind:after="HandleDateRangeChanged">
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="365">Last year</option>
+                    <option value="0">All time</option>
+                </select>
                 <button class="btn btn-sm @(ShowLan ? "btn-primary" : "btn-secondary")"
                         @onclick="() => ToggleFilter(true)">
                     LAN (@LanCount)
@@ -59,6 +66,12 @@
 
     [Parameter]
     public EventCallback<int> OnResultClick { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnDateRangeChanged { get; set; }
+
+    [Parameter]
+    public int SelectedDateRange { get; set; } = 30;
 
     private string mapId = $"map-{Guid.NewGuid():N}";
     private DotNetObjectReference<SpeedTestMap>? dotNetRef;
@@ -130,6 +143,11 @@
         {
             await UpdateMarkers(fitBounds: true);
         }
+    }
+
+    private async Task HandleDateRangeChanged()
+    {
+        await OnDateRangeChanged.InvokeAsync(SelectedDateRange);
     }
 
     private async Task RefreshMap()
@@ -726,6 +744,22 @@
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .map-date-filter {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+        border-radius: 4px;
+        border: 1px solid var(--border-color, #444);
+        background: var(--bg-secondary, #2d2d2d);
+        color: var(--text-primary, #fff);
+        cursor: pointer;
+    }
+
+    .map-date-filter:focus {
+        outline: none;
+        border-color: var(--primary-color, #3b82f6);
     }
 
     .map-action-btn {

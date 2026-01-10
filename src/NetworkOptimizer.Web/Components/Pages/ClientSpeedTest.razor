@@ -286,7 +286,11 @@
 
     <!-- Test Locations Map -->
     <div id="coverage-map">
-        <SpeedTestMap Results="testHistory" OnRefresh="() => LoadHistory()" OnResultClick="ScrollToResult" />
+        <SpeedTestMap Results="testHistory"
+                      SelectedDateRange="@mapDateRange"
+                      OnDateRangeChanged="OnMapDateRangeChanged"
+                      OnRefresh="() => LoadHistory()"
+                      OnResultClick="ScrollToResult" />
     </div>
 
     <!-- How it Works -->
@@ -594,6 +598,7 @@
     private bool loading = false;
     private System.Threading.Timer? _pollTimer;
     private List<NetworkInfo>? _networks;
+    private int mapDateRange = 30; // Default to last 30 days
 
     // Configuration
     private string? openSpeedTestUrl;
@@ -701,7 +706,8 @@
 
         try
         {
-            testHistory = await ClientSpeedTestService.GetResultsAsync(100);
+            // Load all results within the date range (no count limit)
+            testHistory = await ClientSpeedTestService.GetResultsAsync(count: 0, days: mapDateRange);
             if (resetPage)
             {
                 historyPage = 1;
@@ -716,6 +722,12 @@
             loading = false;
             StateHasChanged();
         }
+    }
+
+    private async Task OnMapDateRangeChanged(int days)
+    {
+        mapDateRange = days;
+        await LoadHistory();
     }
 
     private async Task<bool> CheckOpenSpeedTestHealthAsync()
