@@ -369,8 +369,8 @@
         <div class="card-header">
             <h2 class="card-title">Other Device Speed Test</h2>
             <div class="header-actions">
-                <button class="btn btn-sm btn-secondary" @onclick="() => showAddDevice = !showAddDevice">
-                    @(showAddDevice ? "Cancel" : "Add Device")
+                <button class="btn btn-sm btn-secondary" @onclick="ToggleAddDevice">
+                    @(showAddDevice && editingDevice.Id == 0 ? "Cancel" : "Add Device")
                 </button>
             </div>
         </div>
@@ -1303,6 +1303,7 @@
             DeviceType = device.DeviceType,
             Enabled = device.Enabled,
             StartIperf3Server = device.StartIperf3Server,
+            Iperf3BinaryPath = device.Iperf3BinaryPath,
             SshUsername = device.SshUsername,
             SshPrivateKeyPath = device.SshPrivateKeyPath
             // Note: Don't copy SshPassword - leave blank to not change it
@@ -1310,6 +1311,29 @@
         editingDevicePassword = ""; // Clear password field (user must re-enter to change)
         savedDeviceMessage = "";
         StateHasChanged();
+    }
+
+    private void ToggleAddDevice()
+    {
+        if (showAddDevice && editingDevice.Id == 0)
+        {
+            // Already in add mode, cancel it
+            CancelEdit();
+        }
+        else
+        {
+            // Switch to add mode (reset any editing state)
+            editingDevice = new DeviceSshConfiguration
+            {
+                DeviceType = DeviceType.Server,
+                Enabled = true,
+                StartIperf3Server = false
+            };
+            editingDevicePassword = "";
+            savedDeviceMessage = "";
+            showAddDevice = true;
+            StateHasChanged();
+        }
     }
 
     private void CancelEdit()
