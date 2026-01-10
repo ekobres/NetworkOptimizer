@@ -17,7 +17,7 @@ public class VlanAnalyzer
     // Network classification patterns (case-insensitive)
     // Note: "device" removed from IoT - too generic, causes false positives with "Security Devices"
     private static readonly string[] IoTPatterns = { "iot", "smart", "automation", "zero trust" };
-    private static readonly string[] SecurityPatterns = { "camera", "security", "nvr", "surveillance", "protect" };
+    private static readonly string[] SecurityPatterns = { "camera", "security", "nvr", "surveillance", "protect", "cctv" };
     // Patterns that require word boundary matching (to avoid false positives like "Hotspot" matching "not")
     private static readonly string[] SecurityWordBoundaryPatterns = { "not" }; // "NoT" = "Network of Things"
     private static readonly string[] ManagementPatterns = { "management", "mgmt", "admin", "infrastructure" };
