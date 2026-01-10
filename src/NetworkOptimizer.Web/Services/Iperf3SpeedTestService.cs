@@ -88,7 +88,14 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     /// <summary>
     /// Check if iperf3 is available on a device (using device-specific credentials if configured)
     /// </summary>
-    public Task<(bool available, string version)> CheckIperf3AvailableAsync(DeviceSshConfiguration device) => _sshService.CheckToolAvailableAsync(device, "iperf3");
+    public Task<(bool available, string version)> CheckIperf3AvailableAsync(DeviceSshConfiguration device)
+    {
+        // Use custom binary path if configured, otherwise default to "iperf3"
+        var iperf3Bin = !string.IsNullOrWhiteSpace(device.Iperf3BinaryPath)
+            ? device.Iperf3BinaryPath
+            : "iperf3";
+        return _sshService.CheckToolAvailableAsync(device, iperf3Bin);
+    }
 
     /// <summary>
     /// Detect if the remote host is running Windows
@@ -171,11 +178,14 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     {
         if (isWindows)
         {
-            // Get full path to iperf3 - needed for WMI when path contains spaces
-            var iperf3Path = await GetWindowsIperf3PathAsync(device);
+            // Use configured path if set, otherwise find iperf3 in PATH
+            var iperf3Path = !string.IsNullOrWhiteSpace(device.Iperf3BinaryPath)
+                ? device.Iperf3BinaryPath
+                : await GetWindowsIperf3PathAsync(device);
+
             if (string.IsNullOrEmpty(iperf3Path))
             {
-                return (false, "iperf3 not found. Install iperf3 and ensure it's in the system PATH.");
+                return (false, "iperf3 not found. Install iperf3 and ensure it's in the system PATH, or configure a custom path.");
             }
 
             // Use WMI to create a detached process that survives SSH session end
@@ -185,7 +195,11 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
         }
         else
         {
-            var cmd = $"nohup iperf3 -s -p {Iperf3Port} > /tmp/iperf3_server.log 2>&1 & echo $!";
+            // Use configured path if set, otherwise default to "iperf3" from PATH
+            var iperf3Bin = !string.IsNullOrWhiteSpace(device.Iperf3BinaryPath)
+                ? device.Iperf3BinaryPath
+                : "iperf3";
+            var cmd = $"nohup {iperf3Bin} -s -p {Iperf3Port} > /tmp/iperf3_server.log 2>&1 & echo $!";
             return await _sshService.RunCommandWithDeviceAsync(device, cmd);
         }
     }
