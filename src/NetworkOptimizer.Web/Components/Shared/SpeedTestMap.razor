@@ -141,7 +141,8 @@
         }
     }
 
-    private bool HasLocationData => LocationResults.Any();
+    // Check raw results for any location data (not time-filtered) - determines if map shows at all
+    private bool HasLocationData => Results.Any(r => r.Latitude.HasValue && r.Longitude.HasValue);
 
     private async Task ToggleFilter(bool isLan)
     {
