@@ -203,8 +203,8 @@ public class ClientSpeedTestService
     /// Retries path analysis for results missing valid paths.
     /// </summary>
     /// <param name="count">Maximum number of results (0 = no limit)</param>
-    /// <param name="days">Filter to results within the last N days (0 = all time)</param>
-    public async Task<List<Iperf3Result>> GetResultsAsync(int count = 50, int days = 0)
+    /// <param name="hours">Filter to results within the last N hours (0 = all time)</param>
+    public async Task<List<Iperf3Result>> GetResultsAsync(int count = 50, int hours = 0)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var query = db.Iperf3Results
@@ -212,9 +212,9 @@ public class ClientSpeedTestService
                      || r.Direction == SpeedTestDirection.BrowserToServer);
 
         // Apply date filter if specified
-        if (days > 0)
+        if (hours > 0)
         {
-            var cutoff = DateTime.UtcNow.AddDays(-days);
+            var cutoff = DateTime.UtcNow.AddHours(-hours);
             query = query.Where(r => r.TestTime >= cutoff);
         }
 

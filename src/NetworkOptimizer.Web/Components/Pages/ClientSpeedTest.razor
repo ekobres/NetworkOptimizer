@@ -598,7 +598,7 @@
     private bool loading = false;
     private System.Threading.Timer? _pollTimer;
     private List<NetworkInfo>? _networks;
-    private int mapDateRange = 30; // Default to last 30 days
+    private int mapDateRange = 720; // Default to last 30 days (in hours)
 
     // Configuration
     private string? openSpeedTestUrl;
@@ -707,7 +707,7 @@
         try
         {
             // Load all results within the date range (no count limit)
-            testHistory = await ClientSpeedTestService.GetResultsAsync(count: 0, days: mapDateRange);
+            testHistory = await ClientSpeedTestService.GetResultsAsync(count: 0, hours: mapDateRange);
             if (resetPage)
             {
                 historyPage = 1;
@@ -724,9 +724,9 @@
         }
     }
 
-    private async Task OnMapDateRangeChanged(int days)
+    private async Task OnMapDateRangeChanged(int hours)
     {
-        mapDateRange = days;
+        mapDateRange = hours;
         await LoadHistory();
     }
 

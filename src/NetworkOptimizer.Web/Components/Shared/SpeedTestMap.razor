@@ -41,16 +41,18 @@
         <div class="card-body">
             <div class="map-container">
                 <div id="@mapId" class="speed-test-map"></div>
+            </div>
+            <div class="map-footer">
+                <div class="map-legend">
+                    <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span>&lt;50 Mbps</span>
+                    <span class="legend-item"><span class="legend-dot" style="background: #facc15;"></span>50-200</span>
+                    <span class="legend-item"><span class="legend-dot" style="background: #84cc16;"></span>200-500</span>
+                    <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span>&gt;500 Mbps</span>
+                </div>
                 <div class="map-time-slider">
-                    <input type="range" min="0" max="8" step="1" @bind="sliderValue" @bind:after="OnSliderChanged" />
+                    <input type="range" min="0" max="10" step="1" @bind="sliderValue" @bind:after="OnSliderChanged" />
                     <span class="time-label">@GetTimeLabel()</span>
                 </div>
-            </div>
-            <div class="map-legend">
-                <span class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span>&lt;50 Mbps</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #facc15;"></span>50-200</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #84cc16;"></span>200-500</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span>&gt;500 Mbps</span>
             </div>
         </div>
     </div>
@@ -70,7 +72,7 @@
     public EventCallback<int> OnDateRangeChanged { get; set; }
 
     [Parameter]
-    public int SelectedDateRange { get; set; } = 30;
+    public int SelectedDateRange { get; set; } = 720; // Default 30 days in hours
 
     private string mapId = $"map-{Guid.NewGuid():N}";
     private DotNetObjectReference<SpeedTestMap>? dotNetRef;
@@ -82,20 +84,22 @@
     private int? lastNewestResultId = null;
     private List<NetworkInfo>? _networks;
 
-    // Time slider: log scale breakpoints (slider value -> days, 0 = all time)
-    private static readonly (int days, string label)[] TimeBreakpoints = new[]
+    // Time slider: log scale breakpoints (slider value -> hours, 0 = all time)
+    private static readonly (int hours, string label)[] TimeBreakpoints = new[]
     {
-        (1, "24h"),        // 0
-        (3, "3 days"),     // 1
-        (7, "1 week"),     // 2
-        (14, "2 weeks"),   // 3
-        (30, "30 days"),   // 4
-        (90, "90 days"),   // 5
-        (180, "6 months"), // 6
-        (365, "1 year"),   // 7
-        (0, "All time")    // 8
+        (1, "1 hr"),         // 0
+        (4, "4 hrs"),        // 1
+        (24, "24 hrs"),      // 2
+        (72, "3 days"),      // 3
+        (168, "1 week"),     // 4
+        (336, "2 weeks"),    // 5
+        (720, "30 days"),    // 6
+        (2160, "90 days"),   // 7
+        (4320, "6 months"),  // 8
+        (8760, "1 year"),    // 9
+        (0, "All time")      // 10
     };
-    private int sliderValue = 4; // Default to 30 days (index 4)
+    private int sliderValue = 6; // Default to 30 days (index 6)
 
     // All tests with valid location data
     private IEnumerable<Iperf3Result> LocationResults => Results
@@ -163,8 +167,8 @@
 
     private async Task OnSliderChanged()
     {
-        var days = TimeBreakpoints[sliderValue].days;
-        await OnDateRangeChanged.InvokeAsync(days);
+        var hours = TimeBreakpoints[sliderValue].hours;
+        await OnDateRangeChanged.InvokeAsync(hours);
     }
 
     private async Task RefreshMap()
@@ -188,8 +192,8 @@
         // Load networks for VPN detection
         _networks = await ConnectionService.GetNetworksAsync();
 
-        // Sync slider with SelectedDateRange parameter
-        var matchIndex = Array.FindIndex(TimeBreakpoints, t => t.days == SelectedDateRange);
+        // Sync slider with SelectedDateRange parameter (in hours)
+        var matchIndex = Array.FindIndex(TimeBreakpoints, t => t.hours == SelectedDateRange);
         if (matchIndex >= 0)
         {
             sliderValue = matchIndex;
@@ -775,23 +779,23 @@
         position: relative;
     }
 
+    .map-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
     .map-time-slider {
-        position: absolute;
-        bottom: 12px;
-        right: 12px;
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        background: rgba(30, 30, 30, 0.9);
-        padding: 0.4rem 0.75rem;
-        border-radius: 6px;
-        z-index: 1000;
-        backdrop-filter: blur(4px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .map-time-slider input[type="range"] {
-        width: 120px;
+        width: 140px;
         height: 4px;
         -webkit-appearance: none;
         appearance: none;
@@ -821,8 +825,8 @@
     }
 
     .map-time-slider .time-label {
-        font-size: 0.75rem;
-        color: var(--text-primary, #fff);
+        font-size: 0.8rem;
+        color: var(--text-muted);
         white-space: nowrap;
         min-width: 60px;
     }
@@ -847,7 +851,6 @@
         display: flex;
         flex-wrap: wrap;
         gap: 1rem;
-        margin-top: 0.75rem;
         font-size: 0.8rem;
         color: var(--text-muted);
     }
@@ -874,10 +877,19 @@
             justify-content: center;
         }
 
+        .map-footer {
+            flex-direction: column;
+            align-items: center;
+        }
+
         .map-legend {
             justify-content: center;
             gap: 0.8rem;
             font-size: 0.75rem;
+        }
+
+        .map-time-slider {
+            order: 1;
         }
     }
 
