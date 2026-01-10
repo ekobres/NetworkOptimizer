@@ -485,6 +485,12 @@
 
                     @if (editingDevice.StartIperf3Server)
                     {
+                        <div class="form-group">
+                            <label class="form-label">iperf3 Binary Path</label>
+                            <input type="text" class="form-control" @bind="editingDevice.Iperf3BinaryPath" placeholder="iperf3" />
+                            <span class="form-help">Full path to iperf3 on the remote device (e.g., /usr/local/bin/iperf3). Leave blank to use "iperf3" from PATH.</span>
+                        </div>
+
                         <div class="form-section-header" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                             <h5 style="margin: 0 0 0.5rem 0; font-size: 0.95rem;">SSH Credential Overrides <span style="font-weight: normal; color: var(--text-muted);">(optional)</span></h5>
                             <span class="form-help">Leave blank to use global SSH settings from <a href="/settings">Settings</a>. Only fill in fields you want to override.</span>
