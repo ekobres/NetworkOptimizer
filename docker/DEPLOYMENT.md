@@ -39,7 +39,7 @@ sudo usermod -aG docker $USER
 
 ```bash
 # Create directory in /opt (recommended)
-sudo mkdir -p /opt/network-optimizer && sudo chown $USER:$USER /opt/network-optimizer
+sudo mkdir -p /opt/network-optimizer && sudo chown $USER: /opt/network-optimizer
 cd /opt/network-optimizer
 curl -o docker-compose.yml https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/docker-compose.prod.yml
 curl -O https://raw.githubusercontent.com/Ozark-Connect/NetworkOptimizer/main/docker/.env.example
@@ -53,7 +53,7 @@ docker compose up -d
 ```bash
 cd /opt  # or your preferred stable location
 sudo git clone https://github.com/Ozark-Connect/NetworkOptimizer.git
-sudo chown -R $USER:$USER NetworkOptimizer
+sudo chown -R $USER: NetworkOptimizer
 cd NetworkOptimizer/docker
 cp .env.example .env
 nano .env  # Set timezone and other options (optional)
