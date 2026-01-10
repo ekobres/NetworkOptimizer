@@ -73,9 +73,12 @@ window.updateChecker = {
     compareVersions(current, latest, releaseUrl) {
         if (!current || !latest) return null;
 
-        // Normalize versions (remove 'v' prefix, handle source builds)
-        const currentClean = current.replace(/^v/, '').split('+')[0];
-        const latestClean = latest.replace(/^v/, '');
+        // Normalize versions:
+        // - Remove 'v' prefix
+        // - Remove build metadata (+sha)
+        // - Remove pre-release suffix (-alpha.0.1) for comparison
+        const currentClean = current.replace(/^v/, '').split('+')[0].split('-')[0];
+        const latestClean = latest.replace(/^v/, '').split('-')[0];
 
         // Skip check for source builds
         if (currentClean.startsWith('0.0.0')) {
