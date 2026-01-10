@@ -23,6 +23,13 @@
 - More gateway models in routing limits table as we gather data
 - Threshold tuning based on real-world data collection
 
+### Speed Test Map Auto-Display After Data Cleared
+- **Bug:** Map doesn't auto-display when new results come in after all results were cleared
+- **Affected pages:** Client Speed Test, LAN Speed Test (both have SpeedTestMap component)
+- **Repro:** Clear all speed test results (manually or external), map hides, run new test, map stays hidden
+- **Expected:** Map should auto-display when first result with location data arrives
+- **Fix:** Reset map visibility state when results are cleared, or check on each poll if map should show
+
 ### Speed Test Map Time Range Filters
 - Add time range filter to speed test map (default: last 30 days)
 - Options: 7 days, 30 days, 90 days, 1 year, all time
@@ -77,6 +84,57 @@
 - ~~This allows auditing device placement even when the device is offline/disconnected~~
 - ~~Currently: Down ports may be skipped or show no connected MAC for analysis~~
 - FIXED: IotVlanRule and CameraVlanRule now analyze down ports with MAC restrictions using MAC OUI detection
+
+## Performance Audit
+
+New audit section focused on network performance issues (distinct from security audit).
+
+### Port Link Speed Analysis
+- Crawl the entire network topology and identify port link speeds that don't make sense
+- Reuse the logic from Speed Test network path tracing
+- Examples of issues to detect:
+  - 1 Gbps uplink on a switch with 2.5/10 Gbps devices behind it
+  - Mismatched duplex settings
+  - Ports negotiated below their capability (e.g., 100 Mbps on a Gbps port)
+  - Bottleneck chains where downstream capacity exceeds upstream link
+- Display as performance findings with recommendations
+
+### AP Pinning Report
+- Report all devices that are pinned to specific APs
+- For each pinned device, show:
+  - Device name/type
+  - Pinned AP name
+  - How long it's been pinned
+- Flag devices that probably shouldn't be pinned:
+  - **Obvious cases:** Phones, tablets, wearables, laptops (mobile devices that roam)
+  - **Borderline:** IoT devices (user prerogative, but often unnecessary)
+  - **Acceptable:** Fixed cameras, sensors, stationary equipment
+- Default stance: Pinning is the user's prerogative, but it's often not recommended because:
+  - Device stays offline if its pinned AP goes down (no failover)
+  - Prevents roaming to better AP when signal degrades
+  - Can cause connectivity issues during AP firmware updates
+- Severity: Informational for acceptable pins, Recommended for mobile device pins
+
+### AP / RF Performance Analysis (Design Session Needed)
+- **Goal:** Provide RF performance insights beyond what UniFi Network offers natively
+- **Prerequisite:** Reuse all device classification logic from Security Audit
+- **Potential features to explore:**
+  - Channel utilization analysis per AP
+  - Client distribution balance across APs
+  - Signal strength / SNR reporting per client
+  - Interference detection (co-channel, adjacent channel)
+  - Band steering effectiveness (are 5 GHz capable devices on 2.4 GHz?)
+  - Roaming analysis (frequent roamers, sticky clients)
+  - Airtime fairness issues (slow clients impacting fast clients)
+  - AP placement recommendations based on client distribution
+- **Data sources to investigate:**
+  - UniFi API: What RF metrics are available?
+  - SNMP: Additional metrics not exposed via API?
+  - Client connection history: Roaming patterns
+- **Design questions:**
+  - What problems do users actually face that UniFi doesn't surface well?
+  - What's actionable vs just informational?
+  - How do we present RF data to non-experts?
 
 ## SQM (Smart Queue Management)
 

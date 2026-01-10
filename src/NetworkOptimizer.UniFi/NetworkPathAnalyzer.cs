@@ -201,9 +201,15 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 d.Mac.Equals(serverClient.ConnectedToDeviceMac, StringComparison.OrdinalIgnoreCase));
         }
 
-        // Get network info
+        // Get network info (use effective network ID which considers virtual network override)
         var network = topology.Networks.FirstOrDefault(n =>
-            n.Id == serverClient.NetworkId || n.Name == serverClient.Network);
+            n.Id == serverClient.EffectiveNetworkId || n.Name == serverClient.Network);
+
+        // If network not found by ID but we have a VLAN number, try matching by VLAN
+        if (network == null && serverClient.Vlan.HasValue)
+        {
+            network = topology.Networks.FirstOrDefault(n => n.VlanId == serverClient.Vlan.Value);
+        }
 
         var position = new ServerPosition
         {
@@ -215,8 +221,8 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
             SwitchName = connectedSwitch?.Name,
             SwitchModel = connectedSwitch?.ModelDisplay ?? connectedSwitch?.Model,
             SwitchPort = serverClient.SwitchPort,
-            NetworkId = serverClient.NetworkId,
-            NetworkName = serverClient.Network,
+            NetworkId = serverClient.EffectiveNetworkId,
+            NetworkName = network?.Name ?? serverClient.Network,
             VlanId = network?.VlanId,
             IsWired = serverClient.IsWired,
             DiscoveredAt = DateTime.UtcNow
@@ -313,10 +319,16 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
             else if (targetClient != null)
             {
                 path.DestinationMac = targetClient.Mac;
+                // Use effective network ID which considers virtual network override
                 var clientNetwork = topology.Networks.FirstOrDefault(n =>
-                    n.Id == targetClient.NetworkId || n.Name == targetClient.Network);
-                path.DestinationVlanId = clientNetwork?.VlanId;
-                path.DestinationNetworkName = targetClient.Network;
+                    n.Id == targetClient.EffectiveNetworkId || n.Name == targetClient.Network);
+                // If not found by ID, try matching by VLAN number
+                if (clientNetwork == null && targetClient.Vlan.HasValue)
+                {
+                    clientNetwork = topology.Networks.FirstOrDefault(n => n.VlanId == targetClient.Vlan.Value);
+                }
+                path.DestinationVlanId = clientNetwork?.VlanId ?? targetClient.Vlan;
+                path.DestinationNetworkName = clientNetwork?.Name ?? targetClient.Network;
             }
 
             // Detect inter-VLAN routing
