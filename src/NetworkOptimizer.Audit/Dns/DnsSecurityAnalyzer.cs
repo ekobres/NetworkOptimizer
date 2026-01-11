@@ -1272,13 +1272,22 @@ public class DnsSecurityAnalyzer
                 "DNS consistency issue: {ProviderName} ({DnsIps}) configured on {ConfiguredCount} networks but missing on {MissingCount} DHCP-enabled networks: {MissingNetworks}",
                 providerName, dnsServerIps, configuredNetworkNames.Count, missingNetworkNames.Count, string.Join(", ", missingNetworkNames));
 
+            // Adjust message based on whether DoH is configured
+            var message = result.DohConfigured
+                ? $"{providerName} is configured on {configuredNetworkNames.Count} network(s) but {missingNetworkNames.Count} DHCP-enabled network(s) are using CyberSecure DoH instead: {string.Join(", ", missingNetworkNames)}."
+                : $"{providerName} is configured on {configuredNetworkNames.Count} network(s) but {missingNetworkNames.Count} DHCP-enabled network(s) are not using it: {string.Join(", ", missingNetworkNames)}. Devices on these networks can bypass DNS filtering.";
+
+            var recommendation = result.DohConfigured
+                ? $"Configure all DHCP-enabled networks to use {providerName} ({dnsServerIps}) for consistent filtering, or keep CyberSecure DoH for those networks"
+                : $"Configure all DHCP-enabled networks to use {providerName} ({dnsServerIps}) for consistent DNS filtering, or verify this is intentional";
+
             result.Issues.Add(new AuditIssue
             {
                 Type = IssueTypes.DnsInconsistentConfig,
                 Severity = AuditSeverity.Recommended,
                 DeviceName = result.GatewayName,
-                Message = $"{providerName} is configured on {configuredNetworkNames.Count} network(s) but {missingNetworkNames.Count} DHCP-enabled network(s) are not using it: {string.Join(", ", missingNetworkNames)}. Devices on these networks can bypass DNS filtering.",
-                RecommendedAction = $"Configure all DHCP-enabled networks to use {providerName} ({dnsServerIps}) for consistent DNS filtering, or verify this is intentional",
+                Message = message,
+                RecommendedAction = recommendation,
                 RuleId = "DNS-CONSISTENCY-001",
                 ScoreImpact = 5,
                 Metadata = new Dictionary<string, object>
@@ -1286,7 +1295,8 @@ public class DnsSecurityAnalyzer
                     { "third_party_dns_ips", thirdPartyDnsIps.ToList() },
                     { "configured_networks", configuredNetworkNames },
                     { "missing_networks", missingNetworkNames },
-                    { "provider_name", providerName }
+                    { "provider_name", providerName },
+                    { "doh_configured", result.DohConfigured }
                 }
             });
         }
