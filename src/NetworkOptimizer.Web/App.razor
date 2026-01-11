@@ -204,7 +204,12 @@
         // Back/forward navigation: restore previous scroll position
         const scrollPositions = new Map();
         let isPopState = false;
-        let currentPath = window.location.pathname;
+        let lastClickedPath = null;
+
+        // Disable browser's automatic scroll restoration - we'll handle it
+        if ('scrollRestoration' in history) {
+            history.scrollRestoration = 'manual';
+        }
 
         // Track back/forward navigation
         window.addEventListener('popstate', function() {
@@ -214,29 +219,25 @@
         // Re-initialize after Blazor navigation
         if (typeof Blazor !== 'undefined') {
             Blazor.addEventListener('enhancedload', function() {
-                // Remove orphaned Tippy popper elements (tooltip icons are gone after nav)
-                document.querySelectorAll('[data-tippy-root=""]').forEach(function(el) {
-                    el.remove();
-                });
-
-                // Handle scroll position
                 const newPath = window.location.pathname;
-                if (isPopState) {
-                    // Back/forward navigation: restore saved position
-                    const savedPosition = scrollPositions.get(newPath);
-                    if (savedPosition !== undefined) {
-                        setTimeout(function() {
+
+                // Handle scroll position after DOM is ready
+                requestAnimationFrame(function() {
+                    if (isPopState) {
+                        // Back/forward navigation: restore saved position
+                        const savedPosition = scrollPositions.get(newPath);
+                        if (savedPosition !== undefined) {
                             window.scrollTo(0, savedPosition);
-                        }, 50);
+                        }
+                        isPopState = false;
+                    } else if (lastClickedPath && lastClickedPath !== newPath) {
+                        // Forward navigation to different page: scroll to top (unless hash)
+                        if (!window.location.hash) {
+                            window.scrollTo(0, 0);
+                        }
                     }
-                    isPopState = false;
-                } else if (newPath !== currentPath) {
-                    // Forward navigation to different page: scroll to top (unless hash)
-                    if (!window.location.hash) {
-                        window.scrollTo(0, 0);
-                    }
-                }
-                currentPath = newPath;
+                    lastClickedPath = null;
+                });
 
                 setTimeout(initTooltips, 100);
             });
@@ -248,6 +249,7 @@
             if (link) {
                 // Save current scroll position for back navigation
                 scrollPositions.set(window.location.pathname, window.scrollY);
+                lastClickedPath = window.location.pathname;
 
                 // Clean up tippy elements
                 document.querySelectorAll('[data-tippy-root=""]').forEach(function(el) {
