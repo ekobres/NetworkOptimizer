@@ -227,7 +227,7 @@
                     }
                     else
                     {
-                        <div class="alert alert-@gatewayMessageClass @(gatewayMessageClass == "danger" ? "alert-with-tooltip" : "")" style="margin-top: 1rem;">
+                        <div class="alert alert-@gatewayMessageClass alert-with-tooltip" style="margin-top: 1rem;">
                             @if (gatewayMessageClass == "danger")
                             {
                                 <span class="alert-message">@gatewayMessage</span>
@@ -365,7 +365,7 @@
                 }
                 else
                 {
-                    <div class="alert alert-@unifiMessageClass @(unifiMessageClass == "danger" ? "alert-with-tooltip" : "")" style="margin-top: 1rem;">
+                    <div class="alert alert-@unifiMessageClass alert-with-tooltip" style="margin-top: 1rem;">
                         @if (unifiMessageClass == "danger")
                         {
                             <span class="alert-message">@unifiMessage</span>
@@ -566,7 +566,7 @@
                 }
                 else
                 {
-                    <div class="alert alert-@savedDeviceMessageClass @(savedDeviceMessageClass == "danger" ? "alert-with-tooltip" : "")" style="margin-top: 1rem;">
+                    <div class="alert alert-@savedDeviceMessageClass alert-with-tooltip" style="margin-top: 1rem;">
                         @if (savedDeviceMessageClass == "danger")
                         {
                             <span class="alert-message">@savedDeviceMessage</span>

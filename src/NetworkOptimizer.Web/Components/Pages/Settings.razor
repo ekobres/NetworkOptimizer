@@ -302,7 +302,7 @@
 
             @if (!string.IsNullOrEmpty(gatewayMessage))
             {
-                <div class="alert alert-@gatewayMessageClass @(gatewayMessageClass == "danger" ? "alert-with-tooltip" : "")">
+                <div class="alert alert-@gatewayMessageClass alert-with-tooltip">
                     <span class="alert-message">@gatewayMessage</span>
                     @if (gatewayMessageClass == "danger")
                     {
@@ -452,7 +452,7 @@
 
             @if (!string.IsNullOrEmpty(sshMessage))
             {
-                <div class="alert alert-@sshMessageClass @(sshMessageClass == "danger" ? "alert-with-tooltip" : "")">
+                <div class="alert alert-@sshMessageClass alert-with-tooltip">
                     <span class="alert-message">@sshMessage</span>
                     @if (sshMessageClass == "danger")
                     {
