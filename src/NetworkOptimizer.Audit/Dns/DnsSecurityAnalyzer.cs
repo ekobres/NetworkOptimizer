@@ -529,7 +529,7 @@ public class DnsSecurityAnalyzer
                 var severity = isKnownProvider ? AuditSeverity.Informational : AuditSeverity.Recommended;
                 var recommendedAction = isKnownProvider
                     ? "Verify third-party DNS provides adequate security and filtering. Consider enabling DNS firewall rules to prevent bypass."
-                    : "Consider using a known DNS filtering solution like Pi-hole or AdGuard Home, or configure DoH with a trusted provider.";
+                    : "If using Pi-hole, configure the management port in Settings to enable detection. Otherwise, consider a known DNS filtering solution or DoH.";
 
                 result.Issues.Add(new AuditIssue
                 {
