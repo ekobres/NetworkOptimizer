@@ -1603,9 +1603,9 @@
             var allDevices = await ConnectionService.GetDiscoveredDevicesAsync();
 
             // Filter out gateway devices (have dedicated Gateway Speed Test section)
-            // and MIPS devices (can't run iperf3)
+            // and devices that can't run iperf3
             discoveredDevices = allDevices
-                .Where(d => d.Type != DeviceType.Gateway && !d.IsMipsArchitecture)
+                .Where(d => d.Type != DeviceType.Gateway && d.CanRunIperf3)
                 .OrderBy(d => d.Name)
                 .ToList();
         }
