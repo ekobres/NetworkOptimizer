@@ -1010,6 +1010,7 @@ public class AuditService
             Audit.IssueTypes.DnsWanNoStatic => "DNS: WAN Not Configured",
             Audit.IssueTypes.DnsDeviceMisconfigured => "DNS: Device Misconfigured",
             Audit.IssueTypes.DnsThirdPartyDetected => "DNS: Third-Party Detected",
+            Audit.IssueTypes.DnsInconsistentConfig => "DNS: Inconsistent Configuration",
             Audit.IssueTypes.DnsUnknownConfig => "DNS: Unknown Configuration",
 
             _ => message.Split('.').FirstOrDefault() ?? type

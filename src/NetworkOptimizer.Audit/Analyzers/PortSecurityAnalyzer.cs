@@ -363,6 +363,10 @@ public class PortSecurityAnalyzer
     /// Determine if a device is acting as a gateway using uplink-based detection.
     /// UDM-family devices (udm, uxg, etc.) that uplink to another UniFi device are mesh APs, not gateways.
     /// </summary>
+    /// <remarks>
+    /// TODO: Commonize this logic with UniFiDiscovery.DetermineDeviceType to avoid duplication.
+    /// The audit engine receives raw JSON instead of pre-classified UniFiDevice objects.
+    /// </remarks>
     private bool DetermineIsGateway(JsonElement device, string? deviceType, HashSet<string>? allDeviceMacs)
     {
         var baseType = FromUniFiApiType(deviceType);
