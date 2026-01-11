@@ -225,17 +225,12 @@
             return '{' + entries.join(', ') + '}';
         }
 
-        // Track back/forward navigation and save current scroll position
+        // Track back/forward navigation
+        // NOTE: We do NOT save scroll position here - by the time popstate fires,
+        // Blazor has already started transitioning the DOM and scrollTop is unreliable
         window.addEventListener('popstate', function() {
-            const scrollContainer = getScrollContainer();
-            const scrollTop = scrollContainer ? scrollContainer.scrollTop : 'N/A';
-            console.log('[scroll] POPSTATE fired, lastPath:', lastPath, 'scrollTop:', scrollTop, 'location:', window.location.pathname);
-
-            // Save current page's scroll position before navigating away
-            if (scrollContainer && lastPath) {
-                scrollPositions.set(lastPath, scrollContainer.scrollTop);
-                console.log('[scroll] POPSTATE saved:', lastPath, '=', scrollContainer.scrollTop, 'all:', logScrollPositions());
-            }
+            console.log('[scroll] POPSTATE fired, lastPath:', lastPath, 'location:', window.location.pathname);
+            console.log('[scroll] POPSTATE positions (not saving):', logScrollPositions());
             isPopState = true;
         });
 
