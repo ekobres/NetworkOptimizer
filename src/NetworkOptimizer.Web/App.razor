@@ -120,7 +120,7 @@
                     placement: 'top',
                     theme: 'custom',
                     appendTo: document.body,
-                    maxWidth: isWide ? 380 : 300,
+                    maxWidth: isWide ? 380 : 320,
                     onShow(instance) {
                         // Close other open tooltips
                         document.querySelectorAll('.tooltip-icon').forEach(function(other) {
@@ -199,6 +199,18 @@
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', initTooltips);
 
+        // Scroll position restoration for SPA navigation
+        // Forward navigation: scroll to top (unless hash link)
+        // Back/forward navigation: restore previous scroll position
+        const scrollPositions = new Map();
+        let isPopState = false;
+        let currentPath = window.location.pathname;
+
+        // Track back/forward navigation
+        window.addEventListener('popstate', function() {
+            isPopState = true;
+        });
+
         // Re-initialize after Blazor navigation
         if (typeof Blazor !== 'undefined') {
             Blazor.addEventListener('enhancedload', function() {
@@ -206,14 +218,38 @@
                 document.querySelectorAll('[data-tippy-root=""]').forEach(function(el) {
                     el.remove();
                 });
+
+                // Handle scroll position
+                const newPath = window.location.pathname;
+                if (isPopState) {
+                    // Back/forward navigation: restore saved position
+                    const savedPosition = scrollPositions.get(newPath);
+                    if (savedPosition !== undefined) {
+                        setTimeout(function() {
+                            window.scrollTo(0, savedPosition);
+                        }, 50);
+                    }
+                    isPopState = false;
+                } else if (newPath !== currentPath) {
+                    // Forward navigation to different page: scroll to top (unless hash)
+                    if (!window.location.hash) {
+                        window.scrollTo(0, 0);
+                    }
+                }
+                currentPath = newPath;
+
                 setTimeout(initTooltips, 100);
             });
         }
 
-        // Clean up tippy elements when clicking any internal link
+        // Save scroll position before navigation and clean up tippy elements
         document.addEventListener('click', function(e) {
             var link = e.target.closest('a[href^="/"]');
             if (link) {
+                // Save current scroll position for back navigation
+                scrollPositions.set(window.location.pathname, window.scrollY);
+
+                // Clean up tippy elements
                 document.querySelectorAll('[data-tippy-root=""]').forEach(function(el) {
                     el.remove();
                 });
