@@ -1671,9 +1671,10 @@
         try
         {
             // Get devices from the controller and find an online AP
+            // Use DeviceType which accounts for UDM-family devices acting as mesh APs
             var devices = await ConnectionService.Client.GetDevicesAsync();
             var onlineAp = devices
-                .Where(d => d.Type == "uap" && d.State == 1 && !string.IsNullOrEmpty(d.Ip))
+                .Where(d => d.DeviceType == NetworkOptimizer.Core.Enums.DeviceType.AccessPoint && d.State == 1 && !string.IsNullOrEmpty(d.Ip))
                 .FirstOrDefault();
 
             if (onlineAp == null)
