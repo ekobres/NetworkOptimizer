@@ -40,6 +40,13 @@
   - Explicit classification removes ambiguity
   - Auto-detection still works as default for users who don't configure
 
+### Third-Party DNS Firewall Rule Check
+- When third-party DNS (Pi-hole, AdGuard, etc.) is detected on a network, check for a firewall rule blocking UDP 53 to the gateway
+- Without this rule, clients could bypass third-party DNS by using the gateway directly
+- Implementation: Look for firewall rules that DROP/REJECT UDP 53 from the affected VLANs to the gateway IP
+- Severity: Recommended (not Critical, since some users intentionally allow fallback)
+- **Status:** Awaiting user feedback on current third-party DNS feature before implementing
+
 ### Printer/Scanner Audit Logic Consolidation
 - **Issue:** Printer/Scanner VLAN placement logic is duplicated across multiple files
 - **Current state:**

@@ -133,6 +133,7 @@ public class AuditService
             var nameBrandTVs = await _settingsService.GetAsync("audit:allowNameBrandTVsOnMainNetwork");
             var allTVs = await _settingsService.GetAsync("audit:allowAllTVsOnMainNetwork");
             var printers = await _settingsService.GetAsync("audit:allowPrintersOnMainNetwork");
+            var piholePort = await _settingsService.GetAsync("audit:piholeManagementPort");
 
             options.AllowAppleStreamingOnMainNetwork = appleStreaming?.ToLower() == "true";
             options.AllowAllStreamingOnMainNetwork = allStreaming?.ToLower() == "true";
@@ -140,6 +141,8 @@ public class AuditService
             options.AllowAllTVsOnMainNetwork = allTVs?.ToLower() == "true";
             // Printers default to true (allowed) if not set
             options.AllowPrintersOnMainNetwork = printers == null || printers.ToLower() == "true";
+            // Pi-hole port (null means auto-detect)
+            options.PiholeManagementPort = int.TryParse(piholePort, out var port) && port > 0 ? port : null;
 
             _logger.LogDebug("Loaded audit settings: AllowApple={Apple}, AllowAllStreaming={AllStreaming}, AllowNameBrandTVs={NameBrandTVs}, AllowAllTVs={AllTVs}, AllowPrinters={Printers}",
                 options.AllowAppleStreamingOnMainNetwork, options.AllowAllStreamingOnMainNetwork,
@@ -620,7 +623,8 @@ public class AuditService
                 AllowanceSettings = allowanceSettings,
                 ProtectCameras = protectCameras,
                 PortProfiles = portProfiles,
-                ClientName = "Network Audit"
+                ClientName = "Network Audit",
+                PiholeManagementPort = options.PiholeManagementPort
             });
 
             // Convert audit result to web models
@@ -752,6 +756,7 @@ public class AuditService
                 ModelName = s.ModelName ?? s.Model,
                 DeviceType = s.Type,
                 IsGateway = s.IsGateway,
+                IsAccessPoint = s.IsAccessPoint,
                 MaxCustomMacAcls = s.Capabilities.MaxCustomMacAcls,
                 Ports = s.Ports
                     .OrderBy(p => p.PortIndex)
@@ -1006,6 +1011,7 @@ public class AuditService
             Audit.IssueTypes.DnsWanNoStatic => "DNS: WAN Not Configured",
             Audit.IssueTypes.DnsDeviceMisconfigured => "DNS: Device Misconfigured",
             Audit.IssueTypes.DnsThirdPartyDetected => "DNS: Third-Party Detected",
+            Audit.IssueTypes.DnsInconsistentConfig => "DNS: Inconsistent Configuration",
             Audit.IssueTypes.DnsUnknownConfig => "DNS: Unknown Configuration",
 
             _ => message.Split('.').FirstOrDefault() ?? type
@@ -1100,6 +1106,7 @@ public class AuditOptions
     public bool AllowNameBrandTVsOnMainNetwork { get; set; } = false;
     public bool AllowAllTVsOnMainNetwork { get; set; } = false;
     public bool AllowPrintersOnMainNetwork { get; set; } = true;
+    public int? PiholeManagementPort { get; set; }
 }
 
 public class AuditResult
@@ -1222,6 +1229,7 @@ public class SwitchReference
     public string? ModelName { get; set; }
     public string? DeviceType { get; set; }
     public bool IsGateway { get; set; }
+    public bool IsAccessPoint { get; set; }
     public int MaxCustomMacAcls { get; set; }
     public List<PortReference> Ports { get; set; } = new();
 }
