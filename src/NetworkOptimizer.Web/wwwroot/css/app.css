@@ -3865,7 +3865,7 @@ select.form-control {
 
 /* Links inside Tippy tooltips */
 .tippy-box[data-theme~='custom'] a {
-    color: var(--primary-color);
+    color: var(--primary-hover);
     text-decoration: underline;
     text-underline-offset: 2px;
 }
