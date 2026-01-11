@@ -306,7 +306,7 @@
                     <span class="alert-text">@gatewayMessage</span>
                     @if (gatewayMessageClass == "danger")
                     {
-                        <SshTroubleshootingTooltip Context="gateway" />
+                        <SshTroubleshootingTooltip Context="gateway" HideSettingsLink="true" />
                     }
                 </div>
             }
@@ -456,7 +456,7 @@
                     <span class="alert-text">@sshMessage</span>
                     @if (sshMessageClass == "danger")
                     {
-                        <SshTroubleshootingTooltip Context="devices" />
+                        <SshTroubleshootingTooltip Context="devices" HideSettingsLink="true" />
                     }
                 </div>
             }
