@@ -21,7 +21,6 @@
             const container = getScrollContainer();
             if (container) {
                 scrollPositions.set(path, container.scrollTop);
-                console.log('[scroll] Saved:', path, '=', container.scrollTop);
             }
         },
 
@@ -33,21 +32,12 @@
             if (isPopState) {
                 // Back/forward: restore saved position
                 const saved = scrollPositions.get(path);
-                console.log('[scroll] Restoring (popstate):', path, '=', saved);
                 container.scrollTop = saved !== undefined ? saved : 0;
                 isPopState = false;
             } else if (!window.location.hash) {
                 // Forward navigation: scroll to top
-                console.log('[scroll] Scrolling to top');
                 container.scrollTop = 0;
             }
-        },
-
-        // For debugging
-        getPositions: function() {
-            const obj = {};
-            scrollPositions.forEach((v, k) => obj[k] = v);
-            return obj;
         }
     };
 })();
