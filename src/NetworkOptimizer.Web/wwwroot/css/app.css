@@ -3897,6 +3897,9 @@ select.form-control {
 }
 
 .alert-with-tooltip .tooltip-icon {
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
     margin-left: 0;
 }
 
