@@ -226,13 +226,32 @@
         }
 
         // Track back/forward navigation
-        // NOTE: We do NOT save scroll position here - by the time popstate fires,
-        // Blazor has already started transitioning the DOM and scrollTop is unreliable
         window.addEventListener('popstate', function() {
             console.log('[scroll] POPSTATE fired, lastPath:', lastPath, 'location:', window.location.pathname);
-            console.log('[scroll] POPSTATE positions (not saving):', logScrollPositions());
+            console.log('[scroll] POPSTATE positions:', logScrollPositions());
             isPopState = true;
         });
+
+        // Continuously save scroll position on scroll (debounced)
+        // This ensures we always have a recent value before navigation
+        let scrollSaveTimeout = null;
+        function setupScrollListener() {
+            const scrollContainer = getScrollContainer();
+            if (!scrollContainer || scrollContainer._scrollListenerAttached) return;
+
+            scrollContainer.addEventListener('scroll', function() {
+                if (scrollSaveTimeout) clearTimeout(scrollSaveTimeout);
+                scrollSaveTimeout = setTimeout(function() {
+                    const path = window.location.pathname;
+                    const scrollTop = scrollContainer.scrollTop;
+                    scrollPositions.set(path, scrollTop);
+                    console.log('[scroll] SCROLL saved:', path, '=', scrollTop);
+                }, 100);
+            });
+            scrollContainer._scrollListenerAttached = true;
+            console.log('[scroll] Scroll listener attached');
+        }
+        setupScrollListener();
 
         // Poll for URL changes (Blazor Server uses SignalR, not browser navigation)
         setInterval(function() {
@@ -262,7 +281,11 @@
                     console.log('[scroll] POLL scrolling to top (link click)');
                     scrollContainer.scrollTop = 0;
                 }
-                setTimeout(initTooltips, 100);
+                // Re-attach scroll listener in case container was recreated
+                setTimeout(function() {
+                    setupScrollListener();
+                    initTooltips();
+                }, 100);
             }
         }, 50);
 
