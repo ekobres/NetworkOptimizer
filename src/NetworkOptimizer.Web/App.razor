@@ -97,8 +97,11 @@
                 const contentEl = icon.nextElementSibling;
                 let content;
 
+                // Check for wide tooltip class
+                let isWide = false;
                 if (contentEl && contentEl.classList.contains('tooltip-content')) {
                     content = contentEl.innerHTML;
+                    isWide = contentEl.classList.contains('tooltip-wide');
                     contentEl.style.display = 'none'; // Hide the original content element
                 } else if (icon.dataset.tooltip) {
                     content = icon.dataset.tooltip;
@@ -117,7 +120,7 @@
                     placement: 'top',
                     theme: 'custom',
                     appendTo: document.body,
-                    maxWidth: 300,
+                    maxWidth: isWide ? 380 : 300,
                     onShow(instance) {
                         // Close other open tooltips
                         document.querySelectorAll('.tooltip-icon').forEach(function(other) {
