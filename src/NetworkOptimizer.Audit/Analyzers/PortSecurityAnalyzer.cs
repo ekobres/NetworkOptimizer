@@ -390,6 +390,9 @@ public class PortSecurityAnalyzer
         // Resolve port profile settings if a profile is assigned
         var portconfId = port.GetStringOrNull("portconf_id");
         string? profileName = null;
+        bool portSecurityEnabled = port.GetBoolOrDefault("port_security_enabled");
+        List<string>? allowedMacAddresses = port.GetStringArrayOrNull("port_security_mac_address")?.ToList();
+
         if (!string.IsNullOrEmpty(portconfId) && portProfiles != null && portProfiles.TryGetValue(portconfId, out var profile))
         {
             // Profile found - use profile's forward mode if set
@@ -399,6 +402,23 @@ public class PortSecurityAnalyzer
                     switchInfo.Name, portIdx, profile.Name, forwardMode, profile.Forward);
                 forwardMode = profile.Forward;
             }
+
+            // Use profile's port security settings
+            if (profile.PortSecurityEnabled)
+            {
+                _logger.LogDebug("Port {Switch} port {Port}: resolving port_security_enabled from profile '{ProfileName}': {PortValue} -> {ProfileValue}",
+                    switchInfo.Name, portIdx, profile.Name, portSecurityEnabled, profile.PortSecurityEnabled);
+                portSecurityEnabled = profile.PortSecurityEnabled;
+            }
+
+            // Use profile's MAC address restrictions if set
+            if (profile.PortSecurityMacAddresses?.Count > 0)
+            {
+                _logger.LogDebug("Port {Switch} port {Port}: resolving MAC restrictions from profile '{ProfileName}': {Count} MAC(s)",
+                    switchInfo.Name, portIdx, profile.Name, profile.PortSecurityMacAddresses.Count);
+                allowedMacAddresses = profile.PortSecurityMacAddresses;
+            }
+
             profileName = profile.Name;
         }
         else if (!string.IsNullOrEmpty(portconfId))
@@ -461,8 +481,8 @@ public class PortSecurityAnalyzer
             IsWan = isWan,
             NativeNetworkId = port.GetStringOrNull("native_networkconf_id"),
             ExcludedNetworkIds = port.GetStringArrayOrNull("excluded_networkconf_ids"),
-            PortSecurityEnabled = port.GetBoolOrDefault("port_security_enabled"),
-            AllowedMacAddresses = port.GetStringArrayOrNull("port_security_mac_address"),
+            PortSecurityEnabled = portSecurityEnabled,
+            AllowedMacAddresses = allowedMacAddresses,
             IsolationEnabled = port.GetBoolOrDefault("isolation"),
             PoeEnabled = poeEnable || portPoe,
             PoePower = port.GetDoubleOrDefault("poe_power"),
