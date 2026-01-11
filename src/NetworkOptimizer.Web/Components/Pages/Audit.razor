@@ -242,9 +242,17 @@
                                                         </svg>
                                                     </a>
                                                     <span class="tooltip-content">
-                                                        <strong>Configurable Alert</strong><br/>
-                                                        You can adjust how this device type is treated when found on your main network(s).
-                                                        <a href="/settings#security-audit">Configure in Settings →</a>
+                                                        @if (issue.ConfigurableSetting?.StartsWith("Configure") == true || issue.ConfigurableSetting?.Contains("Settings") == true)
+                                                        {
+                                                            <strong>Settings Hint</strong><br/>
+                                                            @issue.ConfigurableSetting
+                                                        }
+                                                        else
+                                                        {
+                                                            <strong>Configurable Alert</strong><br/>
+                                                            <text>You can adjust how this device type is treated when found on your main network(s).</text>
+                                                        }
+                                                        <br/><a href="/settings#security-audit">Configure in Settings →</a>
                                                     </span>
                                                 </span>
                                             }
@@ -316,9 +324,17 @@
                                                             </svg>
                                                         </a>
                                                         <span class="tooltip-content">
-                                                            <strong>Configurable Alert</strong><br/>
-                                                            You can adjust how this device type is treated when found on your main network(s).
-                                                            <a href="/settings#security-audit">Configure in Settings →</a>
+                                                            @if (firstIssue.ConfigurableSetting?.StartsWith("Configure") == true || firstIssue.ConfigurableSetting?.Contains("Settings") == true)
+                                                            {
+                                                                <strong>Settings Hint</strong><br/>
+                                                                @firstIssue.ConfigurableSetting
+                                                            }
+                                                            else
+                                                            {
+                                                                <strong>Configurable Alert</strong><br/>
+                                                                <text>You can adjust how this device type is treated when found on your main network(s).</text>
+                                                            }
+                                                            <br/><a href="/settings#security-audit">Configure in Settings →</a>
                                                         </span>
                                                     </span>
                                                 }
