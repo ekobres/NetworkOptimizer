@@ -566,9 +566,9 @@ public class DnsSecurityAnalyzer
                     Severity = AuditSeverity.Informational,
                     DeviceName = result.GatewayName,
                     Message = "Unable to determine DNS security solution. No DoH configured and no third-party LAN DNS detected.",
-                    RecommendedAction = "Configure DoH in Network Settings or deploy a DNS security solution like Pi-hole",
+                    RecommendedAction = "Enable CyberSecure Encrypted DNS (DoH) in Network Settings or deploy a DNS filtering solution like Pi-hole or AdGuard Home",
                     RuleId = "DNS-UNKNOWN-001",
-                    ScoreImpact = 2
+                    ScoreImpact = 0  // No score impact - shown alongside DNS_NO_DOH which carries the penalty
                 });
 
                 // Also add the standard DoH recommendation
