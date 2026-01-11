@@ -236,6 +236,7 @@
                 if (!scrollContainer) return;
 
                 lastPath = newPath;
+
                 if (isPopState) {
                     // Back/forward navigation: restore saved position or scroll to top
                     const savedPosition = scrollPositions.get(newPath);
