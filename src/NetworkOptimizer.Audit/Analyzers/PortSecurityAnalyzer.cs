@@ -392,6 +392,7 @@ public class PortSecurityAnalyzer
         string? profileName = null;
         bool portSecurityEnabled = port.GetBoolOrDefault("port_security_enabled");
         List<string>? allowedMacAddresses = port.GetStringArrayOrNull("port_security_mac_address")?.ToList();
+        string? nativeNetworkId = port.GetStringOrNull("native_networkconf_id");
 
         if (!string.IsNullOrEmpty(portconfId) && portProfiles != null && portProfiles.TryGetValue(portconfId, out var profile))
         {
@@ -401,6 +402,14 @@ public class PortSecurityAnalyzer
                 _logger.LogDebug("Port {Switch} port {Port}: resolving forward mode from profile '{ProfileName}': {PortForward} -> {ProfileForward}",
                     switchInfo.Name, portIdx, profile.Name, forwardMode, profile.Forward);
                 forwardMode = profile.Forward;
+            }
+
+            // Use profile's native network ID if port doesn't have one
+            if (string.IsNullOrEmpty(nativeNetworkId) && !string.IsNullOrEmpty(profile.NativeNetworkId))
+            {
+                _logger.LogDebug("Port {Switch} port {Port}: resolving native_networkconf_id from profile '{ProfileName}': {ProfileNetworkId}",
+                    switchInfo.Name, portIdx, profile.Name, profile.NativeNetworkId);
+                nativeNetworkId = profile.NativeNetworkId;
             }
 
             // Use profile's port security settings
@@ -479,7 +488,7 @@ public class PortSecurityAnalyzer
             ForwardMode = forwardMode,
             IsUplink = port.GetBoolOrDefault("is_uplink"),
             IsWan = isWan,
-            NativeNetworkId = port.GetStringOrNull("native_networkconf_id"),
+            NativeNetworkId = nativeNetworkId,
             ExcludedNetworkIds = port.GetStringArrayOrNull("excluded_networkconf_ids"),
             PortSecurityEnabled = portSecurityEnabled,
             AllowedMacAddresses = allowedMacAddresses,
