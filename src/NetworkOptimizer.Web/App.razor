@@ -203,7 +203,7 @@
         if (typeof Blazor !== 'undefined') {
             Blazor.addEventListener('enhancedload', function() {
                 // Remove orphaned Tippy popper elements (tooltip icons are gone after nav)
-                document.querySelectorAll('[data-tippy-root]').forEach(function(el) {
+                document.querySelectorAll('[data-tippy-root=""]').forEach(function(el) {
                     el.remove();
                 });
                 setTimeout(initTooltips, 100);
