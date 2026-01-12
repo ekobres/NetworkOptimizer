@@ -985,7 +985,9 @@ public class AuditService
             Audit.IssueTypes.MgmtNetworkHasInternet => "Management Network Has Internet",
             Audit.IssueTypes.IotVlan or Audit.IssueTypes.WifiIotVlan or "OFFLINE-IOT-VLAN" or "OFFLINE-PRINTER-VLAN" =>
                 message.StartsWith("Printer") || message.StartsWith("Scanner")
-                    ? (isInformational ? "Printer Possibly on Wrong VLAN" : "Printer on Wrong VLAN")
+                    ? (message.Contains("allowed per Settings")
+                        ? "Printer Allowed on VLAN"
+                        : (isInformational ? "Printer Possibly on Wrong VLAN" : "Printer on Wrong VLAN"))
                     : message.StartsWith("Cloud Camera")
                         ? (isInformational ? "Camera Possibly on Wrong VLAN" : "Camera on Wrong VLAN")
                         : message.Contains("allowed per Settings")
