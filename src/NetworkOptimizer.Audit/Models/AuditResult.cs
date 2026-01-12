@@ -122,9 +122,14 @@ public class DnsSecurityInfo
     public bool DoqBlocked { get; set; }
 
     /// <summary>
-    /// Whether DoH bypass (public DoH providers) is blocked
+    /// Whether DoH bypass (public DoH providers on TCP 443) is blocked
     /// </summary>
     public bool DohBypassBlocked { get; set; }
+
+    /// <summary>
+    /// Whether DoH3 bypass (public DoH providers on UDP 443/HTTP3) is blocked
+    /// </summary>
+    public bool Doh3Blocked { get; set; }
 
     /// <summary>
     /// Configured WAN DNS servers

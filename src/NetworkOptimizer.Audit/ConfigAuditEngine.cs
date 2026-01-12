@@ -795,6 +795,7 @@ public class ConfigAuditEngine
             DotBlocked = dnsSecurityResult.HasDotBlockRule,
             DoqBlocked = dnsSecurityResult.HasDoqBlockRule,
             DohBypassBlocked = dnsSecurityResult.HasDohBlockRule,
+            Doh3Blocked = dnsSecurityResult.HasDoh3BlockRule,
             WanDnsServers = dnsSecurityResult.WanDnsServers.ToList(),
             WanDnsPtrResults = dnsSecurityResult.WanDnsPtrResults.ToList(),
             WanDnsMatchesDoH = dnsSecurityResult.WanDnsMatchesDoH,

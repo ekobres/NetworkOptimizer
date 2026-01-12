@@ -818,6 +818,7 @@ public class AuditService
                 DotBlocked = dns.DotBlocked,
                 DoqBlocked = dns.DoqBlocked,
                 DohBypassBlocked = dns.DohBypassBlocked,
+                Doh3Blocked = dns.Doh3Blocked,
                 FullyProtected = dns.FullyProtected,
                 WanDnsServers = dns.WanDnsServers.ToList(),
                 WanDnsPtrResults = dns.WanDnsPtrResults.ToList(),
@@ -1139,6 +1140,7 @@ public class DnsSecurityReference
     public bool DotBlocked { get; set; }
     public bool DoqBlocked { get; set; }
     public bool DohBypassBlocked { get; set; }
+    public bool Doh3Blocked { get; set; }
     public bool FullyProtected { get; set; }
     public List<string> WanDnsServers { get; set; } = new();
     public List<string?> WanDnsPtrResults { get; set; } = new();
