@@ -793,6 +793,7 @@ public class ConfigAuditEngine
             DohConfigNames = configNames,
             DnsLeakProtection = dnsSecurityResult.HasDns53BlockRule,
             DotBlocked = dnsSecurityResult.HasDotBlockRule,
+            DoqBlocked = dnsSecurityResult.HasDoqBlockRule,
             DohBypassBlocked = dnsSecurityResult.HasDohBlockRule,
             WanDnsServers = dnsSecurityResult.WanDnsServers.ToList(),
             WanDnsPtrResults = dnsSecurityResult.WanDnsPtrResults.ToList(),

@@ -816,6 +816,7 @@ public class AuditService
                 DohConfigNames = dns.DohConfigNames.ToList(),
                 DnsLeakProtection = dns.DnsLeakProtection,
                 DotBlocked = dns.DotBlocked,
+                DoqBlocked = dns.DoqBlocked,
                 DohBypassBlocked = dns.DohBypassBlocked,
                 FullyProtected = dns.FullyProtected,
                 WanDnsServers = dns.WanDnsServers.ToList(),
@@ -1136,6 +1137,7 @@ public class DnsSecurityReference
     public List<string> DohConfigNames { get; set; } = new();
     public bool DnsLeakProtection { get; set; }
     public bool DotBlocked { get; set; }
+    public bool DoqBlocked { get; set; }
     public bool DohBypassBlocked { get; set; }
     public bool FullyProtected { get; set; }
     public List<string> WanDnsServers { get; set; } = new();

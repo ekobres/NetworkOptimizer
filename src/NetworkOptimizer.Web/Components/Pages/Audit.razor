@@ -507,11 +507,18 @@
                                 <td>@(lastResult.DnsSecurity.DnsLeakProtection ? "External DNS queries blocked" : "Devices can bypass network DNS")</td>
                             </tr>
                             <tr>
-                                <td>DNS-over-TLS (Port 853)</td>
+                                <td>DNS-over-TLS (TCP 853)</td>
                                 <td class="@(lastResult.DnsSecurity.DotBlocked ? "status-success" : "status-warning")">
                                     @(lastResult.DnsSecurity.DotBlocked ? "Blocked" : "Open")
                                 </td>
                                 <td>@(lastResult.DnsSecurity.DotBlocked ? "DoT queries blocked" : "Devices can use external DoT")</td>
+                            </tr>
+                            <tr>
+                                <td>DNS-over-QUIC (UDP 853)</td>
+                                <td class="@(lastResult.DnsSecurity.DoqBlocked ? "status-success" : "status-warning")">
+                                    @(lastResult.DnsSecurity.DoqBlocked ? "Blocked" : "Open")
+                                </td>
+                                <td>@(lastResult.DnsSecurity.DoqBlocked ? "DoQ queries blocked" : "Devices can use external DoQ")</td>
                             </tr>
                             <tr>
                                 <td>DoH Bypass Prevention</td>
