@@ -21,7 +21,8 @@ public static class VlanPlacementChecker
         NetworkInfo? RecommendedNetwork,
         string RecommendedNetworkLabel,
         AuditSeverity Severity,
-        int ScoreImpact);
+        int ScoreImpact,
+        bool IsAllowedBySettings = false);
 
     /// <summary>
     /// Check if an IoT device is correctly placed on an IoT or Security VLAN.
@@ -76,6 +77,7 @@ public static class VlanPlacementChecker
         var isLowRisk = category.IsLowRiskIoT();
         var severity = isLowRisk ? AuditSeverity.Recommended : AuditSeverity.Critical;
         var scoreImpact = isLowRisk ? ScoreConstants.LowRiskIoTImpact : defaultScoreImpact;
+        var isAllowedBySettings = false;
 
         // Check if device is explicitly allowed on main network
         if (allowanceSettings != null && isLowRisk)
@@ -91,6 +93,7 @@ public static class VlanPlacementChecker
             {
                 severity = AuditSeverity.Informational;
                 scoreImpact = 0; // User explicitly allows this - no score penalty
+                isAllowedBySettings = true;
             }
         }
 
@@ -100,7 +103,8 @@ public static class VlanPlacementChecker
             RecommendedNetwork: iotNetwork,
             RecommendedNetworkLabel: recommendedLabel,
             Severity: severity,
-            ScoreImpact: scoreImpact);
+            ScoreImpact: scoreImpact,
+            IsAllowedBySettings: isAllowedBySettings);
     }
 
     /// <summary>

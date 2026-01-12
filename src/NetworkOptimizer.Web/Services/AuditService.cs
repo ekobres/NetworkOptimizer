@@ -988,7 +988,9 @@ public class AuditService
                     ? (isInformational ? "Printer Possibly on Wrong VLAN" : "Printer on Wrong VLAN")
                     : message.StartsWith("Cloud Camera")
                         ? (isInformational ? "Camera Possibly on Wrong VLAN" : "Camera on Wrong VLAN")
-                        : (isInformational ? "IoT Device Possibly on Wrong VLAN" : "IoT Device on Wrong VLAN"),
+                        : message.Contains("allowed per Settings")
+                            ? "IoT Device Allowed on VLAN"
+                            : (isInformational ? "IoT Device Possibly on Wrong VLAN" : "IoT Device on Wrong VLAN"),
             Audit.IssueTypes.CameraVlan or Audit.IssueTypes.WifiCameraVlan or "OFFLINE-CAMERA-VLAN" or "OFFLINE-CLOUD-CAMERA-VLAN" =>
                 isInformational ? "Camera Possibly on Wrong VLAN" : "Camera on Wrong VLAN",
             Audit.IssueTypes.InfraNotOnMgmt => "Infrastructure Device on Wrong VLAN",
