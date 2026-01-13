@@ -38,7 +38,7 @@ Network Optimizer handles this automatically. It supports dual-WAN with independ
 
 ### LAN Speed Testing
 
-Ever wonder if that new switch is actually delivering 10 gigabit speeds? Or whether the cable run to the shop is the bottleneck? Network Optimizer runs iperf3 tests between your gateway and network devices, auto-discovers UniFi equipment from your controller, supports custom devices with per-device SSH credentials, auto indexes iperf3 results from tests initiated from other devices against the built in server (if enabled), and correlates results with hop count and infrastructure path. Test history lets you track performance over time.
+Ever wonder if that new switch is actually delivering 10 gigabit speeds? Or whether the cable run to the shop is the bottleneck? Network Optimizer runs iperf3 tests between your gateway and network devices, auto-discovers UniFi equipment from your controller, supports custom devices with per-device SSH credentials, auto indexes iperf3 results from tests initiated from other devices against the built in server (if enabled), and correlates results with hop count and infrastructure path, with detailed Wi-Fi stats and link speeds recorded along with UniFi firmware versions. Test history lets you track performance over time with these relevant data in order to identify and characterize any changes to performance.
 
 ### Client Speed Testing
 
