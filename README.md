@@ -54,11 +54,9 @@ If you're running a U-LTE or U5G-Max for backup (or primary) connectivity, you c
 
 ### UPnP Inspector
 
-See exactly what ports are exposed on your network. The UPnP Inspector shows all dynamic UPnP mappings and static port forwards in one place, grouped by device IP with real-time status indicators.
+Ever wonder what ports your network is actually exposing to the internet? Your Xbox, Plex server, and smart home devices are all punching holes through your firewall via UPnP, and UniFi doesn't make it easy to see what's going on.
 
-Know at a glance which mappings are active (green), idle (gray), expiring soon (yellow pulse), or disabled (red). Summary cards show total mappings, unique devices, and ports exposed. Protocol badges distinguish TCP, UDP, and TCP+UDP rules. Add persistent notes to any mapping to document what each port forward is for.
-
-The inspector also checks whether UPnP is enabled in your gateway settings; if disabled, it shows that status clearly instead of just "0 mappings." Auto-refresh keeps the view current, and search/filter lets you quickly find specific applications or ports.
+The UPnP Inspector puts it all in one place: every dynamic UPnP mapping and static port forward, grouped by device, with color-coded status so you can see at a glance what's active, what's idle, and what's about to expire. Add notes to remember what each mapping is for (because you will forget). Search and filter when you're hunting for that one port that's causing problems.
 
 ### Coming Soon
 
