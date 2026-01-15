@@ -28,9 +28,9 @@ public class VlanAnalyzer
     private static readonly string[] HomePatterns = { "home", "main", "primary", "personal", "family", "trusted", "private", "gaming", "gamer", "games", "xbox", "playstation", "nintendo", "console", "lan party" };
     // Home patterns requiring word boundary matching (to avoid "GameChanger" matching "game")
     private static readonly string[] HomeWordBoundaryPatterns = { "game" };
-    private static readonly string[] CorporatePatterns = { "corporate", "office", "business", "enterprise" };
+    private static readonly string[] CorporatePatterns = { "corporate", "office", "business", "enterprise", "warehouse" };
     // Word boundary patterns for Corporate (to avoid "network" matching "work")
-    private static readonly string[] CorporateWordBoundaryPatterns = { "work", "biz" };
+    private static readonly string[] CorporateWordBoundaryPatterns = { "work", "biz", "branch", "shop", "staff", "employee", "hq", "store" };
     private static readonly string[] PrinterPatterns = { "print" };
 
     public VlanAnalyzer(ILogger<VlanAnalyzer> logger)

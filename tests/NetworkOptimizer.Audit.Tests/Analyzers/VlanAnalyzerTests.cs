@@ -283,6 +283,18 @@ public class VlanAnalyzerTests
     [InlineData("Small Biz")]
     [InlineData("Biz-Network")]    // Hyphen is a word boundary
     [InlineData("Work-From-Home")] // Hyphen is a word boundary
+    [InlineData("Branch Office")]
+    [InlineData("Branch")]
+    [InlineData("Shop Network")]
+    [InlineData("Coffee Shop")]
+    [InlineData("Staff Devices")]
+    [InlineData("Staff")]
+    [InlineData("Employee Network")]
+    [InlineData("HQ")]
+    [InlineData("HQ Network")]
+    [InlineData("Store Network")]
+    [InlineData("Store-WiFi")]
+    [InlineData("Warehouse")]      // Substring pattern (not word boundary)
     public void ClassifyNetwork_CorporateWordBoundaryPatterns_ReturnsCorporate(string networkName)
     {
         // Word boundary patterns should match Corporate (e.g., "Work Devices" but not "Network")
@@ -470,6 +482,12 @@ public class VlanAnalyzerTests
     [InlineData("coworking")]        // "work" embedded in word
     [InlineData("networkadmin")]     // "work" embedded in "network"
     [InlineData("bizarro")]          // "biz" embedded in word
+    [InlineData("workshop")]         // "shop" embedded in word
+    [InlineData("shopify")]          // "shop" embedded in word
+    [InlineData("stafford")]         // "staff" embedded in word
+    [InlineData("restore")]          // "store" embedded in word
+    [InlineData("datastore")]        // "store" embedded in word
+    [InlineData("branching")]        // "branch" embedded in word
     public void ClassifyNetwork_WordBoundary_EmbeddedPatterns_DoNotMatch(string networkName)
     {
         // Patterns embedded within words (no boundary) should NOT match
