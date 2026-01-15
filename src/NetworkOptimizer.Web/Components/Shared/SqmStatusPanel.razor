@@ -108,6 +108,11 @@
     // Track if polling should continue
     private bool _shouldPoll = false;
 
+    // Constants for repeated status messages
+    private const string NotDeployedLabel = "Not Deployed";
+    private const string NotDeployedClass = "offline";
+    private const string NotDeployedMessage = "Experiencing bufferbloat? Deploy Adaptive SQM to optimize your WAN performance.";
+
     // Auto-refresh timer (60 seconds)
     private System.Threading.Timer? _refreshTimer;
 
@@ -152,11 +157,20 @@
                 return;
             }
 
-            // Check if we have saved WAN configs with SQM enabled (parallel)
+            // Check if we have saved WAN configs with SQM enabled BEFORE polling TC monitor
             var wan1Task = SpeedTestRepository.GetSqmWanConfigAsync(1);
             var wan2Task = SpeedTestRepository.GetSqmWanConfigAsync(2);
             await Task.WhenAll(wan1Task, wan2Task);
             hasSavedEnabledConfig = (wan1Task.Result?.Enabled == true) || (wan2Task.Result?.Enabled == true);
+
+            // Skip TC monitor poll if no SQM config exists - avoids connection failures
+            if (!hasSavedEnabledConfig)
+            {
+                SetNotDeployedStatus();
+                _shouldPoll = false;
+                isLoading = false;
+                return;
+            }
 
             // Poll TC Monitor directly (fast HTTP call, 2s timeout)
             var response = await TcMonitorClient.GetTcStatsAsync(gatewaySettings.Host, forceRefresh: forceRefresh);
@@ -179,9 +193,7 @@
                 else
                 {
                     // TC Monitor responded but no interfaces configured
-                    statusLabel = "Not Deployed";
-                    statusClass = "offline";
-                    errorMessage = "Experiencing bufferbloat? Deploy Adaptive SQM to optimize your WAN performance.";
+                    SetNotDeployedStatus();
                     // Only poll if we have saved enabled configs (user is setting up)
                     _shouldPoll = hasSavedEnabledConfig;
                 }
@@ -199,9 +211,7 @@
                 else
                 {
                     // Never seen active, show as not deployed
-                    statusLabel = "Not Deployed";
-                    statusClass = "offline";
-                    errorMessage = "Experiencing bufferbloat? Deploy Adaptive SQM to optimize your WAN performance.";
+                    SetNotDeployedStatus();
                     // Only poll if we have saved enabled configs (user is setting up)
                     _shouldPoll = hasSavedEnabledConfig;
                 }
@@ -228,6 +238,13 @@
         {
             isLoading = false;
         }
+    }
+
+    private void SetNotDeployedStatus()
+    {
+        statusLabel = NotDeployedLabel;
+        statusClass = NotDeployedClass;
+        errorMessage = NotDeployedMessage;
     }
 
     private async Task RefreshStats()
