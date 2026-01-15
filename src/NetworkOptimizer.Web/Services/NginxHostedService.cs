@@ -4,7 +4,8 @@ namespace NetworkOptimizer.Web.Services;
 
 /// <summary>
 /// Manages nginx as a child process for serving OpenSpeedTest.
-/// Only active on Windows when the SpeedTest feature is installed.
+/// Active on Windows and macOS when the SpeedTest feature is installed.
+/// On Windows, uses bundled nginx. On macOS, uses nginx from PATH (Homebrew).
 /// </summary>
 public class NginxHostedService : IHostedService, IDisposable
 {
@@ -25,20 +26,28 @@ public class NginxHostedService : IHostedService, IDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        // Only run on Windows
-        if (!OperatingSystem.IsWindows())
+        // Only run on Windows and macOS
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS())
         {
-            _logger.LogDebug("NginxHostedService: Not running on Windows, skipping");
+            _logger.LogDebug("NginxHostedService: Not running on Windows or macOS, skipping");
             return;
         }
 
         var speedTestFolder = Path.Combine(_installFolder, "SpeedTest");
-        var nginxPath = Path.Combine(speedTestFolder, "nginx.exe");
+        var nginxPath = GetNginxPath(speedTestFolder);
 
-        // Check if SpeedTest feature is installed
-        if (!File.Exists(nginxPath))
+        // Check if SpeedTest feature is installed (config exists)
+        var confPath = Path.Combine(speedTestFolder, "conf", "nginx.conf");
+        if (!File.Exists(confPath))
         {
-            _logger.LogDebug("NginxHostedService: nginx not found at {Path}, SpeedTest feature not installed", nginxPath);
+            _logger.LogInformation("NginxHostedService: nginx.conf not found at {Path}, SpeedTest feature not installed", confPath);
+            return;
+        }
+
+        // On Windows, nginx must be bundled. On macOS, use PATH (Homebrew).
+        if (nginxPath == null)
+        {
+            _logger.LogInformation("NginxHostedService: nginx binary not found, SpeedTest feature unavailable");
             return;
         }
 
@@ -180,6 +189,77 @@ public class NginxHostedService : IHostedService, IDisposable
             // No explicit host configured - use dynamic URL (constructed client-side from browser location)
             return "__DYNAMIC__";
         }
+    }
+
+    /// <summary>
+    /// Gets the path to the nginx executable.
+    /// On Windows, looks for bundled nginx.exe in SpeedTest folder.
+    /// On macOS, looks for nginx in PATH (typically from Homebrew).
+    /// </summary>
+    private string? GetNginxPath(string speedTestFolder)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var bundledPath = Path.Combine(speedTestFolder, "nginx.exe");
+            if (File.Exists(bundledPath))
+            {
+                return bundledPath;
+            }
+            _logger.LogDebug("Bundled nginx.exe not found at {Path}", bundledPath);
+            return null;
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            // Check common Homebrew locations first
+            var homebrewPaths = new[]
+            {
+                "/opt/homebrew/bin/nginx",  // Apple Silicon
+                "/usr/local/bin/nginx"       // Intel Mac
+            };
+
+            foreach (var path in homebrewPaths)
+            {
+                if (File.Exists(path))
+                {
+                    _logger.LogDebug("Found nginx at {Path}", path);
+                    return path;
+                }
+            }
+
+            // Fall back to PATH lookup
+            try
+            {
+                var whichProcess = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "/usr/bin/which",
+                    Arguments = "nginx",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+
+                if (whichProcess != null)
+                {
+                    var output = whichProcess.StandardOutput.ReadToEnd().Trim();
+                    whichProcess.WaitForExit();
+                    if (whichProcess.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                    {
+                        _logger.LogDebug("Found nginx via which: {Path}", output);
+                        return output;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to locate nginx via which command");
+            }
+
+            _logger.LogDebug("nginx not found in PATH. Install with: brew install nginx");
+            return null;
+        }
+
+        return null;
     }
 
     private void CreateNginxTempDirectories(string speedTestFolder)
