@@ -424,6 +424,11 @@ public class PortSecurityAnalyzer
     {
         var baseType = FromUniFiApiType(deviceType);
 
+        // Access points (type=uap) are always APs, not switches
+        // This handles in-wall APs with integrated switch ports (4+ ports)
+        if (baseType == DeviceType.AccessPoint)
+            return (false, true);
+
         // Non-gateway types are switches (not gateway, not AP)
         if (!baseType.IsGateway())
             return (false, false);
