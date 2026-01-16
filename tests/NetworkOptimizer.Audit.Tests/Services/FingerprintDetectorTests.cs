@@ -1556,7 +1556,7 @@ public class FingerprintDetectorTests
     public void Detect_WithVendorInfo_IncludesVendorName()
     {
         var database = new UniFiFingerprintDatabase();
-        database.DevIds["12345"] = new FingerprintDeviceEntry { Name = "Apple TV 4K", DevTypeId = "5" }; // 5 = StreamingDevice
+        database.DevIds["12345"] = new FingerprintDeviceEntry { Name = "Apple TV 4K", DevTypeId = "5", VendorId = "1" }; // 5 = StreamingDevice
         database.VendorIds["1"] = "Apple Inc.";
 
         var detector = new FingerprintDetector(database);
@@ -1598,9 +1598,11 @@ public class FingerprintDetectorTests
     }
 
     [Fact]
-    public void Detect_DevIdOverride_WithDevVendor_UsesClientVendorNotDeviceEntry()
+    public void Detect_DevIdOverride_WithDevVendor_UsesDeviceEntryVendorNotClient()
     {
-        // When client fingerprint has DevVendor, it should take precedence over device entry VendorId
+        // When user explicitly selects a device type (dev_id_override), the device entry's
+        // vendor should be used, NOT the client's DevVendor. The client's DevVendor may be
+        // incorrect (e.g., a HomePod reporting "Avaya" instead of "Apple").
         var database = new UniFiFingerprintDatabase();
         database.DevIds["12345"] = new FingerprintDeviceEntry
         {
@@ -1615,13 +1617,13 @@ public class FingerprintDetectorTests
         var client = new UniFiClientResponse
         {
             DevIdOverride = 12345,
-            DevVendor = 2  // Client says Amazon
+            DevVendor = 2  // Client incorrectly says Amazon
         };
 
         var result = detector.Detect(client);
 
-        // Client DevVendor should take precedence
-        result.VendorName.Should().Be("Amazon");
+        // Device entry vendor should be used for user overrides
+        result.VendorName.Should().Be("Apple");
     }
 
     [Fact]

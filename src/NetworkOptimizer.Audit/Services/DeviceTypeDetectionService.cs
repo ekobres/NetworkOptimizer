@@ -29,10 +29,12 @@ public class DeviceTypeDetectionService
     public DeviceTypeDetectionService(
         ILogger<DeviceTypeDetectionService>? logger = null,
         UniFiFingerprintDatabase? fingerprintDb = null,
-        IeeeOuiDatabase? ieeeOuiDb = null)
+        IeeeOuiDatabase? ieeeOuiDb = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _logger = logger;
-        _fingerprintDetector = new FingerprintDetector(fingerprintDb);
+        var fpLogger = loggerFactory?.CreateLogger<FingerprintDetector>();
+        _fingerprintDetector = new FingerprintDetector(fingerprintDb, fpLogger);
         _macOuiDetector = ieeeOuiDb != null ? new MacOuiDetector(ieeeOuiDb) : new MacOuiDetector();
         _namePatternDetector = new NamePatternDetector();
     }

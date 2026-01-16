@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.UniFi.Models;
@@ -29,6 +30,7 @@ namespace NetworkOptimizer.Audit.Services.Detectors;
 public class FingerprintDetector
 {
     private readonly UniFiFingerprintDatabase? _database;
+    private readonly ILogger? _logger;
 
     /// <summary>
     /// Maps dev_type_id values to our device categories.
@@ -361,9 +363,10 @@ public class FingerprintDetector
         { 246, ClientDeviceCategory.IoTGeneric },     // Parking System
     };
 
-    public FingerprintDetector(UniFiFingerprintDatabase? database = null)
+    public FingerprintDetector(UniFiFingerprintDatabase? database = null, ILogger<FingerprintDetector>? logger = null)
     {
         _database = database;
+        _logger = logger;
     }
 
     /// <summary>
@@ -390,14 +393,18 @@ public class FingerprintDetector
             {
                 var deviceName = deviceEntry.Name?.Trim();
 
-                // Get vendor from client fingerprint, or fall back to device entry in database
-                int? vendorId = clientFingerprint.DevVendor;
-                if (!vendorId.HasValue && !string.IsNullOrEmpty(deviceEntry.VendorId) &&
+                // When user explicitly selects a device type (dev_id_override), use the vendor
+                // from the fingerprint database entry for that device, not the client's DevVendor.
+                // The client's DevVendor may be incorrect (e.g., reporting "Avaya" for a HomePod).
+                int? vendorId = null;
+                if (!string.IsNullOrEmpty(deviceEntry.VendorId) &&
                     int.TryParse(deviceEntry.VendorId, out var entryVendorId))
                 {
                     vendorId = entryVendorId;
                 }
                 var vendorName = _database.GetVendorName(vendorId);
+                _logger?.LogDebug("[FingerprintDetector] dev_id_override={DevIdOverride}: using entry VendorId={EntryVendorId} → '{VendorName}' (client DevVendor={ClientVendor} ignored for user override)",
+                    clientFingerprint.DevIdOverride, deviceEntry.VendorId, vendorName, clientFingerprint.DevVendor);
 
                 return new DeviceDetectionResult
                 {

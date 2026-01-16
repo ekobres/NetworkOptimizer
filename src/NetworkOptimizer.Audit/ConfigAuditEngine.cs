@@ -84,7 +84,8 @@ public class ConfigAuditEngine
         var detectionService = new DeviceTypeDetectionService(
             loggerFactory.CreateLogger<DeviceTypeDetectionService>(),
             fingerprintDb: null,
-            ieeeOuiDb: ieeeOuiDb);
+            ieeeOuiDb: ieeeOuiDb,
+            loggerFactory: loggerFactory);
 
         _securityEngine = new PortSecurityAnalyzer(
             loggerFactory.CreateLogger<PortSecurityAnalyzer>(),
@@ -252,7 +253,8 @@ public class ConfigAuditEngine
         var detectionService = new DeviceTypeDetectionService(
             _loggerFactory.CreateLogger<DeviceTypeDetectionService>(),
             request.FingerprintDb,
-            _ieeeOuiDb);
+            _ieeeOuiDb,
+            _loggerFactory);
 
         // Set UniFi Protect cameras (highest priority detection)
         if (request.ProtectCameras != null && request.ProtectCameras.Count > 0)
