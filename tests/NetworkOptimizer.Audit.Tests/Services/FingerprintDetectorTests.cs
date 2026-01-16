@@ -1568,5 +1568,110 @@ public class FingerprintDetectorTests
         result.Category.Should().Be(ClientDeviceCategory.StreamingDevice);
     }
 
+    [Fact]
+    public void Detect_DevIdOverride_NoDevVendor_FallsBackToDeviceEntryVendorId()
+    {
+        // When client fingerprint has no DevVendor but the device entry in the database has VendorId,
+        // the vendor should be resolved from the device entry. This is important for Apple devices
+        // like HomePod that may be identified via dev_id_override but lack DevVendor in the client data.
+        var database = new UniFiFingerprintDatabase();
+        database.DevIds["7823"] = new FingerprintDeviceEntry
+        {
+            Name = "HomePod mini",
+            DevTypeId = "37",  // Smart Speaker
+            VendorId = "1"     // Apple vendor ID in database
+        };
+        database.VendorIds["1"] = "Apple";
+
+        var detector = new FingerprintDetector(database);
+        var client = new UniFiClientResponse
+        {
+            DevIdOverride = 7823,  // User selected HomePod in UniFi UI
+            DevVendor = null       // No vendor from client fingerprint
+        };
+
+        var result = detector.Detect(client);
+
+        result.Category.Should().Be(ClientDeviceCategory.SmartSpeaker);
+        result.VendorName.Should().Be("Apple");
+        result.ProductName.Should().Be("HomePod mini");
+    }
+
+    [Fact]
+    public void Detect_DevIdOverride_WithDevVendor_UsesClientVendorNotDeviceEntry()
+    {
+        // When client fingerprint has DevVendor, it should take precedence over device entry VendorId
+        var database = new UniFiFingerprintDatabase();
+        database.DevIds["12345"] = new FingerprintDeviceEntry
+        {
+            Name = "Test Device",
+            DevTypeId = "37",  // Smart Speaker
+            VendorId = "1"     // Apple in database
+        };
+        database.VendorIds["1"] = "Apple";
+        database.VendorIds["2"] = "Amazon";
+
+        var detector = new FingerprintDetector(database);
+        var client = new UniFiClientResponse
+        {
+            DevIdOverride = 12345,
+            DevVendor = 2  // Client says Amazon
+        };
+
+        var result = detector.Detect(client);
+
+        // Client DevVendor should take precedence
+        result.VendorName.Should().Be("Amazon");
+    }
+
+    [Fact]
+    public void Detect_DevIdOverride_NoDevVendor_NoDeviceEntryVendorId_ReturnsNullVendor()
+    {
+        // When neither client nor device entry has vendor info, VendorName should be null
+        var database = new UniFiFingerprintDatabase();
+        database.DevIds["12345"] = new FingerprintDeviceEntry
+        {
+            Name = "Unknown Device",
+            DevTypeId = "37"  // Smart Speaker, but no VendorId
+        };
+
+        var detector = new FingerprintDetector(database);
+        var client = new UniFiClientResponse
+        {
+            DevIdOverride = 12345,
+            DevVendor = null
+        };
+
+        var result = detector.Detect(client);
+
+        result.Category.Should().Be(ClientDeviceCategory.SmartSpeaker);
+        result.VendorName.Should().BeNull();
+    }
+
+    [Fact]
+    public void Detect_DevIdOverride_InvalidDeviceEntryVendorId_ReturnsNullVendor()
+    {
+        // When device entry has non-numeric VendorId, it should be ignored gracefully
+        var database = new UniFiFingerprintDatabase();
+        database.DevIds["12345"] = new FingerprintDeviceEntry
+        {
+            Name = "Test Device",
+            DevTypeId = "37",
+            VendorId = "invalid"  // Not a valid vendor ID
+        };
+
+        var detector = new FingerprintDetector(database);
+        var client = new UniFiClientResponse
+        {
+            DevIdOverride = 12345,
+            DevVendor = null
+        };
+
+        var result = detector.Detect(client);
+
+        result.Category.Should().Be(ClientDeviceCategory.SmartSpeaker);
+        result.VendorName.Should().BeNull();
+    }
+
     #endregion
 }
