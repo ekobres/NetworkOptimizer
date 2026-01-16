@@ -1201,7 +1201,7 @@ public class AuditService
         Audit.IssueTypes.DnsLeakage => "Configure firewall to block direct DNS queries from isolated networks",
         Audit.IssueTypes.DnsNoDoh => "Configure DoH in Network Settings with a trusted provider like NextDNS or Cloudflare",
         Audit.IssueTypes.DnsDohAuto => "Set DoH to 'custom' mode with explicit servers for guaranteed encryption",
-        Audit.IssueTypes.DnsNo53Block => "Create firewall rule to block outbound UDP/TCP port 53 to Internet for all VLANs",
+        Audit.IssueTypes.DnsNo53Block => "Create firewall rule to block outbound UDP port 53 to Internet for all VLANs",
         Audit.IssueTypes.DnsNoDotBlock => "Create firewall rule to block outbound TCP port 853 to Internet",
         Audit.IssueTypes.DnsNoDohBlock => "Create firewall rule to block HTTPS to known DoH provider domains",
         Audit.IssueTypes.DnsIsp => "Configure custom DNS servers or enable DoH with a privacy-focused provider",
