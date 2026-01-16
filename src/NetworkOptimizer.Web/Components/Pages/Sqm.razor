@@ -1980,14 +1980,18 @@
                 var w2Interface = (wan1Config.Enabled && wan2Config.Enabled) ? $"ifb{wan2Config.Interface}" : "";
                 var w2Name = (wan1Config.Enabled && wan2Config.Enabled) ? wan2Config.Name : "";
 
-                var (monitorSuccess, monitorWarning) = await DeploymentService.DeploySqmMonitorAsync(w1Interface, w1Name, w2Interface, w2Name);
+                var (monitorSuccess, monitorError) = await DeploymentService.DeploySqmMonitorAsync(w1Interface, w1Name, w2Interface, w2Name);
 
-                if (monitorWarning != null)
+                if (!monitorSuccess)
                 {
-                    deploymentWarnings.Add(monitorWarning);
-                    deploymentSteps.Add($"⚠️ Warning: {monitorWarning}");
+                    deploymentWarnings.Add(monitorError ?? "SQM Monitor deployment failed");
+                    deploymentSteps.Add($"⚠️ SQM Monitor deployment failed: {monitorError ?? "Unknown error"}");
+                    deploymentSteps.Add("SQM Monitor cleaned up after failure");
                 }
-                deploymentSteps.Add("SQM Monitor deployed");
+                else
+                {
+                    deploymentSteps.Add("SQM Monitor deployed successfully");
+                }
             }
 
             // Set final status - include warning note if any
@@ -2030,30 +2034,23 @@
             deploymentSteps.Add("Deploying SQM Monitor...");
             await ScrollDeploymentLog();
 
-            var (success, warning) = await DeploymentService.DeploySqmMonitorAsync(
+            var (success, errorMessage) = await DeploymentService.DeploySqmMonitorAsync(
                 $"ifb{wan1Config.Interface}", wan1Config.Name,
                 $"ifb{wan2Config.Interface}", wan2Config.Name);
 
             if (success)
             {
-                if (warning != null)
-                {
-                    deploymentWarnings.Add(warning);
-                    deploymentSteps.Add($"⚠️ Warning: {warning}");
-                    statusMessage = "SQM Monitor deployed with warnings. Check the deployment log for details.";
-                }
-                else
-                {
-                    deploymentSteps.Add("SQM Monitor deployed successfully");
-                    statusMessage = "SQM Monitor deployed!";
-                }
+                deploymentSteps.Add("SQM Monitor deployed successfully");
+                statusMessage = "SQM Monitor deployed!";
                 statusSuccess = true;
                 InvalidateCache();
                 await RefreshStatus();
             }
             else
             {
-                statusMessage = "SQM Monitor deployment failed";
+                deploymentSteps.Add($"⚠️ SQM Monitor deployment failed: {errorMessage ?? "Unknown error"}");
+                deploymentSteps.Add("SQM Monitor cleaned up after failure");
+                statusMessage = $"SQM Monitor deployment failed: {errorMessage ?? "Unknown error"}";
                 statusSuccess = false;
             }
         }

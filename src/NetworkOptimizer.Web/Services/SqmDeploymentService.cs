@@ -240,6 +240,69 @@ WantedBy=multi-user.target
     }
 
     /// <summary>
+    /// Lightweight cleanup after a failed deployment.
+    /// Removes only the specific WAN's scripts and cron entries, not the full SQM removal.
+    /// </summary>
+    private async Task CleanupFailedDeploymentAsync(string? connectionName, string interfaceName)
+    {
+        try
+        {
+            var safeName = Sqm.InputSanitizer.SanitizeConnectionName(connectionName ?? interfaceName);
+            _logger.LogInformation("Cleaning up failed deployment for {Name} ({Interface})", connectionName, interfaceName);
+
+            // Remove the boot script for this specific WAN
+            await RunCommandAsync($"rm -f {OnBootDir}/20-sqm-{safeName}.sh");
+
+            // Remove SQM data directory for this WAN
+            await RunCommandAsync($"rm -rf {SqmDir}/{safeName}-*.sh {SqmDir}/{safeName}-*.txt");
+
+            // Remove cron entries for this specific WAN (match on connection name)
+            await RunCommandAsync(
+                $"crontab -l 2>/dev/null | grep -v '{safeName}' | crontab -");
+
+            _logger.LogInformation("Cleanup completed for {Name}", connectionName);
+        }
+        catch (Exception ex)
+        {
+            // Log but don't throw - cleanup is best-effort
+            _logger.LogWarning(ex, "Error during cleanup of failed deployment for {Name}", connectionName);
+        }
+    }
+
+    /// <summary>
+    /// Lightweight cleanup after a failed SQM Monitor deployment.
+    /// </summary>
+    private async Task CleanupFailedSqmMonitorAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Cleaning up failed SQM Monitor deployment");
+
+            // Remove the boot script
+            await RunCommandAsync($"rm -f {OnBootDir}/20-sqm-monitor.sh");
+
+            // Stop and disable any partially-created services
+            await RunCommandAsync(
+                "systemctl stop sqm-monitor-watchdog.timer sqm-monitor 2>/dev/null; " +
+                "systemctl disable sqm-monitor-watchdog.timer sqm-monitor 2>/dev/null");
+
+            // Remove service files and monitor directory
+            await RunCommandAsync("rm -rf /data/sqm-monitor");
+            await RunCommandAsync(
+                "rm -f /etc/systemd/system/sqm-monitor.service " +
+                "/etc/systemd/system/sqm-monitor-watchdog.timer /etc/systemd/system/sqm-monitor-watchdog.service");
+            await RunCommandAsync("systemctl daemon-reload");
+
+            _logger.LogInformation("SQM Monitor cleanup completed");
+        }
+        catch (Exception ex)
+        {
+            // Log but don't throw - cleanup is best-effort
+            _logger.LogWarning(ex, "Error during cleanup of failed SQM Monitor deployment");
+        }
+    }
+
+    /// <summary>
     /// Deploy SQM scripts to the gateway
     /// </summary>
     /// <param name="config">SQM configuration for this WAN</param>
@@ -324,14 +387,6 @@ WantedBy=multi-user.target
                     "Boot script execution failed for {Name} ({Interface}). Output: {Output}",
                     config.ConnectionName, config.Interface, setupResult.output);
 
-                // Add user-visible warning - script is deployed but didn't run correctly
-                var logFile = $"/var/log/sqm-{config.ConnectionName?.ToLowerInvariant() ?? config.Interface}.log";
-                var warningMsg = $"Boot script did not complete successfully. " +
-                    $"Check gateway logs at {logFile} for details. " +
-                    $"Consider removing Adaptive SQM and contacting support if the issue persists.";
-                result.Warnings.Add(warningMsg);
-                steps.Add($"⚠️ Warning: {warningMsg}");
-
                 // Log truncated output for UI visibility if available
                 if (!string.IsNullOrWhiteSpace(setupResult.output))
                 {
@@ -340,6 +395,17 @@ WantedBy=multi-user.target
                         : setupResult.output;
                     _logger.LogWarning("Boot script output (truncated): {Output}", truncatedOutput);
                 }
+
+                // Clean up the failed deployment
+                steps.Add("Boot script failed, cleaning up...");
+                await CleanupFailedDeploymentAsync(config.ConnectionName, config.Interface);
+                steps.Add("Cleanup complete");
+
+                var logFile = $"/var/log/sqm-{config.ConnectionName?.ToLowerInvariant() ?? config.Interface}.log";
+                result.Success = false;
+                result.Steps = steps;
+                result.Error = $"Boot script did not complete successfully. Check gateway logs at {logFile} for details.";
+                return result;
             }
 
             result.Success = true;
@@ -445,10 +511,10 @@ WantedBy=multi-user.target
                     _logger.LogWarning("SQM Monitor script output (truncated): {Output}", truncatedOutput);
                 }
 
-                var warning = "SQM Monitor script did not complete successfully. " +
-                    "Check /var/log/sqm-monitor.log on the gateway for details. " +
-                    "Consider removing Adaptive SQM and contacting support if the issue persists.";
-                return (true, warning); // Still return success since script is deployed
+                // Clean up the failed deployment
+                await CleanupFailedSqmMonitorAsync();
+
+                return (false, "SQM Monitor script did not complete successfully. Check /var/log/sqm-monitor.log on the gateway for details.");
             }
 
             return (true, null);
