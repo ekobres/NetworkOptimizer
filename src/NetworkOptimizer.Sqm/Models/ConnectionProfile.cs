@@ -194,7 +194,7 @@ public class ConnectionProfile
     {
         return Type switch
         {
-            ConnectionType.Fiber => (int)(nominalSpeed * 1.02),
+            ConnectionType.Fiber => (int)(nominalSpeed * 1.07),
             ConnectionType.DocsisCable => (int)(nominalSpeed * 0.98),
             ConnectionType.Starlink => (int)(nominalSpeed * 1.15),
             ConnectionType.Dsl => (int)(nominalSpeed * 0.98),
