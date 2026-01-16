@@ -447,8 +447,11 @@ WantedBy=multi-user.target
         // All SQM scripts now go to on_boot.d (self-contained boot scripts)
         var targetPath = $"{OnBootDir}/{filename}";
 
+        // Normalize line endings to Unix LF (Windows builds may have CRLF)
+        var unixContent = content.Replace("\r\n", "\n").Replace("\r", "\n");
+
         // Use base64 encoding to safely transfer script content (avoids shell quoting issues)
-        var base64Content = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(content));
+        var base64Content = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(unixContent));
         var writeCmd = $"echo '{base64Content}' | base64 -d > '{targetPath}'";
         var writeResult = await RunCommandAsync(writeCmd);
 

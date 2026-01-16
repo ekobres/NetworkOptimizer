@@ -1926,9 +1926,11 @@
                 var config = CreateSqmConfiguration(wan1Config);
                 var result = await DeploymentService.DeployAsync(config, initialDelaySeconds: 5);
 
+                // Always add steps (includes output on failure)
+                deploymentSteps.AddRange(result.Steps);
+
                 if (result.Success)
                 {
-                    deploymentSteps.AddRange(result.Steps);
                     if (result.HasWarnings)
                     {
                         deploymentWarnings.AddRange(result.Warnings);
@@ -1950,9 +1952,11 @@
                 var config = CreateSqmConfiguration(wan2Config);
                 var result = await DeploymentService.DeployAsync(config, initialDelaySeconds: 50);
 
+                // Always add steps (includes output on failure)
+                deploymentSteps.AddRange(result.Steps);
+
                 if (result.Success)
                 {
-                    deploymentSteps.AddRange(result.Steps);
                     if (result.HasWarnings)
                     {
                         deploymentWarnings.AddRange(result.Warnings);
