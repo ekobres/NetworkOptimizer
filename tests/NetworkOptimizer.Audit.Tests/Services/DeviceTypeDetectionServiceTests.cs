@@ -1074,6 +1074,63 @@ public class DeviceTypeDetectionServiceTests
         result.VendorName.Should().Be("Arlo");
     }
 
+    [Fact]
+    public void DetectDeviceType_SimpliSafeVendor_ReturnsCloudCamera()
+    {
+        // Arrange - SimpliSafe cameras require cloud services
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = "Front Door Camera",
+            Oui = "SimpliSafe Inc",
+            DevCat = 9 // Camera fingerprint
+        };
+
+        // Act
+        var result = _service.DetectDeviceType(client);
+
+        // Assert
+        result.Category.Should().Be(ClientDeviceCategory.CloudCamera);
+    }
+
+    [Fact]
+    public void DetectDeviceType_TpLinkCameraVendor_ReturnsCloudCamera()
+    {
+        // Arrange - TP-Link Tapo/Kasa cameras are cloud-dependent
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = "Garage Camera",
+            Oui = "TP-Link Technologies",
+            DevCat = 9 // Camera fingerprint
+        };
+
+        // Act
+        var result = _service.DetectDeviceType(client);
+
+        // Assert
+        result.Category.Should().Be(ClientDeviceCategory.CloudCamera);
+    }
+
+    [Fact]
+    public void DetectDeviceType_CanaryVendor_ReturnsCloudCamera()
+    {
+        // Arrange - Canary cameras are cloud-dependent
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = "Living Room Camera",
+            Oui = "Canary Connect",
+            DevCat = 9 // Camera fingerprint
+        };
+
+        // Act
+        var result = _service.DetectDeviceType(client);
+
+        // Assert
+        result.Category.Should().Be(ClientDeviceCategory.CloudCamera);
+    }
+
     #endregion
 
     #region Vendor Preservation Tests - Thermostats

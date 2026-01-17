@@ -892,10 +892,13 @@ public class DeviceTypeDetectionService
     {
         return nameLower.Contains("ring") ||
                nameLower.Contains("nest") ||
-               nameLower.Contains("google") || // Google Nest cameras
+               nameLower.Contains("google") ||   // Google Nest cameras
                nameLower.Contains("wyze") ||
                nameLower.Contains("blink") ||
-               nameLower.Contains("arlo");
+               nameLower.Contains("arlo") ||
+               nameLower.Contains("simplisafe") ||
+               nameLower.Contains("tp-link") ||  // TP-Link Tapo/Kasa cameras
+               nameLower.Contains("canary");
     }
 
     /// <summary>
