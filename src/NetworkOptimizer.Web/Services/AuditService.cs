@@ -1047,6 +1047,22 @@ public class AuditService
                 _logger.LogWarning(ex, "Failed to fetch UPnP status or port forwarding rules");
             }
 
+            // Fetch network configs for External zone ID detection (used for firewall rule analysis)
+            List<NetworkOptimizer.UniFi.Models.UniFiNetworkConfig>? networkConfigs = null;
+            try
+            {
+                networkConfigs = await _connectionService.Client.GetNetworkConfigsAsync();
+                if (networkConfigs.Count > 0)
+                {
+                    var wanCount = networkConfigs.Count(n => string.Equals(n.Purpose, "wan", StringComparison.OrdinalIgnoreCase));
+                    _logger.LogInformation("Fetched {Count} network configs ({WanCount} WAN) for zone ID detection", networkConfigs.Count, wanCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch network configs for zone ID detection");
+            }
+
             // Convert options to allowance settings for the audit engine
             var allowanceSettings = new Audit.Models.DeviceAllowanceSettings
             {
@@ -1079,7 +1095,8 @@ public class AuditService
                 DnatExcludedVlanIds = options.DnatExcludedVlanIds,
                 PiholeManagementPort = options.PiholeManagementPort,
                 UpnpEnabled = upnpEnabled,
-                PortForwardRules = portForwardRules
+                PortForwardRules = portForwardRules,
+                NetworkConfigs = networkConfigs
             });
 
             // Convert audit result to web models
@@ -1144,7 +1161,7 @@ public class AuditService
             {
                 Severity = issue.Severity,
                 Category = category,
-                Title = GetIssueTitle(issue.Type, issue.Message, issue.Severity),
+                Title = GetIssueTitle(issue.Type, issue.Message, issue.Severity, issue.Description),
                 Description = issue.Message,
                 Recommendation = issue.RecommendedAction ?? GetDefaultRecommendation(issue.Type),
                 // Context fields
@@ -1417,7 +1434,7 @@ public class AuditService
         _ => true
     };
 
-    private static string GetIssueTitle(string type, string message, Audit.Models.AuditSeverity severity)
+    private static string GetIssueTitle(string type, string message, Audit.Models.AuditSeverity severity, string? description = null)
     {
         // Extract a short title from the issue type
         // For informational IoT/Camera issues, use "Possibly" wording
@@ -1430,7 +1447,7 @@ public class AuditService
             Audit.IssueTypes.PermissiveRule => "Firewall: Overly Permissive Rule",
             Audit.IssueTypes.BroadRule => "Firewall: Broad Rule",
             Audit.IssueTypes.OrphanedRule => "Firewall: Orphaned Rule",
-            Audit.IssueTypes.AllowExceptionPattern => "Firewall: Allow Exception Pattern",
+            Audit.IssueTypes.AllowExceptionPattern => $"Firewall: {description ?? "Allow Exception Pattern"}",
             Audit.IssueTypes.AllowSubvertsDeny => "Firewall: Rule Order Issue",
             Audit.IssueTypes.DenyShadowsAllow => "Firewall: Ineffective Allow Rule",
             Audit.IssueTypes.MissingIsolation => "Firewall: Missing VLAN Isolation",
