@@ -4989,6 +4989,7 @@ select.form-control {
     border-radius: 12px;
     padding: 1.5rem;
     transition: all 0.2s ease;
+    cursor: pointer;
 }
 
 .site-card:hover {

@@ -17,7 +17,7 @@
 <div class="sites-grid">
     @foreach (var site in _sites)
     {
-        <div class="site-card">
+        <div class="site-card" @onclick="() => NavigateToSite(site.Id)">
             <div class="site-card-header">
                 <div class="site-card-title">
                     @if (ConnectionService.IsConnected(site.Id))
@@ -30,7 +30,7 @@
                     }
                     <span class="site-card-name" title="@site.Name">@site.Name</span>
                 </div>
-                <div class="site-card-actions">
+                <div class="site-card-actions" @onclick:stopPropagation="true">
                     <button @onclick="() => EditSite(site)" title="Edit">Edit</button>
                     @if (_sites.Count > 1)
                     {
@@ -164,6 +164,11 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadSites();
+    }
+
+    private void NavigateToSite(int siteId)
+    {
+        NavigationManager.NavigateTo($"/sites/{siteId}");
     }
 
     private async Task LoadSites()
