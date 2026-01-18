@@ -2,6 +2,10 @@
 
 > **Notice:** This project is under active development. For the latest fixes and features, either pull the latest Docker image (`docker compose pull`) or [update from source](docker/DEPLOYMENT.md#upgrade-procedure). Breaking changes may occur between updates, but I'm doing my best to avoid any.
 
+## New: macOS Native Installation
+
+Install natively on macOS for maximum speed test performance (Docker Desktop limits network throughput for speed testing). See [macOS Installation Guide](docs/MACOS-INSTALLATION.md) for full instructions.
+
 ## New: Windows Installer
 
 Download the MSI installer from [GitHub Releases](https://github.com/Ozark-Connect/NetworkOptimizer/releases) for one-click installation on Windows. Includes automatic service setup, bundled iperf3, OpenSpeedTest for browser-based speed tests, and runs at system startup.
@@ -83,10 +87,10 @@ Without SSH access, Security Audit works fully, but you cannot run gateway/devic
 | Windows | Installer (recommended) | [Download from Releases](https://github.com/Ozark-Connect/NetworkOptimizer/releases) |
 | Linux Server | Docker (recommended) | [Deployment Guide](docker/DEPLOYMENT.md) |
 | Synology/QNAP/Unraid | Docker | [NAS Deployment](docker/DEPLOYMENT.md#nas-deployment) |
-| macOS | Native (best performance) | [macOS Native](docker/NATIVE-DEPLOYMENT.md#macos-deployment) |
+| macOS | Native (best performance) | [macOS Installation](docs/MACOS-INSTALLATION.md) |
 | Linux | Native (no Docker) | [Linux Native](docker/NATIVE-DEPLOYMENT.md#linux-deployment) |
 
-Docker Desktop on macOS and Windows adds virtualization overhead that limits network throughput. For accurate multi-gigabit speed testing, use native deployment.
+Docker Desktop on macOS and Windows limits network throughput for speed testing. For accurate multi-gigabit measurements, use native deployment.
 
 ### Quick Start (Linux Docker)
 
