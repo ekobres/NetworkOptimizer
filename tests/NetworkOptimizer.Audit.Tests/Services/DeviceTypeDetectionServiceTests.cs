@@ -2,6 +2,7 @@ using FluentAssertions;
 using NetworkOptimizer.Audit.Models;
 using NetworkOptimizer.Audit.Services;
 using NetworkOptimizer.Core.Enums;
+using NetworkOptimizer.Core.Models;
 using NetworkOptimizer.UniFi.Models;
 using Xunit;
 
@@ -964,6 +965,184 @@ public class DeviceTypeDetectionServiceTests
         // Assert
         result.Category.Should().Be(ClientDeviceCategory.GameConsole);
         result.VendorName.Should().Be("Some VR Company");
+    }
+
+    #endregion
+
+    #region UniFi Protect Camera Tests
+
+    [Theory]
+    [InlineData("G5 Turret Ultra")]           // Default product name
+    [InlineData("Front Door Camera")]          // User alias
+    [InlineData("[Cam] Driveway")]             // User alias with tag
+    [InlineData("Garage - Road View")]         // User alias with location
+    [InlineData("")]                           // Empty name
+    public void DetectDeviceType_UniFiProtectCamera_Wired_ReturnsCamera(string cameraName)
+    {
+        // Arrange - Simulate wired UniFi Protect camera
+        var protectCameras = new ProtectCameraCollection();
+        protectCameras.Add("aa:bb:cc:dd:ee:ff", cameraName);
+
+        var service = new DeviceTypeDetectionService();
+        service.SetProtectCameras(protectCameras);
+
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = cameraName,
+            Oui = "Ubiquiti Inc"  // Wired cameras show Ubiquiti OUI
+        };
+
+        // Act
+        var result = service.DetectDeviceType(client);
+
+        // Assert - Should be Camera on Security network, NOT CloudCamera
+        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        result.RecommendedNetwork.Should().Be(NetworkPurpose.Security);
+        result.VendorName.Should().Be("Ubiquiti");
+        result.ConfidenceScore.Should().Be(100);
+    }
+
+    [Theory]
+    [InlineData("G6 Instant")]                 // Default product name
+    [InlineData("Back Yard Camera")]           // User alias
+    [InlineData("[Cam] Dogs")]                 // User alias with tag
+    [InlineData("Tiny Home - Front Door")]     // User alias with location
+    [InlineData("")]                           // Empty name
+    public void DetectDeviceType_UniFiProtectCamera_WiFi_ReturnsCamera(string cameraName)
+    {
+        // Arrange - Simulate Wi-Fi UniFi Protect camera
+        var protectCameras = new ProtectCameraCollection();
+        protectCameras.Add("aa:bb:cc:dd:ee:ff", cameraName);
+
+        var service = new DeviceTypeDetectionService();
+        service.SetProtectCameras(protectCameras);
+
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = cameraName,
+            Oui = "Ubiquiti Inc",
+            IsWired = false,  // Wireless
+            ApMac = "11:22:33:44:55:66"  // Connected to AP
+        };
+
+        // Act
+        var result = service.DetectDeviceType(client);
+
+        // Assert - Should be Camera on Security network, NOT CloudCamera
+        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        result.RecommendedNetwork.Should().Be(NetworkPurpose.Security);
+        result.VendorName.Should().Be("Ubiquiti");
+        result.ConfidenceScore.Should().Be(100);
+    }
+
+    [Fact]
+    public void DetectDeviceType_UniFiProtectCamera_WithCloudKeywordInName_StillReturnsCamera()
+    {
+        // Arrange - Protect camera with name containing cloud camera vendor keyword
+        // This ensures Ubiquiti Protect cameras aren't accidentally classified as CloudCamera
+        var protectCameras = new ProtectCameraCollection();
+        protectCameras.Add("aa:bb:cc:dd:ee:ff", "Ring-style Doorbell");  // Contains "Ring"
+
+        var service = new DeviceTypeDetectionService();
+        service.SetProtectCameras(protectCameras);
+
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = "Ring-style Doorbell",
+            Oui = "Ubiquiti Inc"
+        };
+
+        // Act
+        var result = service.DetectDeviceType(client);
+
+        // Assert - Protect cameras should NEVER become CloudCamera
+        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        result.RecommendedNetwork.Should().Be(NetworkPurpose.Security);
+        result.VendorName.Should().Be("Ubiquiti");
+    }
+
+    [Fact]
+    public void DetectDeviceType_UniFiProtectCamera_BypassesFingerprint()
+    {
+        // Arrange - Protect camera that also has fingerprint data
+        // Protect API should take priority over fingerprint
+        var protectCameras = new ProtectCameraCollection();
+        protectCameras.Add("aa:bb:cc:dd:ee:ff", "Test Camera");
+
+        var service = new DeviceTypeDetectionService();
+        service.SetProtectCameras(protectCameras);
+
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = "Test Camera",
+            Oui = "Ubiquiti Inc",
+            DevCat = 14,  // SmartSensor fingerprint (would normally return different category)
+            DevVendor = 999
+        };
+
+        // Act
+        var result = service.DetectDeviceType(client);
+
+        // Assert - Protect API takes priority (confidence 100)
+        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        result.ConfidenceScore.Should().Be(100);
+        result.Metadata.Should().ContainKey("detection_method");
+        result.Metadata!["detection_method"].Should().Be("unifi_protect_api");
+    }
+
+    [Fact]
+    public void DetectDeviceType_UniFiProtectCamera_BypassesNameOverride()
+    {
+        // Arrange - Protect camera with name that would normally trigger a different category
+        var protectCameras = new ProtectCameraCollection();
+        protectCameras.Add("aa:bb:cc:dd:ee:ff", "Smart Plug Camera");  // Contains "Plug"
+
+        var service = new DeviceTypeDetectionService();
+        service.SetProtectCameras(protectCameras);
+
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",
+            Name = "Smart Plug Camera",  // Would normally match plug pattern
+            Oui = "Ubiquiti Inc"
+        };
+
+        // Act
+        var result = service.DetectDeviceType(client);
+
+        // Assert - Protect API takes priority over name-based detection
+        result.Category.Should().Be(ClientDeviceCategory.Camera);
+        result.RecommendedNetwork.Should().Be(NetworkPurpose.Security);
+    }
+
+    [Fact]
+    public void DetectDeviceType_NotInProtectCollection_UsesNormalDetection()
+    {
+        // Arrange - Device NOT in Protect collection, but has camera fingerprint
+        var protectCameras = new ProtectCameraCollection();
+        protectCameras.Add("11:22:33:44:55:66", "Different Camera");  // Different MAC
+
+        var service = new DeviceTypeDetectionService();
+        service.SetProtectCameras(protectCameras);
+
+        var client = new UniFiClientResponse
+        {
+            Mac = "aa:bb:cc:dd:ee:ff",  // NOT in Protect collection
+            Name = "Some Camera",
+            Oui = "Ring LLC",  // Cloud camera vendor
+            DevCat = 9  // Camera fingerprint
+        };
+
+        // Act
+        var result = service.DetectDeviceType(client);
+
+        // Assert - Should use normal detection (Ring = CloudCamera)
+        result.Category.Should().Be(ClientDeviceCategory.CloudCamera);
+        result.RecommendedNetwork.Should().Be(NetworkPurpose.IoT);
     }
 
     #endregion
