@@ -185,6 +185,8 @@ if [ -f "$REPO_ROOT/src/OpenSpeedTest/index.html" ]; then
 
     # Create nginx.conf optimized for SpeedTest (based on Docker config)
     cat > "$SPEEDTEST_DIR/conf/nginx.conf" << 'NGINXCONF'
+# Run in foreground so the app can track the process
+daemon off;
 worker_processes 1;
 error_log logs/error.log;
 pid logs/nginx.pid;
