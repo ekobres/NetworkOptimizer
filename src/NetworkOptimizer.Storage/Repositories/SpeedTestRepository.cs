@@ -180,6 +180,36 @@ public class SpeedTestRepository : ISpeedTestRepository
     }
 
     /// <summary>
+    /// Deletes a single iperf3 test result by ID for a site.
+    /// </summary>
+    /// <param name="siteId">The site ID.</param>
+    /// <param name="id">The ID of the result to delete.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if the result was deleted, false if not found.</returns>
+    public async Task<bool> DeleteIperf3ResultAsync(int siteId, int id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _context.Iperf3Results
+                .FirstOrDefaultAsync(r => r.SiteId == siteId && r.Id == id, cancellationToken);
+            if (result == null)
+            {
+                return false;
+            }
+
+            _context.Iperf3Results.Remove(result);
+            await _context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Deleted iperf3 result {Id} for {DeviceHost} in site {SiteId}", id, result.DeviceHost, siteId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete iperf3 result {Id} in site {SiteId}", id, siteId);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Clears all iperf3 test history for a site.
     /// </summary>
     /// <param name="siteId">The site ID.</param>

@@ -19,6 +19,7 @@ public interface ISpeedTestRepository
     Task SaveIperf3ResultAsync(int siteId, Iperf3Result result, CancellationToken cancellationToken = default);
     Task<List<Iperf3Result>> GetRecentIperf3ResultsAsync(int siteId, int count = 50, int hours = 0, CancellationToken cancellationToken = default);
     Task<List<Iperf3Result>> GetIperf3ResultsForDeviceAsync(int siteId, string deviceHost, int count = 50, CancellationToken cancellationToken = default);
+    Task<bool> DeleteIperf3ResultAsync(int siteId, int id, CancellationToken cancellationToken = default);
     Task ClearIperf3HistoryAsync(int siteId, CancellationToken cancellationToken = default);
 
     // SQM WAN Configuration

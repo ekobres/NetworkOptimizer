@@ -105,6 +105,14 @@ public interface IIperf3SpeedTestService
     Task<List<Iperf3Result>> GetResultsForDeviceAsync(int siteId, string deviceHost, int count = 20);
 
     /// <summary>
+    /// Deletes a single speed test result by ID.
+    /// </summary>
+    /// <param name="siteId">The site ID.</param>
+    /// <param name="id">The ID of the result to delete.</param>
+    /// <returns>True if the result was deleted, false if not found.</returns>
+    Task<bool> DeleteResultAsync(int siteId, int id);
+
+    /// <summary>
     /// Clears all speed test history from the database.
     /// </summary>
     /// <param name="siteId">The site ID.</param>

@@ -42,11 +42,6 @@ public class Iperf3ServerService : BackgroundService
             return;
         }
 
-        // Kill any orphaned iperf3 server processes from previous runs
-        // This is especially important for native deployments where launchd/systemd
-        // may not kill child processes when stopping the app
-        await KillOrphanedIperf3ProcessesAsync();
-
         _logger.LogInformation("Starting iperf3 server on port {Port}", Iperf3Port);
 
         var consecutiveImmediateExits = 0;
@@ -65,6 +60,12 @@ public class Iperf3ServerService : BackgroundService
                 else
                 {
                     consecutiveImmediateExits++;
+
+                    // On first failure, try killing orphaned processes (port may be held by old instance)
+                    if (consecutiveImmediateExits == 1)
+                    {
+                        await KillOrphanedIperf3ProcessesAsync();
+                    }
 
                     if (consecutiveImmediateExits >= maxImmediateExitRetries)
                     {
@@ -102,6 +103,9 @@ public class Iperf3ServerService : BackgroundService
     /// <returns>True if the process ran for more than 2 seconds (successful), false if it exited immediately.</returns>
     private async Task<bool> RunIperf3ServerAsync(CancellationToken stoppingToken)
     {
+        // Check cancellation before starting a new process
+        stoppingToken.ThrowIfCancellationRequested();
+
         var iperf3Path = GetIperf3Path();
         _logger.LogDebug("Using iperf3 at: {Path}", iperf3Path);
 
@@ -379,6 +383,7 @@ public class Iperf3ServerService : BackgroundService
     {
         _logger.LogInformation("Stopping iperf3 server service");
 
+        // First try to kill our tracked process
         if (_iperf3Process is { HasExited: false })
         {
             try
@@ -388,6 +393,42 @@ public class Iperf3ServerService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Error killing iperf3 process on stop");
+            }
+        }
+
+        // Use pkill as a fallback to ensure cleanup on Unix systems
+        // This handles cases where the process reference was lost or race conditions
+        // Run twice with a delay to catch processes spawned during the shutdown race
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    await Task.Delay(500, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                }
+
+                try
+                {
+                    using var pkill = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "pkill",
+                        Arguments = "iperf3",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    });
+                    pkill?.WaitForExit(2000);
+                    if (pkill?.ExitCode == 0)
+                    {
+                        _logger.LogInformation("Killed iperf3 processes via pkill");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "pkill iperf3 failed");
+                }
             }
         }
 
