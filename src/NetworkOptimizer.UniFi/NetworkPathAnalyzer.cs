@@ -299,9 +299,21 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
 
             if (targetDevice == null && targetClient == null)
             {
-                path.IsValid = false;
-                path.ErrorMessage = $"Target '{targetHost}' not found in network topology";
-                return path;
+                // Check if it's an external IP (VPN or public internet)
+                // If so, use the gateway as the target device
+                if (IsExternalIp(targetHost, topology))
+                {
+                    targetDevice = topology.Devices.FirstOrDefault(d => d.Type == DeviceType.Gateway);
+                    path.IsExternalPath = true;
+                    _logger.LogDebug("External IP {Ip} - using gateway as target", targetHost);
+                }
+
+                if (targetDevice == null)
+                {
+                    path.IsValid = false;
+                    path.ErrorMessage = $"Target '{targetHost}' not found in network topology";
+                    return path;
+                }
             }
 
             // Set destination info
@@ -1173,8 +1185,210 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
         };
         hops.Add(serverHop);
 
+        // Check if we need to prepend a VPN hop (Teleport or Tailscale)
+        var vpnHop = DetectAndCreateVpnHop(path.DestinationHost, topology, rawDevices);
+        if (vpnHop != null)
+        {
+            // VPN hop becomes first (order -1 sorts before 0)
+            vpnHop.Order = -1;
+            hops.Add(vpnHop);
+            path.IsExternalPath = true;
+            _logger.LogDebug("Prepended {VpnType} hop for client {ClientIp}",
+                vpnHop.Type, path.DestinationHost);
+        }
+
         // Sort hops by order
         path.Hops = hops.OrderBy(h => h.Order).ToList();
+    }
+
+    /// <summary>
+    /// Detects if the client IP is coming through a VPN (Teleport or Tailscale)
+    /// and creates an appropriate hop to prepend to the path.
+    /// </summary>
+    private NetworkHop? DetectAndCreateVpnHop(
+        string clientIp,
+        NetworkTopology topology,
+        Dictionary<string, UniFiDeviceResponse> rawDevices)
+    {
+        if (string.IsNullOrEmpty(clientIp) || !System.Net.IPAddress.TryParse(clientIp, out _))
+            return null;
+
+        // Get WAN speeds for VPN bottleneck calculation
+        // VPN traffic traverses the WAN, so WAN speed is the limiting factor
+        var (wanDownloadMbps, wanUploadMbps) = GetWanSpeed(topology, rawDevices);
+
+        // Check for Tailscale CGNAT range: 100.64.0.0/10 (100.64.x.x - 100.127.x.x)
+        if (clientIp.StartsWith("100."))
+        {
+            var parts = clientIp.Split('.');
+            if (parts.Length >= 2 && int.TryParse(parts[1], out int secondOctet))
+            {
+                if (secondOctet >= 64 && secondOctet <= 127)
+                {
+                    // Use higher of upload/download until asymmetric link support is added
+                    var wanSpeed = Math.Max(wanDownloadMbps, wanUploadMbps);
+                    return new NetworkHop
+                    {
+                        Type = HopType.Tailscale,
+                        DeviceName = "Tailscale",
+                        DeviceIp = clientIp,
+                        IngressSpeedMbps = wanSpeed,
+                        EgressSpeedMbps = wanSpeed,
+                        IngressPortName = "WAN",
+                        EgressPortName = "WAN",
+                        Notes = wanUploadMbps > 0
+                            ? $"Tailscale VPN (WAN: {wanDownloadMbps}/{wanUploadMbps} Mbps)"
+                            : "Tailscale VPN mesh"
+                    };
+                }
+            }
+        }
+
+        // Check for Teleport: 192.168.x.x that's NOT in any known UniFi network
+        if (clientIp.StartsWith("192.168."))
+        {
+            // Check if this IP is in any known UniFi network
+            var isInKnownNetwork = topology.Networks.Any(n =>
+                !string.IsNullOrEmpty(n.IpSubnet) && IsIpInSubnetCidr(clientIp, n.IpSubnet));
+
+            if (!isInKnownNetwork)
+            {
+                // Use higher of upload/download until asymmetric link support is added
+                var wanSpeed = Math.Max(wanDownloadMbps, wanUploadMbps);
+                return new NetworkHop
+                {
+                    Type = HopType.Teleport,
+                    DeviceName = "Teleport",
+                    DeviceIp = clientIp,
+                    IngressSpeedMbps = wanSpeed,
+                    EgressSpeedMbps = wanSpeed,
+                    IngressPortName = "WAN",
+                    EgressPortName = "WAN",
+                    Notes = wanUploadMbps > 0
+                        ? $"Teleport VPN (WAN: {wanDownloadMbps}/{wanUploadMbps} Mbps)"
+                        : "Teleport VPN gateway"
+                };
+            }
+        }
+
+        // Check for UniFi remote-user-vpn network (e.g., L2TP, OpenVPN server on gateway)
+        var matchingNetwork = topology.Networks.FirstOrDefault(n =>
+            !string.IsNullOrEmpty(n.IpSubnet) && IsIpInSubnetCidr(clientIp, n.IpSubnet));
+
+        if (matchingNetwork?.Purpose == "remote-user-vpn")
+        {
+            var wanSpeed = Math.Max(wanDownloadMbps, wanUploadMbps);
+            return new NetworkHop
+            {
+                Type = HopType.Vpn,
+                DeviceName = "VPN",
+                DeviceIp = clientIp,
+                IngressSpeedMbps = wanSpeed,
+                EgressSpeedMbps = wanSpeed,
+                IngressPortName = "WAN",
+                EgressPortName = "WAN",
+                Notes = wanUploadMbps > 0
+                    ? $"VPN ({matchingNetwork.Name}, WAN: {wanDownloadMbps}/{wanUploadMbps} Mbps)"
+                    : $"VPN ({matchingNetwork.Name})"
+            };
+        }
+
+        // Check if it's any other external IP (not in any known network)
+        var isExternalIp = matchingNetwork == null;
+
+        if (isExternalIp)
+        {
+            var wanSpeed = Math.Max(wanDownloadMbps, wanUploadMbps);
+            return new NetworkHop
+            {
+                Type = HopType.Wan,
+                DeviceName = "WAN",
+                DeviceIp = clientIp,
+                IngressSpeedMbps = wanSpeed,
+                EgressSpeedMbps = wanSpeed,
+                IngressPortName = "WAN",
+                EgressPortName = "WAN",
+                Notes = wanUploadMbps > 0
+                    ? $"External (WAN: {wanDownloadMbps}/{wanUploadMbps} Mbps)"
+                    : "External connection"
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if an IP is external (not in any known local network).
+    /// This includes VPN ranges (Tailscale, Teleport), VPN network clients, and public internet IPs.
+    /// VPN network IPs are considered external because VPN clients don't appear as devices/clients in UniFi.
+    /// </summary>
+    private static bool IsExternalIp(string ip, NetworkTopology topology)
+    {
+        if (string.IsNullOrEmpty(ip) || !System.Net.IPAddress.TryParse(ip, out _))
+            return false;
+
+        // Check if in any known network
+        var matchingNetwork = topology.Networks.FirstOrDefault(n =>
+            !string.IsNullOrEmpty(n.IpSubnet) && IsIpInSubnetCidr(ip, n.IpSubnet));
+
+        // If not in any known network, it's external
+        if (matchingNetwork == null)
+            return true;
+
+        // If in a VPN network (remote-user-vpn), treat as external because VPN clients
+        // don't appear as devices/clients in UniFi controller
+        if (matchingNetwork.Purpose == "remote-user-vpn")
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gets WAN speed from primary WAN provider capabilities, or falls back to primary WAN port link speed.
+    /// Only uses primary WAN (wan_networkgroup = "WAN"), does not aggregate from secondary WANs.
+    /// </summary>
+    private (int downloadMbps, int uploadMbps) GetWanSpeed(
+        NetworkTopology topology,
+        Dictionary<string, UniFiDeviceResponse> rawDevices)
+    {
+        // First: Primary WAN provider capabilities (ISP speed configuration)
+        var primaryWan = topology.Networks.FirstOrDefault(n => n.IsPrimaryWan);
+        if (primaryWan != null && primaryWan.WanDownloadMbps > 0 && primaryWan.WanUploadMbps > 0)
+        {
+            return (primaryWan.WanDownloadMbps.Value, primaryWan.WanUploadMbps.Value);
+        }
+
+        // Fallback: Gateway port where network_name = "wan" exactly (primary WAN interface)
+        var gateway = topology.Devices.FirstOrDefault(d => d.Type == DeviceType.Gateway);
+        if (gateway != null && rawDevices.TryGetValue(gateway.Mac, out var gatewayDevice))
+        {
+            var wanPort = gatewayDevice.PortTable?
+                .FirstOrDefault(p => p.Up && p.Speed > 0 &&
+                    p.NetworkName?.Equals("wan", StringComparison.OrdinalIgnoreCase) == true);
+
+            if (wanPort != null)
+            {
+                return (wanPort.Speed, wanPort.Speed);
+            }
+        }
+
+        return (0, 0);
+    }
+
+    /// <summary>
+    /// Checks if an IP address is within a CIDR subnet (e.g., "192.168.1.0/24").
+    /// </summary>
+    private static bool IsIpInSubnetCidr(string ipAddress, string cidrSubnet)
+    {
+        if (!System.Net.IPAddress.TryParse(ipAddress, out var ip))
+            return false;
+
+        var parts = cidrSubnet.Split('/');
+        if (parts.Length != 2 || !System.Net.IPAddress.TryParse(parts[0], out var subnetIp) ||
+            !int.TryParse(parts[1], out var prefixLength))
+            return false;
+
+        return IsInSubnet(ip, subnetIp, prefixLength);
     }
 
     private static HopType GetHopType(DeviceType deviceType) => deviceType switch
@@ -1300,15 +1514,20 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
             // Only set description if there's a real bottleneck
             if (path.HasRealBottleneck)
             {
+                // Skip redundant port info when device name matches port (e.g., "WAN (WAN)")
+                var portSuffix = bottleneckPort?.Equals(bottleneckHop.DeviceName, StringComparison.OrdinalIgnoreCase) == true
+                    ? ""
+                    : $" ({bottleneckPort})";
+
                 if (minSpeed < 1000)
                 {
-                    path.BottleneckDescription = $"{minSpeed} Mbps link at {bottleneckHop.DeviceName} ({bottleneckPort})";
+                    path.BottleneckDescription = $"{minSpeed} Mbps link at {bottleneckHop.DeviceName}{portSuffix}";
                 }
                 else
                 {
                     var gbps = minSpeed / 1000.0;
                     var gbpsStr = gbps % 1 == 0 ? $"{(int)gbps}" : $"{gbps:F1}";
-                    path.BottleneckDescription = $"{gbpsStr} Gbps link at {bottleneckHop.DeviceName} ({bottleneckPort})";
+                    path.BottleneckDescription = $"{gbpsStr} Gbps link at {bottleneckHop.DeviceName}{portSuffix}";
                 }
             }
         }

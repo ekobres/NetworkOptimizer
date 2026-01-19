@@ -196,6 +196,20 @@ public class SwitchPort
 
     [JsonPropertyName("rx_packets")]
     public long RxPackets { get; set; }
+
+    /// <summary>
+    /// Whether this port is an uplink (WAN) port.
+    /// Present on gateway devices to identify WAN interfaces.
+    /// </summary>
+    [JsonPropertyName("is_uplink")]
+    public bool IsUplink { get; set; }
+
+    /// <summary>
+    /// Network name for this port (e.g., "wan", "wan2", "lan").
+    /// Used to identify which network/WAN interface the port belongs to.
+    /// </summary>
+    [JsonPropertyName("network_name")]
+    public string? NetworkName { get; set; }
 }
 
 public class UplinkInfo
