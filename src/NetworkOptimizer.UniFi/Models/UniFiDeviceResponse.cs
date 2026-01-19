@@ -38,12 +38,6 @@ public class UniFiDeviceResponse
     public string? Shortname { get; set; }
 
     /// <summary>
-    /// Display model name (may be same as shortname or model)
-    /// </summary>
-    [JsonPropertyName("model_display")]
-    public string ModelDisplay { get; set; } = string.Empty;
-
-    /// <summary>
     /// Model in long-term support (legacy field)
     /// </summary>
     [JsonPropertyName("model_in_lts")]
@@ -62,7 +56,7 @@ public class UniFiDeviceResponse
     /// Gets the best available friendly product name using the product database lookup
     /// </summary>
     public string FriendlyModelName =>
-        UniFiProductDatabase.GetBestProductName(Model, Shortname, ModelDisplay);
+        UniFiProductDatabase.GetBestProductName(Model, Shortname);
 
     /// <summary>
     /// Whether this device can run iperf3 for LAN speed testing
@@ -196,6 +190,20 @@ public class SwitchPort
 
     [JsonPropertyName("rx_packets")]
     public long RxPackets { get; set; }
+
+    /// <summary>
+    /// Whether this port is an uplink (WAN) port.
+    /// Present on gateway devices to identify WAN interfaces.
+    /// </summary>
+    [JsonPropertyName("is_uplink")]
+    public bool IsUplink { get; set; }
+
+    /// <summary>
+    /// Network name for this port (e.g., "wan", "wan2", "lan").
+    /// Used to identify which network/WAN interface the port belongs to.
+    /// </summary>
+    [JsonPropertyName("network_name")]
+    public string? NetworkName { get; set; }
 }
 
 public class UplinkInfo

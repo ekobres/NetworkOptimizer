@@ -67,7 +67,6 @@ public class UniFiDiscovery
                 HardwareType = hardwareType,
                 Model = d.Model,
                 Shortname = d.Shortname,
-                ModelDisplay = d.ModelDisplay,
                 IpAddress = d.Ip,
                 // Set LAN IP for gateways from network config
                 LanIpAddress = effectiveType.IsGateway() ? defaultLanGatewayIp : null,
@@ -274,7 +273,10 @@ public class UniFiDiscovery
                 IsDhcpEnabled = n.DhcpdEnabled,
                 DhcpRange = n.DhcpdEnabled ? $"{n.DhcpdStart} - {n.DhcpdStop}" : null,
                 Gateway = n.DhcpdGateway,
-                IsNat = n.IsNat
+                IsNat = n.IsNat,
+                WanUploadMbps = n.WanProviderCapabilities?.UploadMbps,
+                WanDownloadMbps = n.WanProviderCapabilities?.DownloadMbps,
+                WanNetworkgroup = n.WanNetworkgroup
             }).ToList() ?? new List<NetworkInfo>(),
             DiscoveredAt = DateTime.UtcNow
         };
@@ -507,14 +509,13 @@ public class DiscoveredDevice
 
     public string Model { get; set; } = string.Empty;
     public string? Shortname { get; set; }
-    public string ModelDisplay { get; set; } = string.Empty;
 
     /// <summary>
     /// Best product name for display and image lookup.
     /// Uses the same logic as UniFiDeviceResponse.FriendlyModelName.
     /// </summary>
     public string FriendlyModelName =>
-        UniFiProductDatabase.GetBestProductName(Model, Shortname, ModelDisplay);
+        UniFiProductDatabase.GetBestProductName(Model, Shortname);
 
     /// <summary>
     /// Whether this device can run iperf3 for LAN speed testing
@@ -660,6 +661,21 @@ public class NetworkInfo
     public string? DhcpRange { get; set; }
     public string? Gateway { get; set; }
     public bool IsNat { get; set; }
+
+    /// <summary>WAN upload speed in Mbps (only for WAN networks)</summary>
+    public int? WanUploadMbps { get; set; }
+
+    /// <summary>WAN download speed in Mbps (only for WAN networks)</summary>
+    public int? WanDownloadMbps { get; set; }
+
+    /// <summary>WAN network group: "WAN" for primary, "WAN2", "WAN3" for secondary</summary>
+    public string? WanNetworkgroup { get; set; }
+
+    /// <summary>Whether this is a WAN network</summary>
+    public bool IsWan => Purpose.Equals("wan", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether this is the primary WAN (wan_networkgroup = "WAN")</summary>
+    public bool IsPrimaryWan => WanNetworkgroup?.Equals("WAN", StringComparison.OrdinalIgnoreCase) == true;
 }
 
 public class FirewallConfiguration
