@@ -96,32 +96,31 @@
             downloadLink.click();
         }
 
-        // Copy text to clipboard with fallback for non-HTTPS contexts
-        async function copyToClipboard(text) {
+        // Copy text from sibling input element with visual feedback
+        function copyFromInput(button) {
+            const input = button.previousElementSibling;
+            const text = input.value;
+
             // Try modern API first (requires HTTPS)
             if (navigator.clipboard && window.isSecureContext) {
-                try {
-                    await navigator.clipboard.writeText(text);
-                    return true;
-                } catch (err) {
-                    // Fall through to legacy method
-                }
-            }
-            // Fallback: create temporary textarea
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.left = '-9999px';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
+                navigator.clipboard.writeText(text);
+            } else {
+                // Fallback for HTTP contexts
+                input.select();
+                input.setSelectionRange(0, 99999);
                 document.execCommand('copy');
-                return true;
-            } catch (err) {
-                return false;
-            } finally {
-                document.body.removeChild(textarea);
             }
+            input.blur();
+
+            // Visual feedback
+            const icon = button.querySelector('.copy-icon');
+            const check = button.querySelector('.copy-check');
+            icon.style.display = 'none';
+            check.style.display = 'inline';
+            setTimeout(() => {
+                icon.style.display = 'inline';
+                check.style.display = 'none';
+            }, 2000);
         }
 
         // Initialize Tippy.js tooltips
