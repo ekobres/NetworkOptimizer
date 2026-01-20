@@ -54,7 +54,9 @@ Test LAN speeds from any device without SSH access. Open a browser on your phone
 
 ### Cellular Modem Monitoring
 
-If you're running a U-LTE or U5G-Max for backup (or primary) connectivity, you can monitor signal quality from the dashboard: RSSI, RSRP, RSRQ, SINR, cell tower info, and connection status.
+If you're running a U-LTE or U5G-Max for backup (or primary) connectivity, you can monitor signal quality from the dashboard: RSRP, RSRQ, SNR, cell tower info, and connection status. Supports multiple modems with easy navigation between them.
+
+![Cellular Stats Demo](docs/images/cellular-stats.gif)
 
 ### UPnP Inspector
 
