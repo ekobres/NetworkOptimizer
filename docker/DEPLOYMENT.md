@@ -820,6 +820,33 @@ See `.env.example` for full documentation on each setting.
 2. Run the speed test
 3. Results automatically appear in Network Optimizer's Client Speed Test page
 
+### HTTPS Configuration Requirements
+
+When serving OpenSpeedTest over HTTPS (`OPENSPEEDTEST_HTTPS=true`), the main Network Optimizer app **must also be accessible via HTTPS**. This is a browser security requirement—HTTPS pages cannot make requests to HTTP endpoints (mixed active content).
+
+**Valid Configurations:**
+
+| Speedtest Protocol | Main App Protocol | Configuration Required |
+|-------------------|-------------------|------------------------|
+| HTTP | HTTP | `HOST_NAME` or `HOST_IP` |
+| HTTP | HTTPS | `REVERSE_PROXIED_HOST_NAME` |
+| HTTPS | HTTPS | `OPENSPEEDTEST_HTTPS=true` + `REVERSE_PROXIED_HOST_NAME` |
+| HTTPS | HTTP | ❌ **Not supported** (browser blocks mixed content) |
+
+**Example - Both behind HTTPS reverse proxy:**
+```env
+HOST_NAME=nas
+REVERSE_PROXIED_HOST_NAME=optimizer.example.com
+OPENSPEEDTEST_HOST=speedtest.example.com
+OPENSPEEDTEST_HTTPS=true
+```
+
+**If you see this error in browser console:**
+```
+Blocked loading mixed active content "http://..."
+```
+It means your speedtest is HTTPS but trying to POST results to an HTTP endpoint. Set `REVERSE_PROXIED_HOST_NAME` to fix.
+
 ### iperf3 Server Mode
 
 Run iperf3 as a server inside the Network Optimizer container for CLI-based testing.
