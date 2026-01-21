@@ -677,8 +677,13 @@
             }
         }
 
-        // Check if OpenSpeedTest is actually reachable (using internal HTTP URL)
-        if (!string.IsNullOrEmpty(openSpeedTestHealthCheckUrl))
+        // Check if OpenSpeedTest is actually reachable
+        if (openSpeedTestHttps)
+        {
+            // HTTPS configured = user has a working proxy setup, trust them
+            openSpeedTestAvailable = true;
+        }
+        else if (!string.IsNullOrEmpty(openSpeedTestHealthCheckUrl))
         {
             openSpeedTestAvailable = await CheckOpenSpeedTestHealthAsync();
         }
