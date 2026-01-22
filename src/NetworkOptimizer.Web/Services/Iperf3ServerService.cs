@@ -295,19 +295,7 @@ public class Iperf3ServerService : BackgroundService
             // Supports formats: "1001", "siteId=1001", "site=1001"
             if (root.TryGetProperty("extra_data", out var extraData))
             {
-                var extraDataStr = extraData.GetString();
-                _logger.LogDebug("Found extra_data at root: {ExtraData}", extraDataStr);
-                siteId = ParseSiteIdFromExtraData(extraDataStr);
-                if (siteId.HasValue)
-                {
-                    _logger.LogDebug("Parsed site ID {SiteId} from iperf3 --extra-data", siteId.Value);
-                }
-            }
-            else
-            {
-                // Log available root keys for debugging
-                var rootKeys = string.Join(", ", root.EnumerateObject().Select(p => p.Name));
-                _logger.LogDebug("No extra_data at root. Available keys: {Keys}", rootKeys);
+                siteId = ParseSiteIdFromExtraData(extraData.GetString());
             }
 
             // Parse end results - from SERVER perspective:

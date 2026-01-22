@@ -178,11 +178,6 @@ public class ClientSpeedTestService
         // Use requested site ID if provided and valid, otherwise fall back to default
         var siteId = requestedSiteId > 0 ? requestedSiteId.Value : await GetDefaultSiteIdAsync();
 
-        if (requestedSiteId.HasValue)
-        {
-            _logger.LogDebug("iperf3 client test using site ID {SiteId} from --extra-data", siteId);
-        }
-
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         // Check for recent result from same client that we can merge with
