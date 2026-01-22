@@ -180,6 +180,29 @@ public static class DisplayFormatters
         };
     }
 
+    /// <summary>
+    /// Checks if a site name is the default (matches the console URL host).
+    /// Used to determine if site name should be used for report titles or fall back to device name.
+    /// </summary>
+    /// <param name="siteName">The site name to check</param>
+    /// <param name="consoleUrl">The UniFi console URL (e.g., "https://192.168.1.1")</param>
+    /// <returns>True if the site name matches the console host (is a default name)</returns>
+    public static bool SiteNameMatchesConsoleHost(string? siteName, string? consoleUrl)
+    {
+        if (string.IsNullOrWhiteSpace(siteName) || string.IsNullOrWhiteSpace(consoleUrl))
+            return true; // Treat missing data as default
+
+        // Extract host from console URL
+        if (Uri.TryCreate(consoleUrl, UriKind.Absolute, out var uri))
+        {
+            // Compare site name to host (case-insensitive)
+            return string.Equals(siteName, uri.Host, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // If URL parsing fails, do direct comparison
+        return string.Equals(siteName, consoleUrl, StringComparison.OrdinalIgnoreCase);
+    }
+
     #endregion
 
     #region Network/VLAN Display

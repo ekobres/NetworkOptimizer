@@ -648,4 +648,72 @@ public class DisplayFormattersTests
     }
 
     #endregion
+
+    #region SiteNameMatchesConsoleHost Tests
+
+    [Theory]
+    [InlineData(null, "https://192.168.1.1", true)]
+    [InlineData("", "https://192.168.1.1", true)]
+    [InlineData("  ", "https://192.168.1.1", true)]
+    [InlineData("Acme Corp", null, true)]
+    [InlineData("Acme Corp", "", true)]
+    public void SiteNameMatchesConsoleHost_NullOrEmpty_ReturnsTrue(string? siteName, string? consoleUrl, bool expected)
+    {
+        var result = DisplayFormatters.SiteNameMatchesConsoleHost(siteName, consoleUrl);
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("192.168.1.1", "https://192.168.1.1", true)]
+    [InlineData("192.168.1.1", "https://192.168.1.1:443", true)]
+    [InlineData("192.168.1.1", "http://192.168.1.1:8443", true)]
+    [InlineData("10.0.0.1", "https://10.0.0.1", true)]
+    public void SiteNameMatchesConsoleHost_IpMatchesUrl_ReturnsTrue(string siteName, string consoleUrl, bool expected)
+    {
+        var result = DisplayFormatters.SiteNameMatchesConsoleHost(siteName, consoleUrl);
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("unifi.local", "https://unifi.local", true)]
+    [InlineData("UNIFI.LOCAL", "https://unifi.local", true)]
+    [InlineData("udm-pro.lan", "https://udm-pro.lan:443", true)]
+    public void SiteNameMatchesConsoleHost_HostnameMatchesUrl_ReturnsTrue(string siteName, string consoleUrl, bool expected)
+    {
+        var result = DisplayFormatters.SiteNameMatchesConsoleHost(siteName, consoleUrl);
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("Acme Corp", "https://192.168.1.1", false)]
+    [InlineData("Home Network", "https://unifi.local", false)]
+    [InlineData("Office", "https://10.0.0.1:8443", false)]
+    [InlineData("My Business", "https://udm-pro.lan", false)]
+    public void SiteNameMatchesConsoleHost_CustomName_ReturnsFalse(string siteName, string consoleUrl, bool expected)
+    {
+        var result = DisplayFormatters.SiteNameMatchesConsoleHost(siteName, consoleUrl);
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("192.168.1.1", "https://192.168.1.2", false)]
+    [InlineData("unifi.local", "https://other.local", false)]
+    public void SiteNameMatchesConsoleHost_DifferentHost_ReturnsFalse(string siteName, string consoleUrl, bool expected)
+    {
+        var result = DisplayFormatters.SiteNameMatchesConsoleHost(siteName, consoleUrl);
+        result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void SiteNameMatchesConsoleHost_InvalidUrl_DoesDirectComparison()
+    {
+        // If URL can't be parsed, falls back to direct string comparison
+        var result = DisplayFormatters.SiteNameMatchesConsoleHost("not-a-url", "not-a-url");
+        result.Should().BeTrue();
+
+        var result2 = DisplayFormatters.SiteNameMatchesConsoleHost("something", "something-else");
+        result2.Should().BeFalse();
+    }
+
+    #endregion
 }
