@@ -233,10 +233,10 @@
 
                 var newId = await SiteRepository.CreateSiteAsync(site);
                 CloseModal();
-                await LoadSites();
 
                 // Navigate to the new site's settings to configure the controller
-                NavigationManager.NavigateTo($"/sites/{newId}/settings");
+                // Force reload so SiteSelector picks up the new site
+                NavigationManager.NavigateTo($"/sites/{newId}/settings", forceLoad: true);
             }
             else
             {
