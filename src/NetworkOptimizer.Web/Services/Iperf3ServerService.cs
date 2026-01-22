@@ -288,25 +288,26 @@ public class Iperf3ServerService : BackgroundService
                     if (testStart.TryGetProperty("num_streams", out var streams))
                         parallelStreams = streams.GetInt32();
                 }
+            }
 
-                // Extract site ID from --extra-data if provided
-                // Supports formats: "1001", "siteId=1001", "site=1001"
-                if (startInfo.TryGetProperty("extra_data", out var extraData))
+            // Extract site ID from --extra-data if provided
+            // iperf3 places extra_data at the root level of the JSON
+            // Supports formats: "1001", "siteId=1001", "site=1001"
+            if (root.TryGetProperty("extra_data", out var extraData))
+            {
+                var extraDataStr = extraData.GetString();
+                _logger.LogDebug("Found extra_data at root: {ExtraData}", extraDataStr);
+                siteId = ParseSiteIdFromExtraData(extraDataStr);
+                if (siteId.HasValue)
                 {
-                    var extraDataStr = extraData.GetString();
-                    _logger.LogDebug("Found extra_data in start: {ExtraData}", extraDataStr);
-                    siteId = ParseSiteIdFromExtraData(extraDataStr);
-                    if (siteId.HasValue)
-                    {
-                        _logger.LogDebug("Parsed site ID {SiteId} from iperf3 --extra-data", siteId.Value);
-                    }
+                    _logger.LogDebug("Parsed site ID {SiteId} from iperf3 --extra-data", siteId.Value);
                 }
-                else
-                {
-                    // Log available keys in start object for debugging
-                    var startKeys = string.Join(", ", startInfo.EnumerateObject().Select(p => p.Name));
-                    _logger.LogDebug("No extra_data in start object. Available keys: {Keys}", startKeys);
-                }
+            }
+            else
+            {
+                // Log available root keys for debugging
+                var rootKeys = string.Join(", ", root.EnumerateObject().Select(p => p.Name));
+                _logger.LogDebug("No extra_data at root. Available keys: {Keys}", rootKeys);
             }
 
             // Parse end results - from SERVER perspective:
