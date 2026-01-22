@@ -313,7 +313,8 @@ public class ClientSpeedTestService
             _logger.LogInformation("Retrying path analysis for site {SiteId}: {Count} results without valid paths", siteId, needsRetry.Count);
             foreach (var result in needsRetry)
             {
-                await AnalyzePathAsync(siteId, result);
+                // Use result's own SiteId to ensure correct site context
+                await AnalyzePathAsync(result.SiteId, result);
             }
             await db.SaveChangesAsync();
         }
