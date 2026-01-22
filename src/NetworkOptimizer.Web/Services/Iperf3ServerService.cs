@@ -275,16 +275,30 @@ public class Iperf3ServerService : BackgroundService
                 return;
             }
 
-            // Extract test parameters
+            // Extract test parameters and extra_data (for site ID)
             int durationSeconds = 10;
             int parallelStreams = 1;
-            if (root.TryGetProperty("start", out var startInfo) &&
-                startInfo.TryGetProperty("test_start", out var testStart))
+            int? siteId = null;
+            if (root.TryGetProperty("start", out var startInfo))
             {
-                if (testStart.TryGetProperty("duration", out var dur))
-                    durationSeconds = dur.GetInt32();
-                if (testStart.TryGetProperty("num_streams", out var streams))
-                    parallelStreams = streams.GetInt32();
+                if (startInfo.TryGetProperty("test_start", out var testStart))
+                {
+                    if (testStart.TryGetProperty("duration", out var dur))
+                        durationSeconds = dur.GetInt32();
+                    if (testStart.TryGetProperty("num_streams", out var streams))
+                        parallelStreams = streams.GetInt32();
+                }
+
+                // Extract site ID from --extra-data if provided
+                // Supports formats: "1001", "siteId=1001", "site=1001"
+                if (startInfo.TryGetProperty("extra_data", out var extraData))
+                {
+                    siteId = ParseSiteIdFromExtraData(extraData.GetString());
+                    if (siteId.HasValue)
+                    {
+                        _logger.LogDebug("Parsed site ID {SiteId} from iperf3 --extra-data", siteId.Value);
+                    }
+                }
             }
 
             // Parse end results - from SERVER perspective:
@@ -358,11 +372,12 @@ public class Iperf3ServerService : BackgroundService
                     durationSeconds,
                     parallelStreams,
                     json,
-                    serverLocalIp);  // Actual server interface IP from iperf3
+                    serverLocalIp,   // Actual server interface IP from iperf3
+                    siteId);         // Site ID from --extra-data (null = default site)
 
                 _logger.LogInformation(
-                    "Recorded iperf3 client test from {ClientIp}: From Device {FromDevice:F1} Mbps, To Device {ToDevice:F1} Mbps",
-                    clientIp, fromDeviceBps / 1_000_000, toDeviceBps / 1_000_000);
+                    "Recorded iperf3 client test from {ClientIp}{SiteInfo}: From Device {FromDevice:F1} Mbps, To Device {ToDevice:F1} Mbps",
+                    clientIp, siteId.HasValue ? $" (site {siteId})" : "", fromDeviceBps / 1_000_000, toDeviceBps / 1_000_000);
             }
             else
             {
@@ -516,5 +531,37 @@ public class Iperf3ServerService : BackgroundService
 
         // Fall back to iperf3 in PATH (Linux/macOS/Docker)
         return "iperf3";
+    }
+
+    /// <summary>
+    /// Parses site ID from iperf3 --extra-data string.
+    /// Supports formats:
+    /// - Just a number: "1001"
+    /// - Key-value: "siteId=1001" or "site=1001"
+    /// </summary>
+    /// <returns>Site ID if found and valid, null otherwise</returns>
+    private static int? ParseSiteIdFromExtraData(string? extraData)
+    {
+        if (string.IsNullOrWhiteSpace(extraData))
+            return null;
+
+        var data = extraData.Trim();
+
+        // Try parsing as a plain number first (e.g., "1001")
+        if (int.TryParse(data, out var plainId) && plainId > 0)
+            return plainId;
+
+        // Try key-value formats: "siteId=1001" or "site=1001"
+        foreach (var prefix in new[] { "siteId=", "siteid=", "site=", "SITEID=", "SITE=" })
+        {
+            if (data.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var valueStr = data[prefix.Length..];
+                if (int.TryParse(valueStr, out var id) && id > 0)
+                    return id;
+            }
+        }
+
+        return null;
     }
 }

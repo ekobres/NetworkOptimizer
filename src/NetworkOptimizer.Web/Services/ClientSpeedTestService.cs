@@ -145,6 +145,18 @@ public class ClientSpeedTestService
     /// Record a speed test result from an iperf3 client.
     /// Merges with recent result from same client if one direction is missing.
     /// </summary>
+    /// <param name="clientIp">Client IP address</param>
+    /// <param name="downloadBitsPerSecond">Download speed (server receiving from client)</param>
+    /// <param name="uploadBitsPerSecond">Upload speed (server sending to client)</param>
+    /// <param name="downloadBytes">Total bytes downloaded</param>
+    /// <param name="uploadBytes">Total bytes uploaded</param>
+    /// <param name="downloadRetransmits">TCP retransmits for download</param>
+    /// <param name="uploadRetransmits">TCP retransmits for upload</param>
+    /// <param name="durationSeconds">Test duration in seconds</param>
+    /// <param name="parallelStreams">Number of parallel streams</param>
+    /// <param name="rawJson">Raw iperf3 JSON output</param>
+    /// <param name="serverLocalIp">Server's local IP from iperf3</param>
+    /// <param name="requestedSiteId">Site ID from iperf3 --extra-data (null = use default site)</param>
     public async Task<Iperf3Result> RecordIperf3ClientResultAsync(
         string clientIp,
         double downloadBitsPerSecond,
@@ -156,14 +168,20 @@ public class ClientSpeedTestService
         int durationSeconds,
         int parallelStreams,
         string? rawJson,
-        string? serverLocalIp = null)
+        string? serverLocalIp = null,
+        int? requestedSiteId = null)
     {
         var now = DateTime.UtcNow;
         // Use the actual server IP from iperf3, fall back to HOST_IP config
         var serverIp = serverLocalIp ?? _configuration["HOST_IP"];
 
-        // Get the default site for client-initiated tests
-        var siteId = await GetDefaultSiteIdAsync();
+        // Use requested site ID if provided and valid, otherwise fall back to default
+        var siteId = requestedSiteId > 0 ? requestedSiteId.Value : await GetDefaultSiteIdAsync();
+
+        if (requestedSiteId.HasValue)
+        {
+            _logger.LogDebug("iperf3 client test using site ID {SiteId} from --extra-data", siteId);
+        }
 
         await using var db = await _dbFactory.CreateDbContextAsync();
 
