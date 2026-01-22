@@ -98,28 +98,28 @@
                     </div>
                     <p>Run iperf3 from any device on your network to test LAN throughput to this server (<code>@serverHost</code>).</p>
 
-                    @if (SiteId != 1001)
-                    {
-                        <div class="alert alert-info" style="border-color: var(--text-muted); background: var(--bg-secondary);">
-                            <strong>Not Available:</strong> iperf3 server results are currently only recorded for the default site.
-                        </div>
-                    }
-                    else if (iperf3ServerEnabled)
+                    @if (iperf3ServerEnabled)
                     {
                         <div class="code-block">
                             <code>
                                 <span class="code-comment"># Run from another device (laptop, phone, etc.) to test LAN speed</span><br />
                                 <br />
                                 <span class="code-comment"># Test upload speed (your device to this server, 4 streams)</span><br />
-                                iperf3 -c @serverHost -P 4<br />
+                                iperf3 -c @serverHost -P 4@(GetExtraDataArg())<br />
                                 <br />
                                 <span class="code-comment"># Test download speed (this server to your device, 4 streams)</span><br />
-                                iperf3 -c @serverHost -P 4 -R<br />
+                                iperf3 -c @serverHost -P 4 -R@(GetExtraDataArg())<br />
                                 <br />
                                 <span class="code-comment"># OR full bidirectional test (runs both directions simultaneously)</span><br />
-                                iperf3 -c @serverHost -P 4 --bidir
+                                iperf3 -c @serverHost -P 4 --bidir@(GetExtraDataArg())
                             </code>
                         </div>
+                        @if (SiteId != 1001)
+                        {
+                            <div class="form-help" style="margin-top: 0.5rem;">
+                                <span class="text-muted">The <code>--extra-data @SiteId</code> flag identifies this site so results are recorded correctly.</span>
+                            </div>
+                        }
                         <div class="form-help install-help">
                             <div class="install-header">Install iperf3 on client device:</div>
                             <div class="install-item"><code>sudo apt install iperf3</code> <span class="text-muted">(Linux)</span></div>
@@ -1011,6 +1011,10 @@
 
     private string GetSpeedTestRunUrl() =>
         SiteId == 1001 ? $"{openSpeedTestUrl}?Run" : $"{openSpeedTestUrl}?siteId={SiteId}&Run";
+
+    // Only include --extra-data for non-default sites (reduces friction for home users)
+    private string GetExtraDataArg() =>
+        SiteId == 1001 ? "" : $" --extra-data {SiteId}";
 
     public void Dispose()
     {
