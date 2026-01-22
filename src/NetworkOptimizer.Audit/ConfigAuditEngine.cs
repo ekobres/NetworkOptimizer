@@ -246,7 +246,7 @@ public class ConfigAuditEngine
                 RuleId = "FW-ZONE-001",
                 ScoreImpact = 5,
                 RecommendedAction = "This may indicate a bug in Network Optimizer or an unexpected UniFi API response. " +
-                    "Please report this issue at https://github.com/anthropics/claude-code/issues with your UniFi controller version."
+                    "Please report this issue at https://github.com/Ozark-Connect/NetworkOptimizer/issues with your UniFi controller version."
             });
         }
 
