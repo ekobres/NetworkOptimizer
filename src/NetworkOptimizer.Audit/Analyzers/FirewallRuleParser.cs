@@ -13,6 +13,21 @@ namespace NetworkOptimizer.Audit.Analyzers;
 /// </summary>
 public class FirewallRuleParser
 {
+    /// <summary>
+    /// Synthetic zone ID for external/WAN zone (used for legacy rules without zone IDs)
+    /// </summary>
+    public const string LegacyExternalZoneId = "__LEGACY_EXTERNAL__";
+
+    /// <summary>
+    /// Synthetic zone ID for internal/LAN zone (used for legacy rules without zone IDs)
+    /// </summary>
+    public const string LegacyInternalZoneId = "__LEGACY_INTERNAL__";
+
+    /// <summary>
+    /// Synthetic zone ID for gateway/router zone (used for legacy rules without zone IDs)
+    /// </summary>
+    public const string LegacyGatewayZoneId = "__LEGACY_GATEWAY__";
+
     private readonly ILogger<FirewallRuleParser> _logger;
     private Dictionary<string, UniFiFirewallGroup>? _firewallGroups;
 
@@ -111,9 +126,9 @@ public class FirewallRuleParser
     /// </summary>
     public FirewallRule? ParseFirewallPolicy(JsonElement policy)
     {
-        var id = policy.GetStringOrNull("_id");
-        if (string.IsNullOrEmpty(id))
-            return null;
+        // Generate an ID if not present or empty (allows parsing of simplified test data)
+        var rawId = policy.GetStringOrNull("_id");
+        var id = string.IsNullOrEmpty(rawId) ? Guid.NewGuid().ToString() : rawId;
 
         var name = policy.GetStringOrNull("name");
         var enabled = policy.GetBoolOrDefault("enabled", true);
@@ -196,12 +211,13 @@ public class FirewallRuleParser
             }
         }
 
-        // Extract destination info including web domains
+        // Extract destination info including web domains and app IDs
         string? destPort = null;
         string? destMatchingTarget = null;
         List<string>? webDomains = null;
         List<string>? destNetworkIds = null;
         List<string>? destIps = null;
+        List<int>? appIds = null;
         string? destZoneId = null;
         bool destMatchOppositeIps = false;
         bool destMatchOppositeNetworks = false;
@@ -236,6 +252,15 @@ public class FirewallRuleParser
                 destIps = ips.EnumerateArray()
                     .Where(e => e.ValueKind == JsonValueKind.String)
                     .Select(e => e.GetString()!)
+                    .ToList();
+            }
+
+            // Extract app IDs for app-based matching (e.g., DNS, DoT, DoH blocking)
+            if (dest.TryGetProperty("app_ids", out var appIdsArray) && appIdsArray.ValueKind == JsonValueKind.Array)
+            {
+                appIds = appIdsArray.EnumerateArray()
+                    .Where(e => e.ValueKind == JsonValueKind.Number)
+                    .Select(e => e.GetInt32())
                     .ToList();
             }
 
@@ -290,6 +315,7 @@ public class FirewallRuleParser
             DestinationMatchingTarget = destMatchingTarget,
             DestinationIps = destIps,
             DestinationNetworkIds = destNetworkIds,
+            AppIds = appIds,
             IcmpTypename = icmpTypename,
             // Zone and match opposite flags
             SourceZoneId = sourceZoneId,
@@ -407,6 +433,9 @@ public class FirewallRuleParser
             }
         }
 
+        // Map legacy ruleset to zone IDs for compatibility with zone-based analysis
+        var (sourceZoneId, destZoneId) = MapRulesetToZones(ruleset);
+
         return new FirewallRule
         {
             Id = id,
@@ -425,7 +454,10 @@ public class FirewallRuleParser
             HitCount = hitCount,
             Ruleset = ruleset,
             SourceNetworkIds = sourceNetworkIds,
-            WebDomains = webDomains
+            WebDomains = webDomains,
+            // Zone IDs derived from ruleset for compatibility with zone-based analysis
+            SourceZoneId = sourceZoneId,
+            DestinationZoneId = destZoneId
         };
     }
 
@@ -440,4 +472,144 @@ public class FirewallRuleParser
     /// </summary>
     private string? ResolvePortGroup(string groupId)
         => FirewallGroupHelper.ResolvePortGroup(groupId, _firewallGroups, _logger);
+
+    /// <summary>
+    /// Maps legacy ruleset names to source and destination zone IDs.
+    /// Legacy UniFi firewall rules use ruleset names like WAN_IN, WAN_OUT, LAN_IN, etc.
+    /// instead of explicit zone IDs. This method derives synthetic zone IDs from the ruleset.
+    /// </summary>
+    /// <param name="ruleset">The legacy ruleset name (e.g., "WAN_IN", "WAN_OUT", "LAN_IN")</param>
+    /// <returns>A tuple of (sourceZoneId, destinationZoneId), both may be null if ruleset is unknown</returns>
+    public static (string? SourceZoneId, string? DestinationZoneId) MapRulesetToZones(string? ruleset)
+    {
+        if (string.IsNullOrEmpty(ruleset))
+            return (null, null);
+
+        // Normalize to uppercase for comparison
+        return ruleset.ToUpperInvariant() switch
+        {
+            // WAN_OUT: Traffic from internal networks going to the internet
+            // Most relevant for DNS security checks (blocking external DNS)
+            "WAN_OUT" => (LegacyInternalZoneId, LegacyExternalZoneId),
+
+            // WAN_IN: Traffic from internet coming into the network
+            "WAN_IN" => (LegacyExternalZoneId, LegacyInternalZoneId),
+
+            // LAN_IN: Traffic entering LAN interfaces (inter-VLAN traffic)
+            "LAN_IN" => (LegacyInternalZoneId, LegacyInternalZoneId),
+
+            // LAN_OUT: Traffic leaving LAN interfaces
+            "LAN_OUT" => (LegacyInternalZoneId, null),
+
+            // LAN_LOCAL: Traffic destined to the router/gateway itself
+            "LAN_LOCAL" => (LegacyInternalZoneId, LegacyGatewayZoneId),
+
+            // GUEST_IN: Traffic from guest networks
+            "GUEST_IN" => (LegacyInternalZoneId, LegacyInternalZoneId),
+
+            // GUEST_OUT: Traffic leaving guest networks
+            "GUEST_OUT" => (LegacyInternalZoneId, null),
+
+            // GUEST_LOCAL: Guest traffic to router
+            "GUEST_LOCAL" => (LegacyInternalZoneId, LegacyGatewayZoneId),
+
+            // Unknown ruleset
+            _ => (null, null)
+        };
+    }
+
+    /// <summary>
+    /// Parse a combined traffic firewall rule (legacy format with app_ids at root level).
+    /// These rules have NO protocol field - assume ALL protocols (TCP/UDP/ICMP).
+    /// Used for app-based DNS blocking detection.
+    /// </summary>
+    /// <param name="rule">JSON element containing the combined traffic rule</param>
+    /// <returns>A FirewallRule if this is an app-based rule, null otherwise</returns>
+    public FirewallRule? ParseCombinedTrafficRule(JsonElement rule)
+    {
+        // Check for app-based rule (matching_target == "APP")
+        var matchingTarget = rule.GetStringOrNull("matching_target");
+        if (matchingTarget != "APP")
+            return null; // Skip non-app rules (domain rules, etc.)
+
+        // Extract app_ids from root level
+        List<int>? appIds = null;
+        if (rule.TryGetProperty("app_ids", out var appIdsArray) && appIdsArray.ValueKind == JsonValueKind.Array)
+        {
+            appIds = appIdsArray.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.Number)
+                .Select(e => e.GetInt32())
+                .ToList();
+        }
+
+        if (appIds == null || appIds.Count == 0)
+            return null;
+
+        // Extract action (traffic_rule_action in legacy format)
+        var action = rule.GetStringOrNull("traffic_rule_action")?.ToLowerInvariant();
+        var enabled = rule.GetBoolOrDefault("enabled", true);
+        var name = rule.GetStringOrNull("name");
+        var originId = rule.GetStringOrNull("origin_id") ?? Guid.NewGuid().ToString();
+
+        // Extract ruleset from firewall_rule_details for zone mapping
+        string? ruleset = null;
+        if (rule.TryGetProperty("firewall_rule_details", out var details) && details.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var detail in details.EnumerateArray())
+            {
+                var detailRuleset = detail.GetStringOrNull("ruleset");
+                if (!string.IsNullOrEmpty(detailRuleset))
+                {
+                    // Prefer IPv4 ruleset (skip v6 variants)
+                    if (!detailRuleset.Contains("v6", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ruleset = detailRuleset;
+                        break;
+                    }
+                    // Keep as fallback if only v6 is available
+                    ruleset ??= detailRuleset;
+                }
+            }
+        }
+
+        var (sourceZone, destZone) = MapRulesetToZones(ruleset);
+
+        return new FirewallRule
+        {
+            Id = originId,
+            Name = name,
+            Enabled = enabled,
+            Action = action,
+            Protocol = "all", // Legacy has NO protocol - assume all (TCP/UDP/ICMP)
+            AppIds = appIds,
+            DestinationMatchingTarget = matchingTarget,
+            SourceZoneId = sourceZone,
+            DestinationZoneId = destZone,
+            Ruleset = ruleset
+        };
+    }
+
+    /// <summary>
+    /// Extract app-based rules from combined traffic firewall rules response.
+    /// Only returns rules with matching_target == "APP" that have app IDs.
+    /// </summary>
+    /// <param name="root">JSON element containing the array of combined traffic rules</param>
+    /// <returns>List of app-based FirewallRules</returns>
+    public List<FirewallRule> ExtractCombinedTrafficRules(JsonElement root)
+    {
+        var rules = new List<FirewallRule>();
+
+        if (root.ValueKind != JsonValueKind.Array)
+            return rules;
+
+        foreach (var element in root.EnumerateArray())
+        {
+            var rule = ParseCombinedTrafficRule(element);
+            if (rule != null)
+                rules.Add(rule);
+        }
+
+        _logger.LogDebug("Extracted {Count} app-based rules from combined traffic rules", rules.Count);
+        return rules;
+    }
 }
