@@ -508,9 +508,19 @@ public class AuditService
 
     /// <summary>
     /// Builds a ReportData object from an AuditResult for PDF generation.
+    /// Derives client name from gateway device name if not explicitly provided.
     /// </summary>
-    public Reports.ReportData BuildReportData(AuditResult result, string clientName = "Client")
+    public Reports.ReportData BuildReportData(AuditResult result, string? clientName = null)
     {
+        // Derive client name from gateway device if not provided
+        if (string.IsNullOrEmpty(clientName))
+        {
+            var gateway = result.Switches.FirstOrDefault(s => s.IsGateway);
+            clientName = gateway != null
+                ? DisplayFormatters.StripDeviceNameForDisplay(gateway.Name)
+                : "Client";
+        }
+
         return new Reports.ReportData
         {
             ClientName = clientName,
