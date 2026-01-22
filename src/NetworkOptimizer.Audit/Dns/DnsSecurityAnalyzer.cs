@@ -400,7 +400,17 @@ public class DnsSecurityAnalyzer
                                       string.IsNullOrEmpty(destZoneId) ||
                                       string.Equals(destZoneId, externalZoneId, StringComparison.OrdinalIgnoreCase);
 
+            // For legacy systems, LAN_IN rules can also block external traffic (traffic passes through
+            // LAN_IN before reaching WAN_OUT). However, LAN_IN is only acceptable for DoT/DoH blocking,
+            // NOT for UDP 53 - because the gateway's own DNS queries would be blocked by LAN_IN.
+            var ruleset = rule.Ruleset?.ToUpperInvariant();
+            var isLegacyLanIn = ruleset == "LAN_IN";
+
             var isBlockAction = rule.ActionType.IsBlockAction();
+
+            // Debug logging for zone matching (helps diagnose DNS detection issues)
+            _logger.LogDebug("Rule '{Name}': action={Action}, isBlock={IsBlock}, destZone={DestZone}, externalZone={ExternalZone}, targetsExternal={TargetsExternal}, matchingTarget={MatchingTarget}",
+                name, rule.Action, isBlockAction, destZoneId ?? "(null)", externalZoneId ?? "(null)", targetsExternalZone, matchingTarget ?? "(null)");
 
             // If match_opposite_ports is true, the rule blocks everything EXCEPT the specified ports
             // So we should NOT count it as blocking those ports
@@ -445,7 +455,8 @@ public class DnsSecurityAnalyzer
 
             // Check for DNS over TLS (port 853) blocking - TCP only, must target External zone
             // Check for DNS over QUIC (port 853) blocking - UDP only (RFC 9250), must target External zone
-            if (isBlockAction && targetsExternalZone && FirewallGroupHelper.IncludesPort(destPort, "853"))
+            // For legacy systems, LAN_IN is also acceptable (gateway uses DoH, not DoT/DoQ for upstream)
+            if (isBlockAction && (targetsExternalZone || isLegacyLanIn) && FirewallGroupHelper.IncludesPort(destPort, "853"))
             {
                 // DoT = TCP 853
                 if (blocksTcp)
@@ -468,7 +479,8 @@ public class DnsSecurityAnalyzer
 
             // Check for DoH/DoH3 blocking (port 443 with web domains containing DNS providers), must target External zone
             // DoH = TCP 443 (HTTP/2), DoH3 = UDP 443 (HTTP/3 over QUIC)
-            if (isBlockAction && targetsExternalZone && FirewallGroupHelper.IncludesPort(destPort, "443") && matchingTarget == "WEB" && webDomains?.Count > 0)
+            // For legacy systems, LAN_IN is also acceptable (gateway's DoH goes to configured providers, not blocked IPs)
+            if (isBlockAction && (targetsExternalZone || isLegacyLanIn) && FirewallGroupHelper.IncludesPort(destPort, "443") && matchingTarget == "WEB" && webDomains?.Count > 0)
             {
                 // Check if web domains include DNS providers
                 var dnsProviderDomains = webDomains.Where(d =>
@@ -748,14 +760,14 @@ public class DnsSecurityAnalyzer
         }
         else if (result.DohState == "auto")
         {
-            // DoH is auto-negotiated, may fall back to unencrypted
+            // DoH auto mode uses default providers whose privacy practices you may not have reviewed
             result.Issues.Add(new AuditIssue
             {
                 Type = IssueTypes.DnsDohAuto,
                 Severity = AuditSeverity.Informational,
                 DeviceName = result.GatewayName,
-                Message = "DoH is set to 'auto' mode which may fall back to unencrypted DNS. Consider setting to 'custom' for guaranteed encryption.",
-                RecommendedAction = "Configure DoH with explicit custom servers for guaranteed encryption",
+                Message = "DoH is using default providers whose privacy policies you may not have reviewed. Default providers may log queries and do not guarantee anonymity.",
+                RecommendedAction = "Consider configuring custom DoH servers from privacy-focused providers if DNS query privacy is important",
                 RuleId = "DNS-DOH-002",
                 ScoreImpact = 3
             });
