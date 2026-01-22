@@ -234,9 +234,9 @@
                 var newId = await SiteRepository.CreateSiteAsync(site);
                 CloseModal();
 
-                // Navigate to the new site's settings to configure the controller
+                // Navigate to the new site's console connection settings
                 // Force reload so SiteSelector picks up the new site
-                NavigationManager.NavigateTo($"/sites/{newId}/settings", forceLoad: true);
+                NavigationManager.NavigateTo($"/sites/{newId}/settings#console-connection", forceLoad: true);
             }
             else
             {
