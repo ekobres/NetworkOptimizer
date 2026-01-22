@@ -517,7 +517,7 @@ public class AuditService
         {
             var gateway = result.Switches.FirstOrDefault(s => s.IsGateway);
             clientName = gateway != null
-                ? DisplayFormatters.StripDeviceNameForDisplay(gateway.Name)
+                ? DisplayFormatters.ExtractNetworkName(gateway.Name)
                 : "Client";
         }
 
