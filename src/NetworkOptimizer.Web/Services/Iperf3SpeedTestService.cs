@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NetworkOptimizer.Core.Enums;
+using NetworkOptimizer.Storage;
 using NetworkOptimizer.Storage.Interfaces;
 using NetworkOptimizer.Storage.Models;
 using NetworkOptimizer.UniFi;
@@ -16,6 +18,7 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
 {
     private readonly ILogger<Iperf3SpeedTestService> _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IDbContextFactory<NetworkOptimizerDbContext> _dbFactory;
     private readonly UniFiSshService _sshService;
     private readonly SystemSettingsService _settingsService;
     private readonly UniFiConnectionService _connectionService;
@@ -41,6 +44,7 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     public Iperf3SpeedTestService(
         ILogger<Iperf3SpeedTestService> logger,
         IServiceProvider serviceProvider,
+        IDbContextFactory<NetworkOptimizerDbContext> dbFactory,
         UniFiSshService sshService,
         SystemSettingsService settingsService,
         UniFiConnectionService connectionService,
@@ -49,6 +53,7 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _dbFactory = dbFactory;
         _sshService = sshService;
         _settingsService = settingsService;
         _connectionService = connectionService;
@@ -507,13 +512,38 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     }
 
     /// <summary>
-    /// Get recent speed test results
+    /// Get recent speed test results.
+    /// Retries path analysis for results missing valid paths (within last 30 min).
     /// </summary>
     public async Task<List<Iperf3Result>> GetRecentResultsAsync(int siteId, int count = 50, int hours = 0)
     {
         using var scope = _serviceProvider.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<ISpeedTestRepository>();
-        return await repository.GetRecentIperf3ResultsAsync(siteId, count, hours);
+        var results = await repository.GetRecentIperf3ResultsAsync(siteId, count, hours);
+
+        // Retry path analysis for recent results (last 30 min) without a valid path
+        var retryWindow = DateTime.UtcNow.AddMinutes(-30);
+        var needsRetry = results.Where(r =>
+            r.TestTime > retryWindow &&
+            (r.PathAnalysis == null ||
+             r.PathAnalysis.Path == null ||
+             !r.PathAnalysis.Path.IsValid))
+            .ToList();
+
+        if (needsRetry.Count > 0)
+        {
+            _logger.LogInformation("Retrying path analysis for site {SiteId}: {Count} results without valid paths", siteId, needsRetry.Count);
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            foreach (var result in needsRetry)
+            {
+                db.Attach(result);
+                // Use result's own SiteId to ensure correct site context
+                await AnalyzePathAsync(result.SiteId, result, result.DeviceHost);
+            }
+            await db.SaveChangesAsync();
+        }
+
+        return results;
     }
 
     /// <summary>
@@ -707,7 +737,8 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     }
 
     /// <summary>
-    /// Analyze the network path and grade the speed test result
+    /// Analyze the network path and grade the speed test result.
+    /// Retry logic is built into CalculatePathAsync.
     /// </summary>
     private async Task AnalyzePathAsync(int siteId, Iperf3Result result, string targetHost)
     {

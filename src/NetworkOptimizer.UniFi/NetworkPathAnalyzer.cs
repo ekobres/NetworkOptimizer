@@ -24,7 +24,13 @@ public interface INetworkPathAnalyzer
 {
     void InvalidateTopologyCache();
     Task<ServerPosition?> DiscoverServerPositionAsync(string? sourceIp = null, CancellationToken cancellationToken = default);
-    Task<NetworkPath> CalculatePathAsync(string targetHost, string? sourceIp = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calculates the network path from the server to a target device or client.
+    /// If retryOnFailure is true and target not found or data stale, invalidates cache and retries once.
+    /// </summary>
+    Task<NetworkPath> CalculatePathAsync(string targetHost, string? sourceIp = null, bool retryOnFailure = true, CancellationToken cancellationToken = default);
+
     PathAnalysisResult AnalyzeSpeedTest(NetworkPath path, double fromDeviceMbps, double toDeviceMbps, int fromDeviceRetransmits = 0, int toDeviceRetransmits = 0, long fromDeviceBytes = 0, long toDeviceBytes = 0);
 }
 
@@ -242,13 +248,16 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
 
     /// <summary>
     /// Calculates the network path from the server to a target device or client.
+    /// If retryOnFailure is true and target not found or data stale, invalidates cache and retries once.
     /// </summary>
     /// <param name="targetHost">Target hostname or IP</param>
     /// <param name="sourceIp">Optional source IP (from iperf3 output). If null, auto-detects.</param>
+    /// <param name="retryOnFailure">If true, retry once with fresh topology when target not found</param>
     /// <param name="cancellationToken">Cancellation token</param>
     public async Task<NetworkPath> CalculatePathAsync(
         string targetHost,
         string? sourceIp = null,
+        bool retryOnFailure = true,
         CancellationToken cancellationToken = default)
     {
         var path = new NetworkPath
@@ -312,6 +321,15 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 {
                     path.IsValid = false;
                     path.ErrorMessage = $"Target '{targetHost}' not found in network topology";
+
+                    // Retry with fresh topology if enabled
+                    if (retryOnFailure)
+                    {
+                        _logger.LogDebug("Target not found, invalidating topology cache and retrying");
+                        InvalidateTopologyCache();
+                        return await CalculatePathAsync(targetHost, sourceIp, retryOnFailure: false, cancellationToken);
+                    }
+
                     return path;
                 }
             }
@@ -377,6 +395,15 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
 
             // Build the hop list
             BuildHopList(path, serverPosition, targetDevice, targetClient, topology, rawDevices);
+
+            // Check if BuildHopList marked the path invalid due to stale data (retry if enabled)
+            if (!path.IsValid && retryOnFailure &&
+                path.ErrorMessage?.Contains("not yet available", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                _logger.LogDebug("Stale client data detected, invalidating topology cache and retrying");
+                InvalidateTopologyCache();
+                return await CalculatePathAsync(targetHost, sourceIp, retryOnFailure: false, cancellationToken);
+            }
 
             // Calculate bottleneck
             CalculateBottleneck(path);
@@ -814,9 +841,12 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
             else if (!string.IsNullOrEmpty(currentMac) && currentPort.HasValue)
             {
                 // Wired client - get port speed from switch
+                // Only set port number, not name, so bottleneck shows "port X" consistently
                 int portSpeed = GetPortSpeedFromRawDevices(rawDevices, currentMac, currentPort);
                 hop.EgressSpeedMbps = portSpeed;
                 hop.IngressSpeedMbps = portSpeed;
+                hop.EgressPort = currentPort;
+                hop.IngressPort = currentPort;
             }
 
             hops.Add(hop);
