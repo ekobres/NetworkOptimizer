@@ -12,7 +12,7 @@ Download the MSI installer from [GitHub Releases](https://github.com/Ozark-Conne
 
 ## New: Client-Based LAN Speed Testing
 
-Test LAN speeds from any device on your network - phones, tablets, laptops - without SSH access. Run browser-based speed tests powered by [OpenSpeedTest™](https://openspeedtest.com) or use iperf3 clients; results are automatically collected and displayed with device identification, network path visualization, and performance metrics. With HTTPS enabled, browser tests can collect location data (with permission) to build a Speed / Coverage Map showing real-world performance across your property.
+Test LAN speeds from any device on your network - phones, tablets, laptops - without SSH access. Run browser-based speed tests powered by [OpenSpeedTest™](https://openspeedtest.com) or use iperf3 clients; results are automatically collected and displayed with device identification, network path visualization, and performance metrics. With HTTPS enabled, browser tests can collect location data (with permission) to build a Speed / Coverage Map showing real-world performance across your property or campus.
 
 ![Speed / Coverage Map](docs/images/speed-coverage-map.png)
 
