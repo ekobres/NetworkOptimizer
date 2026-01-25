@@ -3480,6 +3480,18 @@ select.form-control {
         min-width: 0;
     }
 
+    .path-analysis .path-max-speed {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .path-analysis .path-max-speed .speed-value {
+        font-size: 1rem;
+    }
+
+    .path-analysis .grade-badge {
+        padding: 0.35rem 0.4rem;
+    }
+
     /* Mobile: simple vertical stack layout */
     .path-analysis .path-visualization {
         flex-direction: column;
