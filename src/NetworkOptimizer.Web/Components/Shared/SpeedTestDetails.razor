@@ -160,15 +160,17 @@
                                 if (lastGlobalIdx < hops.Count - 1)
                                 {
                                     var nextHopGlobal = hops[lastGlobalIdx + 1];
-                                    var linkSpeed = nextHopGlobal.IngressSpeedMbps > 0 ? nextHopGlobal.IngressSpeedMbps : lastHop.EgressSpeedMbps;
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && linkSpeed > 0 && linkSpeed == PathAnalysis.Path.TheoreticalMaxMbps;
+                                    var linkSpeed = GetLinkSpeed(lastHop, nextHopGlobal);
+                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (lastHop.IsBottleneck || nextHopGlobal.IsBottleneck);
                                     var isWirelessLink = lastHop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
+                                    var turnTooltip = isWirelessLink
+                                        ? GetWifiTooltip(lastHop, nextHopGlobal, isBottleneckLink)
+                                        : (isBottleneckLink ? "Bottleneck: slowest link in path" : null);
 
-                                    <div class="path-connector path-turn turn-left @(isBottleneckLink ? "bottleneck" : "") @(isWirelessLink ? "wireless" : "")">
+                                    <div class="path-connector path-turn turn-left @(isBottleneckLink ? "bottleneck" : "") @(isWirelessLink ? "wireless" : "")" data-tooltip="@turnTooltip">
                                         @if (isWirelessLink)
                                         {
-                                            var wifiTooltip = GetWifiTooltip(lastHop, nextHopGlobal);
-                                            <span class="wireless-icon" data-tooltip="@wifiTooltip">📶</span>
+                                            <span class="wireless-icon">📶</span>
                                         }
                                         <span class="connector-line"></span>
                                         @if (linkSpeed > 0)
@@ -193,15 +195,17 @@
                                 @if (isReversed && localIdx != row.Count - 1 && globalIdx < hops.Count - 1)
                                 {
                                     var nextHopGlobal = hops[globalIdx + 1];
-                                    var linkSpeed = nextHopGlobal.IngressSpeedMbps > 0 ? nextHopGlobal.IngressSpeedMbps : hop.EgressSpeedMbps;
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && linkSpeed > 0 && linkSpeed == PathAnalysis.Path.TheoreticalMaxMbps;
+                                    var linkSpeed = GetLinkSpeed(hop, nextHopGlobal);
+                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (hop.IsBottleneck || nextHopGlobal.IsBottleneck);
                                     var isWirelessLink = hop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
+                                    var connectorTooltip1 = isWirelessLink
+                                        ? GetWifiTooltip(hop, nextHopGlobal, isBottleneckLink)
+                                        : (isBottleneckLink ? "Bottleneck: slowest link in path" : null);
 
-                                    <div class="path-connector arrow-left @(isBottleneckLink ? "bottleneck" : "") @(isWirelessLink ? "wireless" : "")">
+                                    <div class="path-connector arrow-left @(isBottleneckLink ? "bottleneck" : "") @(isWirelessLink ? "wireless" : "")" data-tooltip="@connectorTooltip1">
                                         @if (isWirelessLink)
                                         {
-                                            var wifiTooltip = GetWifiTooltip(hop, nextHopGlobal);
-                                            <span class="wireless-icon" data-tooltip="@wifiTooltip">📶</span>
+                                            <span class="wireless-icon">📶</span>
                                         }
                                         <span class="connector-line"></span>
                                         @if (linkSpeed > 0)
@@ -231,16 +235,18 @@
                                 @if (!isReversed && globalIdx < hops.Count - 1)
                                 {
                                     var nextHopGlobal = hops[globalIdx + 1];
-                                    var linkSpeed = nextHopGlobal.IngressSpeedMbps > 0 ? nextHopGlobal.IngressSpeedMbps : hop.EgressSpeedMbps;
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && linkSpeed > 0 && linkSpeed == PathAnalysis.Path.TheoreticalMaxMbps;
+                                    var linkSpeed = GetLinkSpeed(hop, nextHopGlobal);
+                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (hop.IsBottleneck || nextHopGlobal.IsBottleneck);
                                     var isWirelessLink = hop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
                                     var needsTurn = isLastHopInRow && !isLastRow;
+                                    var connectorTooltip2 = isWirelessLink
+                                        ? GetWifiTooltip(hop, nextHopGlobal, isBottleneckLink)
+                                        : (isBottleneckLink ? "Bottleneck: slowest link in path" : null);
 
-                                    <div class="path-connector @(needsTurn ? "path-turn" : "") @(isBottleneckLink ? "bottleneck" : "") @(isWirelessLink ? "wireless" : "")">
+                                    <div class="path-connector @(needsTurn ? "path-turn" : "") @(isBottleneckLink ? "bottleneck" : "") @(isWirelessLink ? "wireless" : "")" data-tooltip="@connectorTooltip2">
                                         @if (isWirelessLink)
                                         {
-                                            var wifiTooltip = GetWifiTooltip(hop, nextHopGlobal);
-                                            <span class="wireless-icon" data-tooltip="@wifiTooltip">📶</span>
+                                            <span class="wireless-icon">📶</span>
                                         }
                                         <span class="connector-line"></span>
                                         @if (linkSpeed > 0)
@@ -260,10 +266,10 @@
                 </div>
             }
 
-            @if (PathAnalysis.Path.HasRealBottleneck && !string.IsNullOrEmpty(PathAnalysis.Path.BottleneckDescription))
+            @if (PathAnalysis.Path.HasRealBottleneck)
             {
-                <div class="bottleneck-warning">
-                    ⚠️ @PathAnalysis.Path.BottleneckDescription
+                <div class="bottleneck-warning" data-tooltip="This is the slowest link in the path, limiting overall throughput">
+                    @FormatBottleneckDescription()
                 </div>
             }
 
@@ -296,11 +302,11 @@
             <div class="path-notes">
                 @foreach (var insight in filteredInsights)
                 {
-                    <div class="note insight">💡 @insight</div>
+                    <div class="note insight">@insight</div>
                 }
                 @foreach (var rec in filteredRecs)
                 {
-                    <div class="note recommendation">📈 @rec</div>
+                    <div class="note recommendation">@rec</div>
                 }
             </div>
         }
@@ -559,9 +565,25 @@
     };
 
     /// <summary>
+    /// Calculate link speed between two adjacent hops.
+    /// For wireless/WAN hops, uses IngressSpeedMbps (TX to device or download).
+    /// For wired hops, uses EgressSpeedMbps (port toward next hop) with fallback to nextHop's Ingress.
+    /// </summary>
+    private int GetLinkSpeed(NetworkHop hop, NetworkHop nextHop)
+    {
+        var isWanType = hop.Type == HopType.Tailscale || hop.Type == HopType.Teleport || hop.Type == HopType.Wan;
+        return (hop.IsWirelessIngress || isWanType)
+            ? hop.IngressSpeedMbps
+            : (hop.EgressSpeedMbps > 0 ? hop.EgressSpeedMbps : nextHop.IngressSpeedMbps);
+    }
+
+    /// <summary>
     /// Get Wi-Fi signal tooltip content from the hop or Result
     /// </summary>
-    private string GetWifiTooltip(NetworkHop hop, NetworkHop nextHop)
+    /// <param name="hop">The current hop</param>
+    /// <param name="nextHop">The next hop in the path</param>
+    /// <param name="isBottleneck">Whether this link is the bottleneck</param>
+    private string GetWifiTooltip(NetworkHop hop, NetworkHop nextHop, bool isBottleneck = false)
     {
         // Determine if this is the client's wireless connection (first hop is WirelessClient)
         // or a mesh/bridge wireless link
@@ -580,7 +602,8 @@
             // Check for MLO (Multi-Link Operation) - use unified styling
             if (Result.WifiIsMlo && !string.IsNullOrEmpty(Result.WifiMloLinksJson))
             {
-                return BuildMloTooltip();
+                var mloTooltip = BuildMloTooltip();
+                return isBottleneck ? mloTooltip + "<div class='wifi-tooltip-bottleneck'>Bottleneck: slowest link in path</div>" : mloTooltip;
             }
 
             // Single-link wireless - use same styled format as MLO
@@ -596,9 +619,9 @@
             {
                 var speedParts = new List<string>();
                 if (Result.WifiRxRateKbps.HasValue && Result.WifiRxRateKbps.Value > 0)
-                    speedParts.Add($"<span class='wifi-speed-rx'>RX {Result.WifiRxRateKbps.Value / 1000} Mbps</span>");
+                    speedParts.Add($"<span class='wifi-speed-rx'>RX {Math.Round(Result.WifiRxRateKbps.Value / 1000.0)} Mbps</span>");
                 if (Result.WifiTxRateKbps.HasValue && Result.WifiTxRateKbps.Value > 0)
-                    speedParts.Add($"<span class='wifi-speed-tx'>TX {Result.WifiTxRateKbps.Value / 1000} Mbps</span>");
+                    speedParts.Add($"<span class='wifi-speed-tx'>TX {Math.Round(Result.WifiTxRateKbps.Value / 1000.0)} Mbps</span>");
                 if (speedParts.Count > 0)
                     lines.Add($"<div class='wifi-tooltip-row wifi-tooltip-speed'>{string.Join(" · ", speedParts)}</div>");
             }
@@ -623,7 +646,8 @@
                 lines.Add($"<div class='wifi-tooltip-link-signal'>{string.Join(" · ", sigParts)}</div>");
             }
 
-            return lines.Count > 0 ? string.Join("", lines) : "Wireless connection";
+            var clientTooltip = lines.Count > 0 ? string.Join("", lines) : "Wireless connection";
+            return isBottleneck ? clientTooltip + "<div class='wifi-tooltip-bottleneck'>Bottleneck: slowest link in path</div>" : clientTooltip;
         }
 
         // For mesh/bridge wireless - use same styled format
@@ -663,7 +687,8 @@
             lines2.Add($"<div class='wifi-tooltip-link-signal'>{string.Join(" · ", sigParts)}</div>");
         }
 
-        return lines2.Count > 1 ? string.Join("", lines2) : "Wireless mesh";
+        var meshTooltip = lines2.Count > 1 ? string.Join("", lines2) : "Wireless mesh";
+        return isBottleneck ? meshTooltip + "<div class='wifi-tooltip-bottleneck'>Bottleneck: slowest link in path</div>" : meshTooltip;
     }
 
     /// <summary>
@@ -725,9 +750,9 @@
                 {
                     var linkSpeedParts = new List<string>();
                     if (link.rxRate.HasValue)
-                        linkSpeedParts.Add($"<span class='wifi-speed-rx'>RX {link.rxRate.Value / 1000} Mbps</span>");
+                        linkSpeedParts.Add($"<span class='wifi-speed-rx'>RX {Math.Round(link.rxRate.Value / 1000.0)} Mbps</span>");
                     if (link.txRate.HasValue)
-                        linkSpeedParts.Add($"<span class='wifi-speed-tx'>TX {link.txRate.Value / 1000} Mbps</span>");
+                        linkSpeedParts.Add($"<span class='wifi-speed-tx'>TX {Math.Round(link.txRate.Value / 1000.0)} Mbps</span>");
                     lines.Add($"<div class='wifi-tooltip-link-speed'>{string.Join(" · ", linkSpeedParts)}</div>");
                 }
 
@@ -1038,6 +1063,50 @@
 
         // Use download/upload colors: download (from device) = blue, upload (to device) = green
         return new MarkupString($"<span class=\"speed-from\">↓{fromVal}</span> <span class=\"speed-to\">↑{toVal}</span> {unit}");
+    }
+
+    /// <summary>
+    /// Format the bottleneck description, showing directional speeds (Rx / Tx) if asymmetric.
+    /// Generated on the fly to support existing test results.
+    /// </summary>
+    private string FormatBottleneckDescription()
+    {
+        if (PathAnalysis == null || string.IsNullOrEmpty(PathAnalysis.Path.BottleneckDescription))
+            return "";
+
+        var (rxKbps, txKbps) = GetDirectionalRates();
+
+        // If we have directional rates and they differ significantly, show both
+        if (rxKbps.HasValue && txKbps.HasValue &&
+            rxKbps.Value > 0 && txKbps.Value > 0 &&
+            PathAnalysisResult.IsAsymmetric(rxKbps, txKbps))
+        {
+            var rxMbps = rxKbps.Value / 1000.0;
+            var txMbps = txKbps.Value / 1000.0;
+
+            // Format speed as "Rx / Tx" with appropriate unit
+            string speedStr;
+            if (rxMbps >= 1000 && txMbps >= 1000)
+            {
+                var rxGbps = rxMbps / 1000.0;
+                var txGbps = txMbps / 1000.0;
+                speedStr = $"{rxGbps:F1} / {txGbps:F1} Gbps";
+            }
+            else
+            {
+                speedStr = $"{rxMbps:F0} / {txMbps:F0} Mbps";
+            }
+
+            // Extract device info from existing description (after " at ")
+            var description = PathAnalysis.Path.BottleneckDescription;
+            var atIndex = description.IndexOf(" at ", StringComparison.Ordinal);
+            var devicePart = atIndex >= 0 ? description.Substring(atIndex) : "";
+
+            return $"{speedStr} link{devicePart}";
+        }
+
+        // Fall back to existing description for symmetric links
+        return PathAnalysis.Path.BottleneckDescription;
     }
 
     /// <summary>
