@@ -3470,6 +3470,16 @@ select.form-control {
 
 /* Mobile adjustments */
 @media (max-width: 768px) {
+    /* Wrap path-summary (grades + notes) on mobile */
+    .path-analysis .path-summary {
+        flex-wrap: wrap;
+    }
+
+    .path-analysis .path-summary .result-notes {
+        flex-basis: 100%;
+        min-width: 0;
+    }
+
     /* Mobile: simple vertical stack layout */
     .path-analysis .path-visualization {
         flex-direction: column;
