@@ -488,6 +488,29 @@ public partial class AddNewColumn : Migration
 
 3. Update `NetworkOptimizerDbContextModelSnapshot.cs` to include the new property in the entity definition
 
+### Merging Migrations from Main into Multi-Site Branch
+
+**IMPORTANT:** When merging migrations from main into the multi-site feature branch, check if any new migrations modify tables that `AddMultiSiteSupport` also modifies.
+
+The `AddMultiSiteSupport` migration (20260117174452) rebuilds several tables to add SiteId columns and FK constraints. If a migration from main adds columns to these tables and has a timestamp AFTER `AddMultiSiteSupport`, SQLite's table rebuild may lose the new column.
+
+**Tables affected by AddMultiSiteSupport:**
+- Iperf3Results
+- AuditResults
+- DismissedIssues
+- DeviceSshConfigurations
+- GatewaySshSettings
+- ModemConfigurations
+- SqmBaselines
+- SqmWanConfigurations
+- UniFiConnectionSettings
+- UniFiSshSettings
+- UpnpNotes
+
+**Fix:** Rename the migration timestamp to run BEFORE `20260117174452`. For example:
+- `20260124000000_AddNotesToIperf3Result.cs` → `20260115000000_AddNotesToIperf3Result.cs`
+- Update the MigrationId inside both `.cs` and `.Designer.cs` files
+
 ### Common Mistake
 
 If you forget the `.Designer.cs` file or don't update the snapshot, you'll get errors like:
