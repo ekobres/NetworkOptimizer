@@ -11,7 +11,7 @@ using NetworkOptimizer.Storage.Models;
 namespace NetworkOptimizer.Storage.Migrations
 {
     [DbContext(typeof(NetworkOptimizerDbContext))]
-    [Migration("20260115000000_AddNotesToIperf3Result")]
+    [Migration("20260124000000_AddNotesToIperf3Result")]
     partial class AddNotesToIperf3Result
     {
         /// <inheritdoc />

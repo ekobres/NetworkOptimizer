@@ -11,7 +11,7 @@ using NetworkOptimizer.Storage.Models;
 namespace NetworkOptimizer.Storage.Migrations
 {
     [DbContext(typeof(NetworkOptimizerDbContext))]
-    [Migration("20260117174452_AddMultiSiteSupport")]
+    [Migration("20260125000000_AddMultiSiteSupport")]
     partial class AddMultiSiteSupport
     {
         /// <inheritdoc />
@@ -403,6 +403,10 @@ namespace NetworkOptimizer.Storage.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RawUploadJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("SiteId")
