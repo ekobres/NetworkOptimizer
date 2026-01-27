@@ -87,6 +87,31 @@ public static class UniFiProductDatabase
         "UAP-AC-IW",
         "UAP-AC-EDU",
         "UAP-AC-Outdoor",
+
+        // Device Bridges (no iperf3, except UDB-Switch which may have it)
+        "UDB",
+        "UDB-Pro",
+        "UDB-Pro-Sector",
+        "UDB-IoT",
+
+        // UPS and Power devices (no iperf3)
+        "UPS-Tower",
+        "UPS-2U",
+        "USP-PDU-Pro",
+        "USP-PDU-HD",
+        "USP-RPS",
+        "USP-RPS-Pro",
+        "USP-Plug",
+        "USP-Strip",
+
+        // NAS devices (storage, no iperf3)
+        "UNAS-Pro",
+        "UNAS-Pro-4",
+        "UNAS-Pro-8",
+        "UNAS-2-B",
+        "UNAS-2-W",
+        "UNAS-4-B",
+        "UNAS-4-W",
     };
 
     /// <summary>
