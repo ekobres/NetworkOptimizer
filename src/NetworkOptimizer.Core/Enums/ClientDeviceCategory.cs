@@ -317,6 +317,7 @@ public static class ClientDeviceCategoryExtensions
         ClientDeviceCategory.SmartTV => true,
         ClientDeviceCategory.SmartSpeaker => true,
         ClientDeviceCategory.MediaPlayer => true,
+        ClientDeviceCategory.StreamingDevice => true,
         ClientDeviceCategory.Desktop => true,
         ClientDeviceCategory.Server => true,
         ClientDeviceCategory.NAS => true,

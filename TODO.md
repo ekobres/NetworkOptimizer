@@ -61,6 +61,21 @@ New audit section focused on network performance issues (distinct from security 
   - Bottleneck chains where downstream capacity exceeds upstream link
 - Display as performance findings with recommendations
 
+### Jumbo Frames Suggestion
+- Suggest enabling Jumbo Frames as a global switching setting when high-speed devices are present
+- Trigger: 2+ devices connected at 5 GbE or 10 GbE on access ports (not infrastructure uplinks)
+- Rationale: Jumbo frames (9000 MTU) reduce CPU overhead and improve throughput for high-speed transfers
+- Implementation:
+  - Scan port_table for ports with speed >= 5000 Mbps
+  - Exclude infrastructure ports (uplinks, trunks between switches)
+  - If count >= 2, check if Jumbo Frames is already enabled globally
+  - If not enabled, suggest enabling with explanation of benefits
+- Caveats to mention in recommendation:
+  - All devices in the path must support jumbo frames
+  - Some IoT devices may not support non-standard MTU
+  - WAN traffic still uses standard 1500 MTU
+- Severity: Informational (performance optimization, not a problem)
+
 ### AP Pinning Report
 - Report all devices that are pinned to specific APs
 - For each pinned device, show:

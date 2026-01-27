@@ -4,6 +4,7 @@ namespace NetworkOptimizer.Diagnostics.Models;
 
 /// <summary>
 /// Issue found with unnecessary tagged VLANs on access ports.
+/// Planned for future implementation - not currently populated by any analyzer.
 /// </summary>
 public class AccessPortVlanIssue
 {
