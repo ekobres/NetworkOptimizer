@@ -61,21 +61,36 @@ New audit section focused on network performance issues (distinct from security 
   - Bottleneck chains where downstream capacity exceeds upstream link
 - Display as performance findings with recommendations
 
-### AP Pinning Report
-- Report all devices that are pinned to specific APs
-- For each pinned device, show:
-  - Device name/type
-  - Pinned AP name
-  - How long it's been pinned
-- Flag devices that probably shouldn't be pinned:
-  - **Obvious cases:** Phones, tablets, wearables, laptops (mobile devices that roam)
-  - **Borderline:** IoT devices (user prerogative, but often unnecessary)
-  - **Acceptable:** Fixed cameras, sensors, stationary equipment
-- Default stance: Pinning is the user's prerogative, but it's often not recommended because:
-  - Device stays offline if its pinned AP goes down (no failover)
-  - Prevents roaming to better AP when signal degrades
-  - Can cause connectivity issues during AP firmware updates
-- Severity: Informational for acceptable pins, Recommended for mobile device pins
+### Jumbo Frames Suggestion
+- Suggest enabling Jumbo Frames as a global switching setting when high-speed devices are present
+- Trigger: 2+ devices connected at 5 GbE or 10 GbE on access ports (not infrastructure uplinks)
+- Rationale: Jumbo frames (9000 MTU) reduce CPU overhead and improve throughput for high-speed transfers
+- Implementation:
+  - Scan port_table for ports with speed >= 5000 Mbps
+  - Exclude infrastructure ports (uplinks, trunks between switches)
+  - If count >= 2, check if Jumbo Frames is already enabled globally
+  - If not enabled, suggest enabling with explanation of benefits
+- Caveats to mention in recommendation:
+  - All devices in the path must support jumbo frames
+  - Some IoT devices may not support non-standard MTU
+  - WAN traffic still uses standard 1500 MTU
+- Severity: Informational (performance optimization, not a problem)
+
+### MTU Mismatch Detection
+- Detect MTU mismatches along network paths that cause fragmentation or packet drops
+- Implementation:
+  - During path tracing, SSH into each hop (gateway, switches) to query interface MTU
+  - Gateway: `ip link show <interface>` or parse `/sys/class/net/<iface>/mtu`
+  - Switches: Check port MTU via SSH (UniFi switches support shell access)
+  - Compare MTU values across the path - all devices should match
+- Issues to detect:
+  - Standard MTU (1500) mixed with Jumbo Frames (9000) in same path
+  - Intermediate device with lower MTU than endpoints (causes fragmentation)
+  - Jumbo Frames enabled on LAN but not on inter-switch uplinks
+  - VPN/tunnel overhead not accounted for (e.g., WireGuard needs ~1420 MTU)
+- Display: Show MTU at each hop in path analysis, flag mismatches
+- Severity: Warning (mismatches cause performance degradation or silent drops)
+- Prerequisite: Reuse SSH infrastructure from SQM/gateway speed tests
 
 ### AP / RF Performance Analysis (Design Session Needed)
 - **Goal:** Provide RF performance insights beyond what UniFi Network offers natively

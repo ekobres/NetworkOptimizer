@@ -31,6 +31,8 @@
     --bg-tertiary: #334155;
     --bg-card: #242c39;
     --bg-hover: #334155;
+    --surface: #242c39;
+    --surface-secondary: #2d3748;
 
     /* Text Colors */
     --text-primary: #f1f5f9;
@@ -347,6 +349,41 @@ a:hover {
     justify-content: space-between;
 }
 
+.card-header-collapsible {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease;
+}
+
+.card-header-collapsible:hover {
+    background: var(--bg-tertiary);
+}
+
+.card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.card-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+.collapse-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+}
+
+.collapse-chevron.expanded {
+    transform: rotate(90deg);
+}
+
 .card-title-group {
     display: flex;
     align-items: center;
@@ -362,6 +399,18 @@ a:hover {
     font-size: 1.125rem;
     font-weight: 500;
     margin: 0;
+}
+
+@media (max-width: 412px) {
+    .card-title {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 382px) {
+    .card-title {
+        font-size: 0.95rem;
+    }
 }
 
 .card-action {
@@ -873,21 +922,6 @@ a.stat-card-link:active {
     font-weight: 600;
 }
 
-.sqm-metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.metric-box {
-    background: var(--bg-primary);
-    border-radius: var(--border-radius);
-    padding: 1rem;
-    display: flex;
-    gap: 0.75rem;
-}
-
 .metric-icon {
     font-size: 1.5rem;
 }
@@ -1056,8 +1090,6 @@ a.stat-card-link:active {
 .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    margin: 0 -1rem;
-    padding: 0 1rem;
 }
 
 .data-table {
@@ -1214,6 +1246,12 @@ a.btn-sm {
     line-height: 28px;
 }
 
+.btn-group-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .btn-lg {
     height: 44px;
     padding: 0 24px;
@@ -1346,8 +1384,15 @@ a.btn-lg {
 .action-buttons {
     display: flex;
     gap: 0.5rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+}
+
+@media (max-width: 768px) {
+    .action-buttons {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
 }
 
 .action-buttons .btn {
@@ -1357,9 +1402,6 @@ a.btn-lg {
 }
 
 /* Action button spacing in tables */
-td .btn + .btn {
-    margin-left: 0.5rem;
-}
 
 /* Data Management Section */
 .data-actions {
@@ -1814,6 +1856,22 @@ select.form-control {
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.offline-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    background: var(--text-muted);
+    color: var(--bg-primary);
 }
 
 .issue-description {
@@ -1978,9 +2036,12 @@ select.form-control {
     align-self: center;
     font-size: 0.75rem;
     color: var(--text-muted);
-    width: 2rem;
     flex-shrink: 0;
     margin-left: auto;
+}
+
+.issue-type-header .issue-type-chevron {
+    width: 2rem;
 }
 
 .issue-type-name {
@@ -2201,9 +2262,15 @@ select.form-control {
     }
 
     .card-header {
-        padding: 0.75rem 1rem;
+        padding: 0 0 0.75rem;
         flex-wrap: wrap;
         gap: 0.5rem;
+        position: relative;
+    }
+
+    .card-header .issue-type-chevron {
+        position: static;
+        transform: none;
     }
 
     /* Filter tabs mobile - wrap below title, compact sizing */
@@ -2219,7 +2286,7 @@ select.form-control {
     }
 
     .card-body {
-        padding: 1rem;
+        padding: 1rem 0;
     }
 
     /* Footer adjustments */
@@ -2435,6 +2502,17 @@ select.form-control {
 .mt-2 { margin-top: 1rem; }
 .mb-1 { margin-bottom: 0.5rem; }
 .mb-2 { margin-bottom: 1rem; }
+
+.hidden-placeholder {
+    visibility: hidden;
+}
+
+@media (max-width: 768px) {
+    .hidden-placeholder,
+    .action-buttons .btn.hidden-placeholder {
+        display: none;
+    }
+}
 
 .d-flex {
     display: flex;
@@ -3137,7 +3215,17 @@ select.form-control {
     display: none !important;
 }
 
+.col-actions {
+    width: 1%;
+    white-space: nowrap;
+}
+
 @media (max-width: 768px) {
+    .col-actions {
+        width: auto;
+        white-space: normal;
+    }
+
     .speed-results {
         flex-direction: column;
         align-items: center;
@@ -4129,6 +4217,25 @@ select.form-control {
     gap: 0.625rem;
 }
 
+@media (max-width: 768px) {
+    .audit-controls,
+    .gateway-actions {
+        justify-content: center;
+        padding-top: 0;
+    }
+
+    .audit-controls .btn,
+    .gateway-actions .btn {
+        margin-right: 0;
+    }
+
+    .audit-options,
+    .diagnostics-options {
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+}
+
 /* Audit Results Summary */
 .results-summary {
     display: flex;
@@ -4136,6 +4243,12 @@ select.form-control {
     align-items: center;
     gap: 3rem;
     place-content: center;
+}
+
+@media (max-width: 768px) {
+    .results-summary {
+        gap: 1rem;
+    }
 }
 
 .summary-score {
@@ -4257,7 +4370,7 @@ select.form-control {
 }
 
 .issue-count.info .count {
-    color: var(--text-secondary);
+    color: var(--info-color);
 }
 
 /* Audit Timestamp */
@@ -4840,6 +4953,12 @@ select.form-control {
     }
 }
 
+@media (max-width: 412px) {
+    .issue-count {
+        padding: 0.75rem 0.75rem;
+    }
+}
+
 /* ============================================
    SETUP GUIDE - Collapsible help sections
    ============================================ */
@@ -5271,6 +5390,12 @@ select.form-control {
     color: #4ade80;
 }
 
+@media (max-width: 768px) {
+    .rule-note .note-input {
+        width: 90%;
+    }
+}
+
 /* Badges */
 .badge {
     display: inline-block;
@@ -5300,16 +5425,20 @@ select.form-control {
     opacity: 0.5;
 }
 
-/* Expand/collapse animation */
+/* Expand/collapse animation using CSS grid for true auto-height */
 .expand-wrapper {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.25s ease-out;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.2s ease-in;
 }
 
 .expand-wrapper.expanded {
-    max-height: 2000px;
-    transition: max-height 0.4s ease-in;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.3s ease-out;
+}
+
+.expand-wrapper > .expand-content {
+    overflow: hidden;
 }
 
 /* Mobile responsive */
@@ -5756,4 +5885,241 @@ select.form-control {
 .settings-actions .btn {
     display: inline-flex;
     align-items: center;
+/* ============================================
+   Diagnostics Page Styles
+   ============================================ */
+
+.diagnostics-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.diagnostics-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1rem;
+    padding-top: 1rem;
+}
+
+.diagnostics-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-top: 1rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-color);
+    width: 100%;
+}
+
+.diagnostics-options .checkbox-label {
+    gap: 0.625rem;
+}
+
+.empty-section-text {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+/* Diagnostics Summary Stats */
+.diagnostics-summary {
+    display: flex;
+    justify-content: center;
+}
+
+.summary-stats {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1rem 1.5rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    min-width: 100px;
+}
+
+.stat-item .stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-primary);
+}
+
+.stat-item .stat-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.stat-item.has-warnings .stat-value {
+    color: var(--warning-color);
+}
+
+.stat-item.has-info .stat-value {
+    color: var(--info-color);
+}
+
+/* Diagnostics Issues List */
+.issues-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* Issue item variants for diagnostics severity levels */
+.issue-item.severity-warning {
+    border-left-color: var(--warning-color);
+}
+
+.issue-item.severity-info {
+    border-left-color: var(--info-color);
+}
+
+.issue-item.severity-unknown {
+    border-left-color: var(--text-muted);
+}
+
+.issue-item.severity-low {
+    border-left-color: var(--info-color);
+}
+
+.issue-item.severity-medium {
+    border-left-color: var(--warning-color);
+}
+
+.issue-item.severity-high {
+    border-left-color: var(--danger-color);
+}
+
+/* Severity Badge */
+.severity-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.severity-badge.warning,
+.severity-badge.medium {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-color);
+}
+
+.severity-badge.info,
+.severity-badge.low {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--info-color);
+}
+
+.severity-badge.high {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger-color);
+}
+
+.severity-badge.unknown {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text-muted);
+}
+
+/* Issue Details Grid */
+.issue-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin: 0.5rem 0;
+}
+
+.detail-row {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.detail-label {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.detail-value {
+    color: var(--text-secondary);
+}
+
+/* Issue Count Badge (card header) */
+.issue-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 0.5rem;
+    border-radius: 12px;
+    background: var(--bg-tertiary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+/* No Issues Success State */
+.no-issues {
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.no-issues .success-icon {
+    display: block;
+    font-size: 3rem;
+    color: var(--success-color);
+    margin-bottom: 1rem;
+}
+
+.no-issues h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.no-issues p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* Responsive adjustments for diagnostics */
+@media (max-width: 768px) {
+    .diagnostics-controls {
+        justify-content: center;
+        padding-top: 0;
+    }
+
+    .summary-stats {
+        gap: 0.75rem;
+    }
+
+    .stat-item {
+        min-width: 80px;
+        padding: 0.75rem 1rem;
+    }
+
+    .stat-item .stat-value {
+        font-size: 1.5rem;
+    }
+
+    .detail-row {
+        flex-direction: column;
+        gap: 0.125rem;
+    }
 }
