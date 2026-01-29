@@ -238,6 +238,13 @@ New audit section focused on network performance issues (distinct from security 
   3. Support both patterns in app (check env var first, fall back to config)
 - Low priority but would improve consistency
 
+### Debounce UI-Triggered Modem Polls
+- **Issue:** Multiple rapid modem polls can occur when navigating between pages
+- **Cause:** `CellularStatsPanel` triggers `PollModemAsync` on render when no cached stats exist; multiple component instances can poll simultaneously before any completes
+- **Observed:** 4-5 polls within 4 seconds when navigating dashboard → settings
+- **Fix:** Add debounce or lock around UI-triggered polls in `CellularModemService`
+- **Severity:** Low (causes extra SSH traffic but no errors)
+
 ### Uniform Date/Time Formatting in UI
 - Audit all date/time displays across the UI for consistency
 - Standardize format (e.g., "Jan 4, 2026 3:45 PM" vs "2026-01-04 15:45:00")
