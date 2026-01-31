@@ -2973,6 +2973,44 @@ public class FirewallRuleAnalyzerTests
         issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" && i.Severity == AuditSeverity.Critical);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CheckInterVlanIsolation_HomeWithIsolation_ToManagement_NoIssue(bool mgmtIsolated)
+    {
+        // Home with isolation enabled cannot reach other VLANs, so no issue should be flagged
+        // regardless of whether Management also has isolation enabled
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Home", NetworkPurpose.Home, id: "home-net-id", networkIsolationEnabled: true),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: mgmtIsolated)
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().NotContain(i => i.Type == "MISSING_ISOLATION" && i.Message.Contains("Home"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CheckInterVlanIsolation_CorporateWithIsolation_ToManagement_NoIssue(bool mgmtIsolated)
+    {
+        // Corporate with isolation enabled cannot reach other VLANs, so no issue should be flagged
+        // regardless of whether Management also has isolation enabled
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id", networkIsolationEnabled: true),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: mgmtIsolated)
+        };
+        var rules = new List<FirewallRule>();
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        issues.Should().NotContain(i => i.Type == "MISSING_ISOLATION" && i.Message.Contains("Corporate"));
+    }
+
     [Fact]
     public void CheckInterVlanIsolation_SecurityToManagement_NoBlockRule_FlaggedAsCritical()
     {
@@ -3139,6 +3177,284 @@ public class FirewallRuleAnalyzerTests
         // Should NOT flag - there's a block rule protecting Management from Corporate
         issues.Should().NotContain(i => i.Type == "MISSING_ISOLATION" && i.Message.Contains("Corporate") && i.Message.Contains("Management"));
     }
+
+    #region VLAN Isolation Gaps - New Tests for Missing Checks
+
+    [Fact]
+    public void CheckInterVlanIsolation_ManagementToSecurity_NoBlockRule_FlagsMissing()
+    {
+        // Management → Security should be blocked (NVR on Management shouldn't have open access to cameras)
+        // This is currently a gap in the audit
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id")
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag missing isolation - Management can reach Security cameras without explicit allow
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("Management") && i.Message.Contains("Cameras"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_ManagementToSecurity_WithSourceIsolation_NoIssue()
+    {
+        // If Management has network isolation enabled, it can't initiate outbound connections
+        // So Management → Security should NOT be flagged
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id", networkIsolationEnabled: true), // Isolation ON
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id", networkIsolationEnabled: true) // Also isolated to avoid reverse direction flag
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should NOT flag any issues - both networks have isolation enabled so neither can initiate connections
+        issues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_PrinterToSecurity_NoBlockRule_FlagsMissing()
+    {
+        // Printers have no legitimate need to access cameras - should be blocked
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Printers", NetworkPurpose.Printer, id: "printer-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id")
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag missing isolation - Printers shouldn't access Security
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("Printers") && i.Message.Contains("Cameras"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_PrinterToManagement_NoBlockRule_FlagsMissing()
+    {
+        // Printers have no legitimate need to access management network - should be blocked
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Printers", NetworkPurpose.Printer, id: "printer-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id")
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag missing isolation - Printers shouldn't access Management
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("Printers") && i.Message.Contains("Management"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_DmzToSecurity_NoBlockRule_FlagsMissing()
+    {
+        // DMZ (internet-facing services) should never access security cameras
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("DMZ", NetworkPurpose.Dmz, id: "dmz-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id")
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag missing isolation - DMZ shouldn't access Security
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("DMZ") && i.Message.Contains("Cameras"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_DmzToManagement_NoBlockRule_FlagsMissing()
+    {
+        // DMZ (internet-facing services) should never access management network
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("DMZ", NetworkPurpose.Dmz, id: "dmz-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id")
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag missing isolation - DMZ shouldn't access Management
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("DMZ") && i.Message.Contains("Management"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_UnknownToSecurity_NoBlockRule_FlagsMissing()
+    {
+        // Unknown/unclassified networks should be treated as untrusted
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Unclassified", NetworkPurpose.Unknown, id: "unknown-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id")
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag missing isolation - Unknown shouldn't access Security
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("Unclassified") && i.Message.Contains("Cameras"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_UnknownToManagement_NoBlockRule_FlagsMissing()
+    {
+        // Unknown/unclassified networks should be treated as untrusted
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Unclassified", NetworkPurpose.Unknown, id: "unknown-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Management", NetworkPurpose.Management, id: "mgmt-net-id")
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should flag missing isolation - Unknown shouldn't access Management
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("Unclassified") && i.Message.Contains("Management"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_DestinationIsolationDoesNotSatisfy_StillFlagsIssue()
+    {
+        // CRITICAL: Destination having isolation enabled does NOT protect it from inbound traffic
+        // UniFi isolation only blocks OUTBOUND from isolated networks, not INBOUND to them
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Cameras", NetworkPurpose.Security, id: "sec-net-id", networkIsolationEnabled: true) // Destination has isolation
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // MUST flag - destination isolation does NOT block inbound from Corporate
+        issues.Should().Contain(i => i.Type == "MISSING_ISOLATION" &&
+            i.Message.Contains("Corporate") && i.Message.Contains("Cameras"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_IoTToCorporate_FlagsEvenWhenCorporateHasIsolation()
+    {
+        // Corporate has isolation enabled, but that only blocks Corporate → other
+        // IoT can still reach Corporate - should flag missing block rule
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT Devices", NetworkPurpose.IoT, id: "iot-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id", networkIsolationEnabled: true)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // MUST flag - IoT can still reach Corporate even though Corporate has isolation
+        issues.Should().Contain(i => i.RuleId == "FW-ISOLATION-IOT" &&
+            i.Message.Contains("IoT") && i.Message.Contains("Corporate"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_IoTToHome_FlagsEvenWhenHomeHasIsolation()
+    {
+        // Home has isolation enabled, but that only blocks Home → other
+        // IoT can still reach Home - should flag missing block rule
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT Devices", NetworkPurpose.IoT, id: "iot-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Home Network", NetworkPurpose.Home, id: "home-net-id", networkIsolationEnabled: true)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // MUST flag - IoT can still reach Home even though Home has isolation
+        issues.Should().Contain(i => i.RuleId == "FW-ISOLATION-IOT" &&
+            i.Message.Contains("IoT") && i.Message.Contains("Home"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_GuestToCorporate_FlagsEvenWhenCorporateHasIsolation()
+    {
+        // Corporate has isolation enabled, but Guest can still reach Corporate
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Guest WiFi", NetworkPurpose.Guest, id: "guest-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id", networkIsolationEnabled: true)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // MUST flag - Guest can still reach Corporate even though Corporate has isolation
+        issues.Should().Contain(i => i.RuleId == "FW-ISOLATION-GUEST" &&
+            i.Message.Contains("Guest") && i.Message.Contains("Corporate"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_GuestToHome_FlagsEvenWhenHomeHasIsolation()
+    {
+        // Home has isolation enabled, but Guest can still reach Home
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Guest WiFi", NetworkPurpose.Guest, id: "guest-net-id", networkIsolationEnabled: false),
+            CreateNetwork("Home Network", NetworkPurpose.Home, id: "home-net-id", networkIsolationEnabled: true)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // MUST flag - Guest can still reach Home even though Home has isolation
+        issues.Should().Contain(i => i.RuleId == "FW-ISOLATION-GUEST" &&
+            i.Message.Contains("Guest") && i.Message.Contains("Home"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_IoTToCorporate_NoFlagWhenIoTHasIsolation()
+    {
+        // IoT has isolation enabled - can't initiate outbound, so no issue
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("IoT Devices", NetworkPurpose.IoT, id: "iot-net-id", networkIsolationEnabled: true),
+            CreateNetwork("Corporate", NetworkPurpose.Corporate, id: "corp-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should NOT flag - IoT with isolation enabled can't initiate connections
+        issues.Should().NotContain(i => i.RuleId == "FW-ISOLATION-IOT" &&
+            i.Message.Contains("IoT") && i.Message.Contains("Corporate"));
+    }
+
+    [Fact]
+    public void CheckInterVlanIsolation_GuestToHome_NoFlagWhenGuestHasIsolation()
+    {
+        // Guest has isolation enabled - can't initiate outbound, so no issue
+        var networks = new List<NetworkInfo>
+        {
+            CreateNetwork("Guest WiFi", NetworkPurpose.Guest, id: "guest-net-id", networkIsolationEnabled: true),
+            CreateNetwork("Home Network", NetworkPurpose.Home, id: "home-net-id", networkIsolationEnabled: false)
+        };
+        var rules = new List<FirewallRule>(); // No rules
+
+        var issues = _analyzer.CheckInterVlanIsolation(rules, networks);
+
+        // Should NOT flag - Guest with isolation enabled can't initiate connections
+        issues.Should().NotContain(i => i.RuleId == "FW-ISOLATION-GUEST" &&
+            i.Message.Contains("Guest") && i.Message.Contains("Home"));
+    }
+
+    #endregion
 
     [Fact]
     public void CheckInterVlanIsolation_BlockRuleWithConnectionStateAll_NoIssue()
