@@ -161,8 +161,13 @@
                                 {
                                     var nextHopGlobal = hops[lastGlobalIdx + 1];
                                     var linkSpeed = GetLinkSpeed(lastHop, nextHopGlobal);
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (lastHop.IsBottleneck || nextHopGlobal.IsBottleneck);
                                     var isWirelessLink = lastHop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
+                                    // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
+                                    // For other hops, check which side (ingress/egress) matches the bottleneck speed
+                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (
+                                        (lastHop.Type == HopType.WirelessClient && lastHop.IsBottleneck) ||
+                                        (lastHop.IsBottleneck && lastHop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps) ||
+                                        (nextHopGlobal.IsBottleneck && nextHopGlobal.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps));
                                     var turnTooltip = isWirelessLink
                                         ? GetWifiTooltip(lastHop, nextHopGlobal, isBottleneckLink)
                                         : (isBottleneckLink ? "Bottleneck: slowest link in path" : null);
@@ -196,8 +201,13 @@
                                 {
                                     var nextHopGlobal = hops[globalIdx + 1];
                                     var linkSpeed = GetLinkSpeed(hop, nextHopGlobal);
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (hop.IsBottleneck || nextHopGlobal.IsBottleneck);
                                     var isWirelessLink = hop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
+                                    // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
+                                    // For other hops, check which side (ingress/egress) matches the bottleneck speed
+                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (
+                                        (hop.Type == HopType.WirelessClient && hop.IsBottleneck) ||
+                                        (hop.IsBottleneck && hop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps) ||
+                                        (nextHopGlobal.IsBottleneck && nextHopGlobal.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps));
                                     var connectorTooltip1 = isWirelessLink
                                         ? GetWifiTooltip(hop, nextHopGlobal, isBottleneckLink)
                                         : (isBottleneckLink ? "Bottleneck: slowest link in path" : null);
@@ -236,8 +246,13 @@
                                 {
                                     var nextHopGlobal = hops[globalIdx + 1];
                                     var linkSpeed = GetLinkSpeed(hop, nextHopGlobal);
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (hop.IsBottleneck || nextHopGlobal.IsBottleneck);
                                     var isWirelessLink = hop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
+                                    // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
+                                    // For other hops, check which side (ingress/egress) matches the bottleneck speed
+                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (
+                                        (hop.Type == HopType.WirelessClient && hop.IsBottleneck) ||
+                                        (hop.IsBottleneck && hop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps) ||
+                                        (nextHopGlobal.IsBottleneck && nextHopGlobal.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps));
                                     var needsTurn = isLastHopInRow && !isLastRow;
                                     var connectorTooltip2 = isWirelessLink
                                         ? GetWifiTooltip(hop, nextHopGlobal, isBottleneckLink)
@@ -1031,27 +1046,48 @@
     }
 
     /// <summary>
+    /// Check if the bottleneck hop has asymmetric rates (wireless or VPN/WAN).
+    /// This determines whether to use asymmetric rate display.
+    /// </summary>
+    private bool IsBottleneckAsymmetric()
+    {
+        if (PathAnalysis == null || !PathAnalysis.Path.HasRealBottleneck)
+            return false;
+
+        var bottleneckHop = PathAnalysis.Path.Hops.FirstOrDefault(h => h.IsBottleneck);
+        if (bottleneckHop == null)
+            return false;
+
+        // Wireless links have asymmetric TX/RX rates
+        if (bottleneckHop.IsWirelessIngress || bottleneckHop.IsWirelessEgress)
+            return true;
+
+        // VPN/WAN hops have asymmetric download/upload rates
+        return bottleneckHop.Type == HopType.Tailscale ||
+               bottleneckHop.Type == HopType.Teleport ||
+               bottleneckHop.Type == HopType.Wan ||
+               bottleneckHop.Type == HopType.Vpn;
+    }
+
+    /// <summary>
     /// Format the path max speed display, showing directional speeds if asymmetric.
     /// Returns MarkupString for colored arrows.
+    /// Only shows asymmetric rates when the bottleneck is a wireless link.
     /// </summary>
     private MarkupString FormatPathMaxSpeed()
     {
         if (PathAnalysis == null)
             return new MarkupString("0 Mbps");
 
-        if (!IsLinkAsymmetric())
+        // Only use asymmetric display when the bottleneck IS the wireless link
+        // If bottleneck is wired (e.g., 1 GbE backhaul), show the wired bottleneck speed
+        if (!IsLinkAsymmetric() || !IsBottleneckAsymmetric())
         {
-            // Symmetric: use the higher of the two rates (typically Tx/ToDevice)
-            var (rxKbps, txKbps) = GetDirectionalRates();
-            if (rxKbps.HasValue && txKbps.HasValue && rxKbps.Value > 0 && txKbps.Value > 0)
-            {
-                var maxRateKbps = Math.Max(rxKbps.Value, txKbps.Value);
-                return new MarkupString(FormatSpeed((int)(maxRateKbps / 1000)));
-            }
+            // Use the path's theoretical max (which is the actual bottleneck speed)
             return new MarkupString(FormatSpeed(PathAnalysis.Path.TheoreticalMaxMbps));
         }
 
-        // Asymmetric: show both directions with colored arrows matching speed-results
+        // Asymmetric wireless bottleneck: show both directions with colored arrows
         var (fromMax, toMax, _, _, _) = GetDirectionalEfficiencyData();
 
         // Use Gbps if both are >= 1000, otherwise Mbps
@@ -1075,12 +1111,20 @@
 
     /// <summary>
     /// Format the bottleneck description, showing directional speeds (Rx / Tx) if asymmetric.
-    /// Generated on the fly to support existing test results.
+    /// Only uses Wi-Fi rates when the bottleneck IS a wireless link.
+    /// For wired bottlenecks, uses the stored BottleneckDescription directly.
     /// </summary>
     private string FormatBottleneckDescription()
     {
         if (PathAnalysis == null || string.IsNullOrEmpty(PathAnalysis.Path.BottleneckDescription))
             return "";
+
+        // Only override with Wi-Fi rates when the bottleneck IS a wireless link
+        // If bottleneck is wired (e.g., 1 GbE backhaul), use the stored description
+        if (!IsBottleneckAsymmetric())
+        {
+            return PathAnalysis.Path.BottleneckDescription;
+        }
 
         var (rxKbps, txKbps) = GetDirectionalRates();
 
@@ -1113,7 +1157,7 @@
             return $"{speedStr} link{devicePart}";
         }
 
-        // Symmetric: use the higher of the two rates for consistency with max speed display
+        // Symmetric wireless bottleneck: use the higher of the two rates
         if (rxKbps.HasValue && txKbps.HasValue && rxKbps.Value > 0 && txKbps.Value > 0)
         {
             var maxRateMbps = Math.Max(rxKbps.Value, txKbps.Value) / 1000.0;
