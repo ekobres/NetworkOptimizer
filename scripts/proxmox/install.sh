@@ -159,19 +159,20 @@ validate_storage() {
     return 0
 }
 
-# Find the latest Debian 12 template available
+# Find the Debian template based on version selection
 find_debian_template() {
     local storage=$1
+    local version=${2:-12}
 
     # Update template list
     pveam update &>/dev/null || true
 
-    # Find the latest debian-12-standard template
+    # Find the latest debian template for the selected version
     local template
-    template=$(pveam available -section system 2>/dev/null | grep "debian-12-standard" | tail -1 | awk '{print $2}')
+    template=$(pveam available -section system 2>/dev/null | grep "debian-${version}-standard" | tail -1 | awk '{print $2}')
 
     if [[ -z "$template" ]]; then
-        msg_error "Could not find Debian 12 template in repository."
+        msg_error "Could not find Debian ${version} template in repository."
         msg_info "Available templates:"
         pveam available -section system 2>/dev/null | grep -i debian | head -5
         exit 1
@@ -216,6 +217,12 @@ configure_container() {
     echo -e "\n${WH}Hostname${CL}"
     read -rp "Enter hostname [$DEFAULT_HOSTNAME]: " CT_HOSTNAME
     CT_HOSTNAME=${CT_HOSTNAME:-$DEFAULT_HOSTNAME}
+
+    # Debian version
+    echo -e "\n${WH}Debian Version${CL}"
+    echo -e "${DIM}Debian 13 (Trixie) is recommended. Debian 12 (Bookworm) also supported.${CL}"
+    read -rp "Debian version [13]: " DEBIAN_VERSION
+    DEBIAN_VERSION=${DEBIAN_VERSION:-13}
 
     # Resources
     echo -e "\n${WH}Resources${CL}"
@@ -310,12 +317,33 @@ configure_application() {
         APP_IPERF3_ENABLED="false"
     fi
 
+    # Hostname-based access (for local DNS users)
+    echo -e "\n${WH}Hostname-Based Access${CL}"
+    echo -e "${DIM}Enable if you have local DNS (e.g., Pi-hole) resolving the container hostname.${CL}"
+    echo -e "${DIM}When enabled, the app redirects IP-based access to the hostname.${CL}"
+    read -rp "Enable hostname redirects? [y/N]: " hostname_redirect_response
+    if [[ "${hostname_redirect_response,,}" =~ ^(y|yes)$ ]]; then
+        APP_HOSTNAME_REDIRECT="true"
+    else
+        APP_HOSTNAME_REDIRECT="false"
+    fi
+
     # Reverse proxy
     echo -e "\n${WH}Reverse Proxy${CL}"
     echo -e "${DIM}If using a reverse proxy (Caddy, nginx, Traefik), enter the public hostname${CL}"
-    echo -e "${DIM}Leave empty if accessing directly via IP/container hostname${CL}"
+    echo -e "${DIM}Leave empty if accessing directly via IP${CL}"
     read -rp "Reverse proxy hostname (e.g., optimizer.example.com): " APP_REVERSE_PROXY_HOST
     APP_REVERSE_PROXY_HOST=${APP_REVERSE_PROXY_HOST:-}
+
+    # SSH access
+    echo -e "\n${WH}SSH Access${CL}"
+    echo -e "${DIM}Enable SSH root login for direct container access (alternative to pct enter).${CL}"
+    read -rp "Enable SSH root access? [y/N]: " ssh_response
+    if [[ "${ssh_response,,}" =~ ^(y|yes)$ ]]; then
+        APP_SSH_ENABLED="true"
+    else
+        APP_SSH_ENABLED="false"
+    fi
 
     # Optional password
     echo -e "\n${WH}Admin Password${CL}"
@@ -332,6 +360,7 @@ confirm_settings() {
     echo -e "${BLD}Container Settings:${CL}"
     echo -e "  ID:        ${GN}$CT_ID${CL}"
     echo -e "  Hostname:  ${GN}$CT_HOSTNAME${CL}"
+    echo -e "  Debian:    ${GN}$DEBIAN_VERSION${CL}"
     echo -e "  RAM:       ${GN}${CT_RAM}MB${CL}"
     echo -e "  Swap:      ${GN}${CT_SWAP}MB${CL}"
     echo -e "  CPU:       ${GN}${CT_CPU} cores${CL}"
@@ -343,6 +372,11 @@ confirm_settings() {
         echo -e "  Gateway:   ${GN}$CT_GW${CL}"
         echo -e "  DNS:       ${GN}$CT_DNS${CL}"
     fi
+    if [[ "$APP_SSH_ENABLED" == "true" ]]; then
+        echo -e "  SSH:       ${GN}enabled${CL}"
+    else
+        echo -e "  SSH:       ${DIM}disabled${CL}"
+    fi
 
     echo -e "\n${BLD}Application Settings:${CL}"
     echo -e "  Timezone:       ${GN}$APP_TZ${CL}"
@@ -352,6 +386,11 @@ confirm_settings() {
         echo -e "  iperf3 Server:  ${GN}enabled${CL} ${DIM}(port 5201)${CL}"
     else
         echo -e "  iperf3 Server:  ${DIM}disabled${CL}"
+    fi
+    if [[ "$APP_HOSTNAME_REDIRECT" == "true" ]]; then
+        echo -e "  Host Redirect:  ${GN}$CT_HOSTNAME${CL}"
+    else
+        echo -e "  Host Redirect:  ${DIM}disabled${CL}"
     fi
     if [[ -n "$APP_REVERSE_PROXY_HOST" ]]; then
         echo -e "  Reverse Proxy:  ${GN}$APP_REVERSE_PROXY_HOST${CL}"
@@ -379,8 +418,8 @@ confirm_settings() {
 download_template() {
     header "Downloading Container Template"
 
-    msg_info "Finding latest Debian 12 template..."
-    CT_TEMPLATE_FILE=$(find_debian_template "$TEMPLATE_STORAGE")
+    msg_info "Finding Debian ${DEBIAN_VERSION} template..."
+    CT_TEMPLATE_FILE=$(find_debian_template "$TEMPLATE_STORAGE" "$DEBIAN_VERSION")
     msg_ok "Found template: $CT_TEMPLATE_FILE"
 
     local template_path
@@ -457,6 +496,31 @@ start_container() {
     sleep 3
 
     msg_ok "Container started"
+}
+
+configure_ssh() {
+    if [[ "$APP_SSH_ENABLED" != "true" ]]; then
+        return
+    fi
+
+    msg_info "Configuring SSH root access..."
+
+    # Enable root login via SSH
+    pct exec "$CT_ID" -- bash -c '
+        # Ensure SSH is installed
+        apt-get update -qq && apt-get install -y -qq openssh-server
+
+        # Enable root login with password
+        sed -i "s/#PermitRootLogin prohibit-password/PermitRootLogin yes/g" /etc/ssh/sshd_config
+        sed -i "s/PermitRootLogin prohibit-password/PermitRootLogin yes/g" /etc/ssh/sshd_config
+
+        # Ensure SSH starts on boot and restart it
+        systemctl enable ssh
+        systemctl restart ssh
+    '
+
+    msg_ok "SSH root access enabled"
+    msg_info "Set root password with: pct exec $CT_ID -- passwd"
 }
 
 install_dependencies() {
@@ -597,8 +661,15 @@ deploy_application() {
 TZ=${APP_TZ}
 
 # Host identity for speed testing and CORS
-HOST_IP=${container_ip}
-HOST_NAME=${CT_HOSTNAME}
+HOST_IP=${container_ip}"
+
+    # Only set HOST_NAME if user explicitly enabled hostname redirects
+    if [[ "$APP_HOSTNAME_REDIRECT" == "true" ]]; then
+        env_content="${env_content}
+HOST_NAME=${CT_HOSTNAME}"
+    fi
+
+    env_content="${env_content}
 
 # Speed testing
 OPENSPEEDTEST_PORT=${APP_SPEEDTEST_PORT}
@@ -698,6 +769,10 @@ show_completion() {
     echo -e "  Start:    ${DIM}pct start $CT_ID${CL}"
     echo -e "  Stop:     ${DIM}pct stop $CT_ID${CL}"
     echo -e "  Logs:     ${DIM}pct exec $CT_ID -- docker logs -f network-optimizer${CL}"
+    if [[ "$APP_SSH_ENABLED" == "true" ]]; then
+        echo -e "  SSH:      ${DIM}ssh root@${container_ip}${CL}"
+        echo -e "  ${YW}Set root password: pct exec $CT_ID -- passwd${CL}"
+    fi
 
     echo -e "\n${BLD}Application Management:${CL}"
     echo -e "  Directory:  ${DIM}/opt/network-optimizer${CL}"
@@ -736,6 +811,7 @@ main() {
     download_template
     create_container
     start_container
+    configure_ssh
     install_dependencies
     deploy_application
     wait_for_healthy || true

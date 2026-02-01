@@ -30,7 +30,7 @@ The script will guide you through:
 
 ## What Gets Installed
 
-The script creates a privileged Debian 12 LXC container with:
+The script creates a privileged Debian LXC container (Debian 13 Trixie by default) with:
 
 - Docker CE and Docker Compose (privileged container for reliable Docker operation)
 - Network Optimizer (Blazor web UI on port 8042)
@@ -45,15 +45,18 @@ The script creates a privileged Debian 12 LXC container with:
 |---------|---------|-------------|
 | Container ID | Next available | Starting from 100, checks VMs too |
 | Hostname | `network-optimizer` | Container hostname |
+| Debian Version | 13 (Trixie) | Also supports Debian 12 (Bookworm) |
 | RAM | 2048 MB | Container memory |
 | Swap | 512 MB | Swap space |
 | CPU | 2 cores | Container CPU cores |
 | Disk | 10 GB | Root filesystem size |
 | Storage | `local-lvm` | Proxmox storage for container |
 | Network | DHCP | Static IP also supported (with DNS) |
+| SSH Access | Disabled | Enable for direct SSH root login |
 | Web Port | 8042 | Network Optimizer web UI (fixed) |
 | Speedtest Port | 3005 | OpenSpeedTest web UI (configurable) |
 | iperf3 Server | Disabled | CLI-based speed testing (port 5201) |
+| Host Redirect | Disabled | Redirect IP access to hostname (requires local DNS) |
 | Reverse Proxy | None | Optional hostname for reverse proxy setup |
 | Timezone | America/New_York | Container timezone |
 
@@ -89,6 +92,20 @@ pct exec <CT_ID> -- docker logs -f network-optimizer
 
 # Check container status
 pct status <CT_ID>
+```
+
+### SSH Access (Optional)
+
+If you enabled SSH during installation, set a root password:
+
+```bash
+pct exec <CT_ID> -- passwd
+```
+
+Then connect directly:
+
+```bash
+ssh root@<container-ip>
 ```
 
 ### Application Management
