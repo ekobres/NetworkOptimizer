@@ -1591,6 +1591,7 @@ public class AuditService
             Audit.IssueTypes.MacRestriction => "Missing MAC Restriction",
             Audit.IssueTypes.UnusedPort => "Unused Port Enabled",
             Audit.IssueTypes.PortIsolation => "Missing Port Isolation",
+            Audit.IssueTypes.AccessPortVlan => "Port Issue: Excessive Tagged VLANs",
             "PORT_SECURITY" => "Port Security Issue",
 
             // VLAN subnet mismatch

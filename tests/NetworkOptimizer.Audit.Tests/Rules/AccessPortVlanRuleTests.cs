@@ -168,17 +168,22 @@ public class AccessPortVlanRuleTests
     }
 
     [Fact]
-    public void Evaluate_OnlyVlan0Networks_ReturnsNull()
+    public void Evaluate_SingleNetwork_AllowAll_ReturnsIssue()
     {
+        // Even with just 1 network, "Allow All" is flagged because it's a blanket permission
+        // that will automatically include any future VLANs added to the network
         var port = CreateTrunkPortWithClient(excludedNetworkIds: null);
         var networks = new List<NetworkInfo>
         {
-            new() { Id = "net-0", Name = "Default", VlanId = 0 }
+            new() { Id = "net-1", Name = "Default", VlanId = 1 }
         };
 
         var result = _rule.Evaluate(port, networks);
 
-        result.Should().BeNull();
+        // "Allow All" always triggers - it's the permissive config, not the current count, that's the issue
+        result.Should().NotBeNull();
+        result!.Metadata!["allows_all_vlans"].Should().Be(true);
+        result.Metadata["tagged_vlan_count"].Should().Be(1);
     }
 
     #endregion
@@ -471,7 +476,7 @@ public class AccessPortVlanRuleTests
         var result = _rule.Evaluate(port, networks);
 
         result.Should().NotBeNull();
-        result!.Message.Should().Contain("3 tagged VLANs");
+        result!.Message.Should().Contain("3 VLANs tagged");
     }
 
     #endregion
@@ -498,22 +503,22 @@ public class AccessPortVlanRuleTests
     }
 
     [Fact]
-    public void Evaluate_TrunkPort_MixOfVlan0AndRealVlans_OnlyCountsRealVlans()
+    public void Evaluate_TrunkPort_MultipleVlans_CountsAllNetworks()
     {
         var networks = new List<NetworkInfo>
         {
-            new() { Id = "net-default", Name = "Default", VlanId = 0 },
-            new() { Id = "net-1", Name = "VLAN 10", VlanId = 10 },
-            new() { Id = "net-2", Name = "VLAN 20", VlanId = 20 },
-            new() { Id = "net-3", Name = "VLAN 30", VlanId = 30 }
+            new() { Id = "net-1", Name = "Default", VlanId = 1 },
+            new() { Id = "net-10", Name = "VLAN 10", VlanId = 10 },
+            new() { Id = "net-20", Name = "VLAN 20", VlanId = 20 },
+            new() { Id = "net-30", Name = "VLAN 30", VlanId = 30 }
         };
         var port = CreateTrunkPortWithClient(excludedNetworkIds: null);
 
         var result = _rule.Evaluate(port, networks);
 
-        // Only 3 real VLAN networks (10, 20, 30), which is above threshold
+        // All 4 networks count, which is above threshold
         result.Should().NotBeNull();
-        result!.Metadata!["tagged_vlan_count"].Should().Be(3);
+        result!.Metadata!["tagged_vlan_count"].Should().Be(4);
     }
 
     [Fact]
@@ -540,6 +545,61 @@ public class AccessPortVlanRuleTests
         var result = _rule.Evaluate(port, networks);
 
         result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Evaluate_TrunkPort_CountsDisabledNetworks()
+    {
+        // Disabled networks should count because if enabled later,
+        // the tagged VLANs would suddenly be active on this port
+        var networks = new List<NetworkInfo>
+        {
+            new() { Id = "net-0", Name = "Active", VlanId = 10, Enabled = true },
+            new() { Id = "net-1", Name = "Disabled1", VlanId = 20, Enabled = false },
+            new() { Id = "net-2", Name = "Disabled2", VlanId = 30, Enabled = false },
+            new() { Id = "net-3", Name = "Disabled3", VlanId = 40, Enabled = false }
+        };
+        var port = CreateTrunkPortWithClient(excludedNetworkIds: null);
+
+        var result = _rule.Evaluate(port, networks);
+
+        // All 4 networks counted (including disabled), which is above threshold
+        result.Should().NotBeNull();
+        result!.Metadata!["tagged_vlan_count"].Should().Be(4);
+    }
+
+    [Fact]
+    public void Evaluate_TrunkPort_NativeVlanExcludedFromTaggedCount()
+    {
+        // 4 networks total, 1 is native, so tagged count should be 3 (above threshold)
+        var networks = CreateVlanNetworks(4);
+        var port = CreateTrunkPortWithClient(
+            nativeNetworkId: "net-0", // This is the native VLAN (untagged)
+            excludedNetworkIds: new List<string>()); // Allow all = triggers issue
+
+        var result = _rule.Evaluate(port, networks);
+
+        // Should trigger because allow-all, but tagged count should be 3 (4 - 1 native)
+        result.Should().NotBeNull();
+        result!.Metadata!["tagged_vlan_count"].Should().Be(3,
+            "native VLAN should not count as tagged");
+        result.Metadata["allows_all_vlans"].Should().Be(true);
+    }
+
+    [Fact]
+    public void Evaluate_TrunkPort_WithNative_AtThreshold_ReturnsNull()
+    {
+        // 3 networks total, 1 is native, so tagged count = 2 (at threshold)
+        // With explicit exclusions (not allow-all), this should NOT trigger
+        var networks = CreateVlanNetworks(3);
+        var port = CreateTrunkPortWithClient(
+            nativeNetworkId: "net-0",
+            excludedNetworkIds: new List<string> { "net-0" }); // Exclude the native
+
+        var result = _rule.Evaluate(port, networks);
+
+        // 2 tagged VLANs (net-1, net-2), native excluded - at threshold, should not trigger
+        result.Should().BeNull();
     }
 
     #endregion

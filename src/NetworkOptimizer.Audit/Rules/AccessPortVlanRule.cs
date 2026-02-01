@@ -45,7 +45,6 @@ public class AccessPortVlanRule : AuditRuleBase
 
         // At this point we have a trunk port with a single device attached
         // This is the misconfiguration we're looking for
-        // Use all networks for exclusion calculation (not just VlanId > 0)
         if (networks.Count == 0)
             return null; // No networks to check
 
