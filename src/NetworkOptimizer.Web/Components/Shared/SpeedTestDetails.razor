@@ -162,12 +162,7 @@
                                     var nextHopGlobal = hops[lastGlobalIdx + 1];
                                     var linkSpeed = GetLinkSpeed(lastHop, nextHopGlobal);
                                     var isWirelessLink = lastHop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
-                                    // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
-                                    // For other hops, check which side (ingress/egress) matches the bottleneck speed
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (
-                                        (lastHop.Type == HopType.WirelessClient && lastHop.IsBottleneck) ||
-                                        (lastHop.IsBottleneck && lastHop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps) ||
-                                        (nextHopGlobal.IsBottleneck && nextHopGlobal.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps));
+                                    var isBottleneckLink = IsBottleneckLink(lastHop, nextHopGlobal, isWirelessLink, linkSpeed);
                                     var turnTooltip = isWirelessLink
                                         ? GetWifiTooltip(lastHop, nextHopGlobal, isBottleneckLink)
                                         : (isBottleneckLink ? "Bottleneck: slowest link in path" : null);
@@ -202,12 +197,7 @@
                                     var nextHopGlobal = hops[globalIdx + 1];
                                     var linkSpeed = GetLinkSpeed(hop, nextHopGlobal);
                                     var isWirelessLink = hop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
-                                    // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
-                                    // For other hops, check which side (ingress/egress) matches the bottleneck speed
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (
-                                        (hop.Type == HopType.WirelessClient && hop.IsBottleneck) ||
-                                        (hop.IsBottleneck && hop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps) ||
-                                        (nextHopGlobal.IsBottleneck && nextHopGlobal.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps));
+                                    var isBottleneckLink = IsBottleneckLink(hop, nextHopGlobal, isWirelessLink, linkSpeed);
                                     var connectorTooltip1 = isWirelessLink
                                         ? GetWifiTooltip(hop, nextHopGlobal, isBottleneckLink)
                                         : (isBottleneckLink ? "Bottleneck: slowest link in path" : null);
@@ -247,12 +237,7 @@
                                     var nextHopGlobal = hops[globalIdx + 1];
                                     var linkSpeed = GetLinkSpeed(hop, nextHopGlobal);
                                     var isWirelessLink = hop.IsWirelessEgress || nextHopGlobal.IsWirelessIngress;
-                                    // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
-                                    // For other hops, check which side (ingress/egress) matches the bottleneck speed
-                                    var isBottleneckLink = PathAnalysis.Path.HasRealBottleneck && (
-                                        (hop.Type == HopType.WirelessClient && hop.IsBottleneck) ||
-                                        (hop.IsBottleneck && hop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps) ||
-                                        (nextHopGlobal.IsBottleneck && nextHopGlobal.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps));
+                                    var isBottleneckLink = IsBottleneckLink(hop, nextHopGlobal, isWirelessLink, linkSpeed);
                                     var needsTurn = isLastHopInRow && !isLastRow;
                                     var connectorTooltip2 = isWirelessLink
                                         ? GetWifiTooltip(hop, nextHopGlobal, isBottleneckLink)
@@ -581,15 +566,58 @@
 
     /// <summary>
     /// Calculate link speed between two adjacent hops.
-    /// For wireless/WAN hops, uses IngressSpeedMbps (TX to device or download).
+    /// For wireless mesh/bridge, uses WirelessRxRateMbps (TX to device from parent's perspective).
+    /// For wireless client, uses IngressSpeedMbps (already represents TX to device).
+    /// For WAN hops, uses IngressSpeedMbps (download speed).
     /// For wired hops, uses EgressSpeedMbps (port toward next hop) with fallback to nextHop's Ingress.
     /// </summary>
     private int GetLinkSpeed(NetworkHop hop, NetworkHop nextHop)
     {
+        // For wireless mesh/bridge links (non-client), prefer WirelessRxRateMbps
+        // which represents TX to device from parent AP's perspective
+        // (mesh hop stores child's perspective, so child RX = parent TX)
+        if ((hop.IsWirelessEgress && hop.Type != HopType.WirelessClient) ||
+            (nextHop.IsWirelessIngress && nextHop.Type != HopType.WirelessClient))
+        {
+            var meshHop = hop.IsWirelessEgress ? hop : nextHop;
+            if (meshHop.WirelessRxRateMbps.HasValue && meshHop.WirelessRxRateMbps.Value > 0)
+                return meshHop.WirelessRxRateMbps.Value;
+        }
+
         var isWanType = hop.Type == HopType.Tailscale || hop.Type == HopType.Teleport || hop.Type == HopType.Wan;
         return (hop.IsWirelessIngress || isWanType)
             ? hop.IngressSpeedMbps
             : (hop.EgressSpeedMbps > 0 ? hop.EgressSpeedMbps : nextHop.IngressSpeedMbps);
+    }
+
+    /// <summary>
+    /// Determine if the link between two hops should be highlighted as a bottleneck.
+    /// For asymmetric links (wireless, VPN, WAN), uses IsBottleneck flag to identify direction.
+    /// For symmetric (wired) links, highlights ALL links matching the bottleneck speed.
+    /// </summary>
+    private bool IsBottleneckLink(NetworkHop hop, NetworkHop nextHop, bool isWirelessLink, int linkSpeed)
+    {
+        if (PathAnalysis?.Path?.HasRealBottleneck != true)
+            return false;
+
+        // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
+        if (hop.Type == HopType.WirelessClient && hop.IsBottleneck)
+            return true;
+
+        // For hops marked as bottleneck, check if the specific side matches
+        if (hop.IsBottleneck && hop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps)
+            return true;
+        if (nextHop.IsBottleneck && nextHop.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps)
+            return true;
+
+        // For symmetric (wired) links, highlight ALL links matching the bottleneck speed
+        var isAsymmetricLink = isWirelessLink ||
+            hop.Type == HopType.Tailscale || hop.Type == HopType.Teleport ||
+            hop.Type == HopType.Wan || hop.Type == HopType.Vpn ||
+            nextHop.Type == HopType.Tailscale || nextHop.Type == HopType.Teleport ||
+            nextHop.Type == HopType.Wan || nextHop.Type == HopType.Vpn;
+
+        return !isAsymmetricLink && linkSpeed > 0 && linkSpeed == PathAnalysis.Path.TheoreticalMaxMbps;
     }
 
     /// <summary>
