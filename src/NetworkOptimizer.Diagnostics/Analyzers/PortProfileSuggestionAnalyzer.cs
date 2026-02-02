@@ -1020,7 +1020,7 @@ public class PortProfileSuggestionAnalyzer
                 {
                     Type = PortProfileSuggestionType.CreateNew,
                     Severity = severity,
-                    SuggestedProfileName = "Disabled (PoE Off)",
+                    SuggestedProfileName = "Disabled",
                     Configuration = new PortConfigSignature { PoeMode = "off" },
                     AffectedPorts = poeCapablePorts.Select(p => p.Reference).ToList(),
                     PortsWithoutProfile = poeCapablePorts.Count,
@@ -1207,7 +1207,7 @@ public class PortProfileSuggestionAnalyzer
             else
             {
                 // Suggest creating a new unrestricted access profile
-                var profileName = $"[Access] {vlanName} - Unrestricted";
+                var profileName = $"{vlanName} - Unrestricted";
 
                 suggestions.Add(new PortProfileSuggestion
                 {
