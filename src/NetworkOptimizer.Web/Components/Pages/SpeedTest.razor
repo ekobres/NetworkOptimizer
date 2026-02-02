@@ -285,8 +285,16 @@
 
             @if (!ConnectionService.IsConnected)
             {
-                <div class="alert alert-warning">
-                    Connect to your UniFi controller in <a href="/settings">Settings</a> to discover devices.
+                <div class="alert @(!string.IsNullOrEmpty(ConnectionService.LastError) ? "alert-danger" : "alert-warning")">
+                    @if (!string.IsNullOrEmpty(ConnectionService.LastError))
+                    {
+                        <strong>Connection Error:</strong> @ConnectionService.LastError
+                        <a href="/settings">Check Settings</a>
+                    }
+                    else
+                    {
+                        <text>Connect to your UniFi controller in <a href="/settings">Settings</a> to discover devices.</text>
+                    }
                 </div>
             }
             else if (discoveredDevices.Count > 0)

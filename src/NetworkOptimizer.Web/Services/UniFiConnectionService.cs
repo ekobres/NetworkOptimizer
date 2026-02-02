@@ -253,6 +253,17 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
 
             if (success)
             {
+                // Validate the site ID by making a site-specific call
+                var (siteValid, siteError) = await _client.ValidateSiteAsync();
+                if (!siteValid)
+                {
+                    _lastError = siteError;
+                    _logger.LogWarning("Site validation failed: {Error}", siteError);
+                    _client.Dispose();
+                    _client = null;
+                    return false;
+                }
+
                 _isConnected = true;
                 _lastConnectedAt = DateTime.UtcNow;
 
@@ -332,6 +343,17 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
 
             if (success)
             {
+                // Validate the site ID by making a site-specific call
+                var (siteValid, siteError) = await _client.ValidateSiteAsync();
+                if (!siteValid)
+                {
+                    _lastError = siteError;
+                    _logger.LogWarning("Site validation failed during reconnect: {Error}", siteError);
+                    _client.Dispose();
+                    _client = null;
+                    return false;
+                }
+
                 _isConnected = true;
                 _lastConnectedAt = DateTime.UtcNow;
 
@@ -477,6 +499,13 @@ public class UniFiConnectionService : IUniFiClientProvider, IDisposable
 
             if (success)
             {
+                // Validate the site ID by making a site-specific call
+                var (siteValid, siteError) = await testClient.ValidateSiteAsync();
+                if (!siteValid)
+                {
+                    return (false, siteError, null);
+                }
+
                 // Get system info for display
                 var sysInfo = await testClient.GetSystemInfoAsync();
                 var info = sysInfo != null

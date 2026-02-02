@@ -43,11 +43,23 @@ public class UniFiApiClient : IDisposable
     private bool _pathDetected = false;
     private bool _useStandaloneLogin = false; // True for standalone Network controllers (uses /api/login)
     private string? _lastLoginError;
+    private string? _lastApiError;
+    private string? _lastApiErrorCode;
 
     /// <summary>
     /// Gets the last login error message (e.g., rate limiting, SSL errors)
     /// </summary>
     public string? LastLoginError => _lastLoginError;
+
+    /// <summary>
+    /// Gets the last API error message from a site-specific API call
+    /// </summary>
+    public string? LastApiError => _lastApiError;
+
+    /// <summary>
+    /// Gets the last API error code (e.g., "api.err.NoSiteContext")
+    /// </summary>
+    public string? LastApiErrorCode => _lastApiErrorCode;
 
     public UniFiApiClient(
         ILogger<UniFiApiClient> logger,
@@ -1558,6 +1570,61 @@ public class UniFiApiClient : IDisposable
         {
             _logger.LogError(ex, "Exception during logout");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Validates that the configured site ID exists on this controller.
+    /// Call this after login to verify the site is accessible.
+    /// </summary>
+    /// <returns>Tuple of (success, error message if failed)</returns>
+    public async Task<(bool Success, string? Error)> ValidateSiteAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Validating site '{Site}' on controller", _site);
+
+        // Clear any previous API errors
+        _lastApiError = null;
+        _lastApiErrorCode = null;
+
+        try
+        {
+            // Make a minimal site-specific call to verify the site exists
+            var url = BuildApiPath("stat/sysinfo");
+            var response = await _httpClient!.GetAsync(url, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            // Parse the response to check for API-level errors
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("meta", out var meta))
+            {
+                var rc = meta.TryGetProperty("rc", out var rcProp) ? rcProp.GetString() : null;
+                var msg = meta.TryGetProperty("msg", out var msgProp) ? msgProp.GetString() : null;
+
+                if (rc != "ok")
+                {
+                    _lastApiError = msg;
+                    _lastApiErrorCode = msg;
+
+                    _logger.LogWarning("Site validation failed: {Error}", msg);
+
+                    // Provide user-friendly error messages for known error codes
+                    if (msg == "api.err.NoSiteContext")
+                    {
+                        var error = $"Invalid Site ID: The site '{_site}' does not exist on this controller. Check the Site ID in Settings.";
+                        return (false, error);
+                    }
+
+                    return (false, $"API error: {msg}");
+                }
+            }
+
+            _logger.LogDebug("Site '{Site}' validated successfully", _site);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception during site validation");
+            return (false, $"Failed to validate site: {ex.Message}");
         }
     }
 

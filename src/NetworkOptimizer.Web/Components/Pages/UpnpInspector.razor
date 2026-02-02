@@ -18,14 +18,22 @@
 
 @if (!ConnectionService.IsConnected && ConnectionService.IsInitialized)
 {
-    <div class="connection-banner">
+    <div class="connection-banner @(!string.IsNullOrEmpty(ConnectionService.LastError) ? "connection-error" : "")">
         <div class="banner-content">
             <span class="banner-icon">!</span>
             <div class="banner-text">
-                <strong>Not Connected</strong>
-                <span>Connect to your UniFi Console to view UPnP mappings.</span>
+                @if (!string.IsNullOrEmpty(ConnectionService.LastError))
+                {
+                    <strong>Connection Error</strong>
+                    <span>@ConnectionService.LastError</span>
+                }
+                else
+                {
+                    <strong>Not Connected</strong>
+                    <span>Connect to your UniFi Console to view UPnP mappings.</span>
+                }
             </div>
-            <a href="/settings" class="btn btn-primary">Connect Now</a>
+            <a href="/settings" class="btn btn-primary">@(!string.IsNullOrEmpty(ConnectionService.LastError) ? "Check Settings" : "Connect Now")</a>
         </div>
     </div>
 }
