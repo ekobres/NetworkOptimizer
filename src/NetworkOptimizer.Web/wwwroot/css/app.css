@@ -2570,6 +2570,17 @@ select.form-control {
     background: rgba(255, 255, 255, 0.9);
 }
 
+@media (max-width: 768px) {
+    .connection-banner .banner-content {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .connection-banner .banner-content .banner-text {
+        flex-basis: calc(100% - 3.5rem);
+    }
+}
+
 /* Sponsorship Banner */
 .sponsorship-banner {
     background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.08) 100%);
