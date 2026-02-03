@@ -788,10 +788,21 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                 // fall back to upstream switch's port table if not available.
                 // This handles scenarios where there's an unmanaged switch between the device
                 // and the UniFi switch, where the upstream port may report a different speed.
-                deviceHop.IngressSpeedMbps = targetDevice.UplinkSpeedMbps > 0
-                    ? targetDevice.UplinkSpeedMbps
-                    : GetPortSpeedFromRawDevices(rawDevices, currentMac, currentPort);
+                var portTableSpeed = GetPortSpeedFromRawDevices(rawDevices, currentMac, currentPort);
+                var useDeviceSpeed = targetDevice.UplinkSpeedMbps > 0;
+                deviceHop.IngressSpeedMbps = useDeviceSpeed ? targetDevice.UplinkSpeedMbps : portTableSpeed;
                 deviceHop.EgressSpeedMbps = deviceHop.IngressSpeedMbps;
+
+                if (useDeviceSpeed && portTableSpeed > 0 && targetDevice.UplinkSpeedMbps != portTableSpeed)
+                {
+                    _logger.LogDebug("Wired device {Name}: Using device-reported uplink speed {DeviceSpeed}Mbps (upstream port reports {PortSpeed}Mbps)",
+                        targetDevice.Name, targetDevice.UplinkSpeedMbps, portTableSpeed);
+                }
+                else
+                {
+                    _logger.LogDebug("Wired device {Name}: Uplink speed {Speed}Mbps (device={DeviceSpeed}, port={PortSpeed})",
+                        targetDevice.Name, deviceHop.IngressSpeedMbps, targetDevice.UplinkSpeedMbps, portTableSpeed);
+                }
             }
 
             hops.Add(deviceHop);
@@ -1113,10 +1124,16 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                         // fall back to upstream device's port table if not available.
                         // This handles scenarios where there's an unmanaged switch between devices.
                         hop.EgressPort = device.UplinkPort;
-                        hop.EgressSpeedMbps = device.UplinkSpeedMbps > 0
-                            ? device.UplinkSpeedMbps
-                            : GetPortSpeedFromRawDevices(rawDevices, device.UplinkMac, device.UplinkPort);
+                        var portTableSpeed = GetPortSpeedFromRawDevices(rawDevices, device.UplinkMac, device.UplinkPort);
+                        var useDeviceSpeed = device.UplinkSpeedMbps > 0;
+                        hop.EgressSpeedMbps = useDeviceSpeed ? device.UplinkSpeedMbps : portTableSpeed;
                         hop.EgressPortName = GetPortName(rawDevices, device.UplinkMac, device.UplinkPort);
+
+                        if (useDeviceSpeed && portTableSpeed > 0 && device.UplinkSpeedMbps != portTableSpeed)
+                        {
+                            _logger.LogDebug("Wired hop {Name}: Using device-reported uplink speed {DeviceSpeed}Mbps (upstream port reports {PortSpeed}Mbps)",
+                                device.Name, device.UplinkSpeedMbps, portTableSpeed);
+                        }
                     }
                 }
 
