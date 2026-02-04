@@ -1043,6 +1043,36 @@ public class UniFiApiClient : IDisposable
     }
 
     /// <summary>
+    /// GET rest/wlanconf - Get all WLAN (WiFi network) configurations.
+    /// Returns full WLAN settings including mlo_enabled, security settings, etc.
+    /// </summary>
+    public async Task<List<UniFiWlanConfig>> GetWlanConfigurationsAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching WLAN configurations from site {Site}", _site);
+
+        try
+        {
+            var response = await ExecuteApiCallAsync<UniFiApiResponse<UniFiWlanConfig>>(
+                () => _httpClient!.GetAsync(BuildApiPath("rest/wlanconf"), cancellationToken),
+                cancellationToken);
+
+            if (response?.Meta.Rc == "ok")
+            {
+                _logger.LogDebug("Retrieved {Count} WLAN configurations", response.Data.Count);
+                return response.Data;
+            }
+
+            _logger.LogWarning("Failed to retrieve WLAN configurations or received non-ok response");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error fetching or parsing WLAN configurations");
+        }
+
+        return new List<UniFiWlanConfig>();
+    }
+
+    /// <summary>
     /// PUT rest/networkconf/{id} - Update network configuration
     /// Used to enable/disable networks, VPNs, etc.
     /// </summary>

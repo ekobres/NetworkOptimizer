@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using NetworkOptimizer.Core.Enums;
 using NetworkOptimizer.UniFi;
 using NetworkOptimizer.UniFi.Models;
 using NetworkOptimizer.WiFi.Models;
@@ -8,16 +9,18 @@ namespace NetworkOptimizer.WiFi.Providers;
 
 /// <summary>
 /// Wi-Fi data provider that fetches live data from UniFi API.
-/// Wraps the existing UniFiApiClient.
+/// Uses UniFiDiscovery for centralized device classification.
 /// </summary>
 public class UniFiLiveDataProvider : IWiFiDataProvider
 {
     private readonly UniFiApiClient _client;
+    private readonly UniFiDiscovery _discovery;
     private readonly ILogger<UniFiLiveDataProvider> _logger;
 
-    public UniFiLiveDataProvider(UniFiApiClient client, ILogger<UniFiLiveDataProvider> logger)
+    public UniFiLiveDataProvider(UniFiApiClient client, UniFiDiscovery discovery, ILogger<UniFiLiveDataProvider> logger)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _discovery = discovery ?? throw new ArgumentNullException(nameof(discovery));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -26,8 +29,8 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
 
     public async Task<List<AccessPointSnapshot>> GetAccessPointsAsync(CancellationToken cancellationToken = default)
     {
-        var devices = await _client.GetDevicesAsync(cancellationToken);
-        var aps = devices.Where(d => d.Type == "uap").ToList();
+        // Use UniFiDiscovery for centralized device classification (same as Audit and Speed Test)
+        var aps = await _discovery.DiscoverAccessPointsAsync(cancellationToken);
         var timestamp = DateTimeOffset.UtcNow;
 
         // Build a set of AP MACs for mesh parent detection
@@ -42,11 +45,9 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
         var wirelessClients = clients.Where(c => c.IsWired == false).ToList();
         var timestamp = DateTimeOffset.UtcNow;
 
-        // Get AP names for lookup
-        var devices = await _client.GetDevicesAsync(cancellationToken);
-        var apNames = devices
-            .Where(d => d.Type == "uap")
-            .ToDictionary(d => d.Mac.ToLowerInvariant(), d => d.Name);
+        // Get AP names for lookup using centralized classification
+        var aps = await _discovery.DiscoverAccessPointsAsync(cancellationToken);
+        var apNames = aps.ToDictionary(d => d.Mac.ToLowerInvariant(), d => d.Name);
 
         return wirelessClients.Select(c => MapToWirelessClientSnapshot(c, apNames, timestamp)).ToList();
     }
@@ -217,14 +218,60 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
     {
         try
         {
-            var wlanData = await _client.GetWlanEnrichedConfigurationAsync(cancellationToken);
-            return ParseWlanConfigurations(wlanData);
+            var wlanConfigs = await _client.GetWlanConfigurationsAsync(cancellationToken);
+            return wlanConfigs.Select(w => new WlanConfiguration
+            {
+                Id = w.Id,
+                Name = w.Name,
+                Enabled = w.Enabled,
+                IsGuest = w.IsGuest,
+                HideSsid = w.HideSsid,
+                Security = w.Security,
+                MloEnabled = w.MloEnabled,
+                FastRoamingEnabled = w.FastRoamingEnabled,
+                BssTransitionEnabled = w.BssTransition,
+                L2IsolationEnabled = w.L2Isolation,
+                BandSteeringEnabled = w.No2ghzOui,
+                EnabledBands = ParseBands(w.WlanBands),
+                MinRateSettings = new MinRateSettings
+                {
+                    Enabled2_4GHz = w.MinrateNgEnabled,
+                    MinRate2_4GHz = w.MinrateNgEnabled ? w.MinrateNgDataRateKbps : null,
+                    Enabled5GHz = w.MinrateNaEnabled,
+                    MinRate5GHz = w.MinrateNaEnabled ? w.MinrateNaDataRateKbps : null,
+                    AdvertiseLowerRates = w.MinrateNgAdvertisingRates || w.MinrateNaAdvertisingRates
+                }
+            }).ToList();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to fetch WLAN configurations");
             return new List<WlanConfiguration>();
         }
+    }
+
+    private static List<RadioBand> ParseBands(List<string>? bands)
+    {
+        if (bands == null || bands.Count == 0)
+            return new List<RadioBand>();
+
+        var result = new List<RadioBand>();
+        foreach (var band in bands)
+        {
+            switch (band.ToLowerInvariant())
+            {
+                case "2g":
+                    result.Add(RadioBand.Band2_4GHz);
+                    break;
+                case "5g":
+                    result.Add(RadioBand.Band5GHz);
+                    break;
+                case "6g":
+                    result.Add(RadioBand.Band6GHz);
+                    break;
+            }
+        }
+        return result;
     }
 
     public async Task<List<RoamingEvent>> GetRoamingEventsAsync(
@@ -445,8 +492,7 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
         DateTimeOffset? endTime = null,
         CancellationToken cancellationToken = default)
     {
-        var devices = await _client.GetDevicesAsync(cancellationToken);
-        var aps = devices.Where(d => d.Type == "uap").ToList();
+        var aps = await _discovery.DiscoverAccessPointsAsync(cancellationToken);
 
         if (!string.IsNullOrEmpty(apMac))
         {
@@ -455,7 +501,7 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
 
         // Get our own BSSIDs to identify own networks
         var ownBssids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ap in devices.Where(d => d.Type == "uap"))
+        foreach (var ap in aps)
         {
             if (ap.VapTable != null)
             {
@@ -560,7 +606,7 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
 
     #region Mapping Helpers
 
-    private AccessPointSnapshot MapToAccessPointSnapshot(UniFiDeviceResponse ap, DateTimeOffset timestamp, HashSet<string> apMacs)
+    private AccessPointSnapshot MapToAccessPointSnapshot(DiscoveredDevice ap, DateTimeOffset timestamp, HashSet<string> apMacs)
     {
         // Check if this AP has a wireless uplink to another AP (mesh child)
         var isMeshChild = false;
@@ -568,17 +614,16 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
         RadioBand? meshUplinkBand = null;
         int? meshUplinkChannel = null;
 
-        if (ap.Uplink != null &&
-            ap.Uplink.Type?.Equals("wireless", StringComparison.OrdinalIgnoreCase) == true &&
-            !string.IsNullOrEmpty(ap.Uplink.UplinkMac))
+        if (ap.UplinkType?.Equals("wireless", StringComparison.OrdinalIgnoreCase) == true &&
+            !string.IsNullOrEmpty(ap.UplinkMac))
         {
-            var uplinkMacLower = ap.Uplink.UplinkMac.ToLowerInvariant();
+            var uplinkMacLower = ap.UplinkMac.ToLowerInvariant();
             if (apMacs.Contains(uplinkMacLower))
             {
                 isMeshChild = true;
                 meshParentMac = uplinkMacLower;
-                meshUplinkBand = RadioBandExtensions.FromUniFiCode(ap.Uplink.RadioBand);
-                meshUplinkChannel = ap.Uplink.Channel;
+                meshUplinkBand = RadioBandExtensions.FromUniFiCode(ap.UplinkRadioBand);
+                meshUplinkChannel = ap.UplinkChannel;
             }
         }
 
@@ -587,7 +632,8 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
             Mac = ap.Mac,
             Name = ap.Name,
             Model = ap.FriendlyModelName,
-            Ip = ap.Ip,
+            FirmwareVersion = ap.Firmware,
+            Ip = ap.IpAddress,
             Satisfaction = ap.Satisfaction,
             Timestamp = timestamp,
             Radios = new List<RadioSnapshot>(),
@@ -606,7 +652,6 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
                 var radioConfig = ap.RadioTable?.FirstOrDefault(r => r.Name == radioStats.Name);
 
                 // Calculate interference as total utilization minus self-utilization
-                // Interference = cu_total - cu_self_rx - cu_self_tx
                 int? interference = null;
                 if (radioStats.CuTotal.HasValue)
                 {
@@ -633,7 +678,8 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
                     MinRssi = radioConfig?.MinRssi,
                     RoamingAssistantEnabled = radioConfig?.AssistedRoamingEnabled ?? false,
                     RoamingAssistantRssi = radioConfig?.AssistedRoamingRssi,
-                    HasDfs = radioConfig?.HasDfs ?? false
+                    HasDfs = radioConfig?.HasDfs ?? false,
+                    Is11Be = radioConfig?.Is11Be ?? false
                 });
             }
         }
@@ -977,46 +1023,6 @@ public class UniFiLiveDataProvider : IWiFiDataProvider
         }
 
         return metrics;
-    }
-
-    private List<WlanConfiguration> ParseWlanConfigurations(JsonElement data)
-    {
-        var configs = new List<WlanConfiguration>();
-
-        if (data.ValueKind != JsonValueKind.Array) return configs;
-
-        foreach (var item in data.EnumerateArray())
-        {
-            var config = item.GetProperty("configuration");
-            var stats = item.TryGetProperty("statistics", out var statsEl) ? statsEl : default;
-
-            configs.Add(new WlanConfiguration
-            {
-                Id = config.GetProperty("_id").GetString() ?? "",
-                Name = config.GetProperty("name").GetString() ?? "",
-                Enabled = config.TryGetProperty("enabled", out var enabled) && enabled.GetBoolean(),
-                IsGuest = config.TryGetProperty("is_guest", out var guest) && guest.GetBoolean(),
-                HideSsid = config.TryGetProperty("hide_ssid", out var hidden) && hidden.GetBoolean(),
-                FastRoamingEnabled = config.TryGetProperty("fast_roaming_enabled", out var fr) && fr.GetBoolean(),
-                BssTransitionEnabled = config.TryGetProperty("bss_transition", out var bss) && bss.GetBoolean(),
-                L2IsolationEnabled = config.TryGetProperty("l2_isolation", out var l2) && l2.GetBoolean(),
-                BandSteeringEnabled = config.TryGetProperty("no2ghz_oui", out var bs) && bs.GetBoolean(),
-                CurrentClientCount = stats.ValueKind != JsonValueKind.Undefined
-                    ? stats.TryGetProperty("current_client_count", out var cc) ? cc.GetInt32() : 0
-                    : 0,
-                CurrentApCount = stats.ValueKind != JsonValueKind.Undefined
-                    ? stats.TryGetProperty("current_access_point_count", out var ac) ? ac.GetInt32() : 0
-                    : 0,
-                CurrentSatisfaction = stats.ValueKind != JsonValueKind.Undefined
-                    ? stats.TryGetProperty("current_satisfaction", out var cs) ? cs.GetInt32() : (int?)null
-                    : null,
-                PeakClientCount = stats.ValueKind != JsonValueKind.Undefined
-                    ? stats.TryGetProperty("peak_client_count", out var pc) ? pc.GetInt32() : (int?)null
-                    : null
-            });
-        }
-
-        return configs;
     }
 
     private RoamingTopology? ParseRoamingTopology(JsonElement data)

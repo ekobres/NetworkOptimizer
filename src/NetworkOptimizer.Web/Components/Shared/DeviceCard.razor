@@ -98,14 +98,19 @@
         return null;
     }
 
+    // Fallback icons when device image is unavailable
     private string GetDeviceIcon(DeviceType deviceType)
     {
         return deviceType switch
         {
             DeviceType.Gateway => "🌐",
-            DeviceType.Switch => "🔌",
+            DeviceType.Switch => "🔀",
             DeviceType.AccessPoint => "📡",
             DeviceType.CellularModem => "📶",
+            DeviceType.BuildingBridge => "🌉",
+            DeviceType.CloudKey => "☁️",
+            DeviceType.DeviceBridge => "🔗",
+            DeviceType.SmartPower => "⚡",
             _ => "🖥️"
         };
     }

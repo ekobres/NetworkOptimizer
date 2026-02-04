@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using NetworkOptimizer.UniFi;
 using NetworkOptimizer.WiFi;
 using NetworkOptimizer.WiFi.Analyzers;
 using NetworkOptimizer.WiFi.Models;
@@ -38,6 +39,20 @@ public class WiFiOptimizerService
     }
 
     /// <summary>
+    /// Creates a UniFiLiveDataProvider with required dependencies.
+    /// </summary>
+    private UniFiLiveDataProvider CreateProvider()
+    {
+        var discovery = new UniFiDiscovery(
+            _connectionService.Client!,
+            _loggerFactory.CreateLogger<UniFiDiscovery>());
+        return new UniFiLiveDataProvider(
+            _connectionService.Client!,
+            discovery,
+            _loggerFactory.CreateLogger<UniFiLiveDataProvider>());
+    }
+
+    /// <summary>
     /// Get current site health score
     /// </summary>
     public async Task<SiteHealthScore?> GetSiteHealthScoreAsync(bool forceRefresh = false)
@@ -62,6 +77,38 @@ public class WiFiOptimizerService
             }
 
             _cachedHealthScore = _healthScorer.Calculate(_cachedAps, _cachedClients, _cachedRoamingData);
+
+            // Add MLO issue if enabled on Wi-Fi 7 capable APs (affects airtime efficiency)
+            var hasWifi7Aps = _cachedAps.Any(ap => ap.Radios.Any(r => r.Is11Be));
+            var hasMloEnabledWlan = _cachedWlanConfigs?.Any(w => w.Enabled && w.MloEnabled) == true;
+            if (hasWifi7Aps && hasMloEnabledWlan)
+            {
+                _cachedHealthScore.Issues.Add(new HealthIssue
+                {
+                    Severity = HealthIssueSeverity.Info,
+                    Dimensions = { HealthDimension.AirtimeEfficiency },
+                    Title = "MLO enabled",
+                    Description = "Multi-Link Operation is enabled on one or more SSIDs. MLO allows Wi-Fi 7 devices to aggregate multiple bands simultaneously. Non-Wi-Fi 7 devices may see reduced throughput on 5 GHz and 6 GHz bands.",
+                    Recommendation = "Consider disabling MLO if you have many non-Wi-Fi 7 devices experiencing slow speeds on 5 GHz or 6 GHz."
+                });
+            }
+
+            // Check for 6 GHz capable APs with 6 GHz disabled
+            var hasAps6GHz = _cachedAps.Any(ap => ap.Radios.Any(r => r.Band == RadioBand.Band6GHz));
+            var hasWlan6GHz = _cachedWlanConfigs?.Any(w => w.Enabled && w.EnabledBands.Contains(RadioBand.Band6GHz)) == true;
+            if (hasAps6GHz && !hasWlan6GHz)
+            {
+                var aps6GHzCount = _cachedAps.Count(ap => ap.Radios.Any(r => r.Band == RadioBand.Band6GHz));
+                _cachedHealthScore.Issues.Add(new HealthIssue
+                {
+                    Severity = HealthIssueSeverity.Info,
+                    Dimensions = { HealthDimension.ChannelHealth, HealthDimension.AirtimeEfficiency },
+                    Title = "6 GHz disabled",
+                    Description = $"You have {aps6GHzCount} access point{(aps6GHzCount > 1 ? "s" : "")} with 6 GHz radios, but no SSIDs are broadcasting on 6 GHz. Enabling 6 GHz can offload Wi-Fi 6E/7 capable devices from congested 2.4 GHz and 5 GHz bands.",
+                    Recommendation = "Enable 6 GHz on your SSIDs in UniFi Network: Settings > WiFi > (SSID) > Radio Band."
+                });
+            }
+
             return _cachedHealthScore;
         }
         catch (Exception ex)
@@ -188,6 +235,10 @@ public class WiFiOptimizerService
             }
 
             summary.WeakSignalClients = clients.Count(c => c.Signal.HasValue && c.Signal.Value < -70);
+
+            // Check if MLO is enabled on any enabled WLAN
+            var wlanConfigs = await GetWlanConfigurationsAsync();
+            summary.MloEnabled = wlanConfigs.Any(w => w.Enabled && w.MloEnabled);
         }
         catch (Exception ex)
         {
@@ -207,10 +258,7 @@ public class WiFiOptimizerService
 
         try
         {
-            var provider = new UniFiLiveDataProvider(
-                _connectionService.Client,
-                _logger as ILogger<UniFiLiveDataProvider> ??
-                    Microsoft.Extensions.Logging.Abstractions.NullLogger<UniFiLiveDataProvider>.Instance);
+            var provider = CreateProvider();
 
             // Fetch data in parallel
             var apsTask = provider.GetAccessPointsAsync();
@@ -220,7 +268,8 @@ public class WiFiOptimizerService
 
             await Task.WhenAll(apsTask, clientsTask, roamingTask, wlanTask);
 
-            _cachedAps = await apsTask;
+            // Sort APs by IP address for consistent display across all components
+            _cachedAps = WiFiAnalysisHelpers.SortByIp(await apsTask);
             _cachedClients = await clientsTask;
             _cachedRoamingData = await roamingTask;
             _cachedWlanConfigs = await wlanTask;
@@ -298,9 +347,7 @@ public class WiFiOptimizerService
 
         try
         {
-            var provider = new WiFi.Providers.UniFiLiveDataProvider(
-                _connectionService.Client,
-                _loggerFactory.CreateLogger<WiFi.Providers.UniFiLiveDataProvider>());
+            var provider = CreateProvider();
 
             _cachedScanResults = await provider.GetChannelScanResultsAsync(
                 apMac: null,
@@ -332,9 +379,7 @@ public class WiFiOptimizerService
 
         try
         {
-            var provider = new WiFi.Providers.UniFiLiveDataProvider(
-                _connectionService.Client,
-                _loggerFactory.CreateLogger<WiFi.Providers.UniFiLiveDataProvider>());
+            var provider = CreateProvider();
 
             return await provider.GetSiteMetricsAsync(start, end, granularity);
         }
@@ -362,9 +407,7 @@ public class WiFiOptimizerService
 
         try
         {
-            var provider = new WiFi.Providers.UniFiLiveDataProvider(
-                _connectionService.Client,
-                _loggerFactory.CreateLogger<WiFi.Providers.UniFiLiveDataProvider>());
+            var provider = CreateProvider();
 
             return await provider.GetApMetricsAsync(apMacs, start, end, granularity);
         }
@@ -392,9 +435,7 @@ public class WiFiOptimizerService
 
         try
         {
-            var provider = new WiFi.Providers.UniFiLiveDataProvider(
-                _connectionService.Client,
-                _loggerFactory.CreateLogger<WiFi.Providers.UniFiLiveDataProvider>());
+            var provider = CreateProvider();
 
             return await provider.GetClientMetricsAsync(clientMac, start, end, granularity);
         }
@@ -420,9 +461,7 @@ public class WiFiOptimizerService
 
         try
         {
-            var provider = new WiFi.Providers.UniFiLiveDataProvider(
-                _connectionService.Client,
-                _loggerFactory.CreateLogger<WiFi.Providers.UniFiLiveDataProvider>());
+            var provider = CreateProvider();
 
             return await provider.GetClientConnectionEventsAsync(clientMac, limit);
         }
@@ -449,4 +488,10 @@ public class WiFiSummary
     public int? AvgSatisfaction { get; set; }
     public int? AvgSignal { get; set; }
     public int WeakSignalClients { get; set; }
+
+    /// <summary>
+    /// Whether MLO (Multi-Link Operation) is enabled on any enabled WLAN.
+    /// When true, may impact throughput for non-MLO devices on 5 GHz and 6 GHz bands.
+    /// </summary>
+    public bool MloEnabled { get; set; }
 }
