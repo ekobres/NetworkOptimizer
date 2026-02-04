@@ -1628,6 +1628,336 @@ public class UniFiApiClient : IDisposable
         }
     }
 
+    #region Wi-Fi Optimizer APIs
+
+    /// <summary>
+    /// POST stat/report/{granularity}.site - Get site-wide Wi-Fi metrics time series
+    /// </summary>
+    /// <param name="granularity">Report granularity: 5minutes, hourly, daily</param>
+    /// <param name="startMs">Start time in Unix milliseconds</param>
+    /// <param name="endMs">End time in Unix milliseconds</param>
+    /// <param name="attrs">Attributes to fetch (e.g., ap-ng-cu_total, ap-na-tx_retries)</param>
+    public async Task<JsonElement> PostSiteReportAsync(
+        string granularity,
+        long startMs,
+        long endMs,
+        string[] attrs,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching {Granularity} site report with {AttrCount} attributes", granularity, attrs.Length);
+
+        if (!await EnsureAuthenticatedAsync(cancellationToken))
+        {
+            return default;
+        }
+
+        var url = BuildApiPath($"stat/report/{granularity}.site");
+        var payload = new
+        {
+            attrs,
+            start = startMs,
+            end = endMs
+        };
+
+        return await _retryPolicy.ExecuteAsync(async () =>
+        {
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient!.PostAsync(url, content, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("data", out var data))
+                {
+                    return data.Clone();
+                }
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Site report request failed: {StatusCode} - {Error}",
+                    response.StatusCode, error);
+            }
+
+            return default;
+        });
+    }
+
+    /// <summary>
+    /// POST stat/report/{granularity}.ap - Get per-AP Wi-Fi metrics time series
+    /// </summary>
+    /// <param name="granularity">Report granularity: 5minutes, hourly, daily</param>
+    /// <param name="apMacs">AP MAC addresses to filter by</param>
+    /// <param name="startMs">Start time in Unix milliseconds</param>
+    /// <param name="endMs">End time in Unix milliseconds</param>
+    /// <param name="attrs">Attributes to fetch (e.g., ng-cu_total, na-cu_total - note: no 'ap-' prefix for .ap endpoint)</param>
+    public async Task<JsonElement> PostApReportAsync(
+        string granularity,
+        string[] apMacs,
+        long startMs,
+        long endMs,
+        string[] attrs,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching {Granularity} AP report for {ApCount} APs", granularity, apMacs.Length);
+
+        if (!await EnsureAuthenticatedAsync(cancellationToken))
+        {
+            return default;
+        }
+
+        var url = BuildApiPath($"stat/report/{granularity}.ap");
+        var payload = new
+        {
+            attrs,
+            macs = apMacs,
+            start = startMs,
+            end = endMs
+        };
+
+        return await _retryPolicy.ExecuteAsync(async () =>
+        {
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient!.PostAsync(url, content, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("data", out var data))
+                {
+                    return data.Clone();
+                }
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("AP report request failed: {StatusCode} - {Error}",
+                    response.StatusCode, error);
+            }
+
+            return default;
+        });
+    }
+
+    /// <summary>
+    /// POST stat/report/{granularity}.user - Get per-client Wi-Fi metrics time series
+    /// </summary>
+    /// <param name="granularity">Report granularity: 5minutes, hourly, daily</param>
+    /// <param name="clientMac">Client MAC address</param>
+    /// <param name="startMs">Start time in Unix milliseconds</param>
+    /// <param name="endMs">End time in Unix milliseconds</param>
+    /// <param name="attrs">Attributes to fetch (e.g., signal, tx_retries)</param>
+    public async Task<JsonElement> PostUserReportAsync(
+        string granularity,
+        string clientMac,
+        long startMs,
+        long endMs,
+        string[] attrs,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching {Granularity} user report for {ClientMac}", granularity, clientMac);
+
+        if (!await EnsureAuthenticatedAsync(cancellationToken))
+        {
+            return default;
+        }
+
+        var url = BuildApiPath($"stat/report/{granularity}.user");
+        var payload = new
+        {
+            attrs,
+            macs = new[] { clientMac },
+            oid = clientMac,  // Required by UniFi API
+            start = startMs,
+            end = endMs
+        };
+
+        return await _retryPolicy.ExecuteAsync(async () =>
+        {
+            var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await _httpClient!.PostAsync(url, content, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("data", out var data))
+                {
+                    return data.Clone();
+                }
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("User report request failed: {StatusCode} - {Error}",
+                    response.StatusCode, error);
+            }
+
+            return default;
+        });
+    }
+
+    /// <summary>
+    /// GET v2/api/site/{site}/wlan/enriched-configuration - Get WLAN configurations with stats
+    /// </summary>
+    public async Task<JsonElement> GetWlanEnrichedConfigurationAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching WLAN enriched configuration");
+
+        if (!await EnsureAuthenticatedAsync(cancellationToken))
+        {
+            return default;
+        }
+
+        var url = BuildV2ApiPath($"site/{_site}/wlan/enriched-configuration");
+
+        return await _retryPolicy.ExecuteAsync(async () =>
+        {
+            var response = await _httpClient!.GetAsync(url, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(json);
+                return doc.RootElement.Clone();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("WLAN enriched config request failed: {StatusCode} - {Error}",
+                    response.StatusCode, error);
+            }
+
+            return default;
+        });
+    }
+
+    /// <summary>
+    /// POST v2/api/site/{site}/wifi-connectivity/roaming/topology - Get roaming topology and statistics
+    /// </summary>
+    public async Task<JsonElement> GetRoamingTopologyAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching roaming topology");
+
+        if (!await EnsureAuthenticatedAsync(cancellationToken))
+        {
+            return default;
+        }
+
+        var url = BuildV2ApiPath($"site/{_site}/wifi-connectivity/roaming/topology");
+
+        return await _retryPolicy.ExecuteAsync(async () =>
+        {
+            // This endpoint requires POST with empty body
+            var content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+            var response = await _httpClient!.PostAsync(url, content, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(json);
+                return doc.RootElement.Clone();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Roaming topology request failed: {StatusCode} - {Error}",
+                    response.StatusCode, error);
+            }
+
+            return default;
+        });
+    }
+
+    /// <summary>
+    /// GET v2/api/site/{site}/system-log/client-connection/{mac} - Get client connection events (connects, disconnects, roams)
+    /// </summary>
+    /// <param name="clientMac">Client MAC address</param>
+    /// <param name="limit">Maximum number of events to return (default 200)</param>
+    public async Task<JsonElement> GetClientConnectionEventsAsync(
+        string clientMac,
+        int limit = 200,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching client connection events for {ClientMac}", clientMac);
+
+        if (!await EnsureAuthenticatedAsync(cancellationToken))
+        {
+            return default;
+        }
+
+        var url = BuildV2ApiPath($"site/{_site}/system-log/client-connection/{clientMac}?mac={clientMac}&separateConnectionSignalParam=false&limit={limit}");
+
+        return await _retryPolicy.ExecuteAsync(async () =>
+        {
+            var response = await _httpClient!.GetAsync(url, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(json);
+                return doc.RootElement.Clone();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("Client connection events request failed: {StatusCode} - {Error}",
+                    response.StatusCode, error);
+            }
+
+            return default;
+        });
+    }
+
+    /// <summary>
+    /// GET /api/s/{site}/stat/rogueap - Get neighboring Wi-Fi networks detected by APs
+    /// </summary>
+    /// <param name="startTime">Start time for filtering (optional, defaults to 1 day ago). UniFi UI uses 30m, 1h, 1D, 1W, 1M ranges.</param>
+    /// <param name="endTime">End time for filtering (optional, defaults to now)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    public async Task<List<UniFiRogueApResponse>> GetRogueApsAsync(
+        DateTimeOffset? startTime = null,
+        DateTimeOffset? endTime = null,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Fetching rogue/neighboring APs");
+
+        var end = endTime ?? DateTimeOffset.UtcNow;
+        var start = startTime ?? end.AddDays(-1);
+
+        var startSeconds = start.ToUnixTimeSeconds();
+        var endSeconds = end.ToUnixTimeSeconds();
+
+        var response = await ExecuteApiCallAsync<UniFiApiResponse<UniFiRogueApResponse>>(
+            () => _httpClient!.GetAsync(BuildApiPath($"stat/rogueap?start={startSeconds}&end={endSeconds}"), cancellationToken),
+            cancellationToken);
+
+        if (response?.Meta.Rc == "ok")
+        {
+            _logger.LogDebug("Found {Count} rogue/neighboring APs", response.Data.Count);
+            return response.Data;
+        }
+
+        _logger.LogWarning("Failed to retrieve rogue APs or received non-ok response");
+        return new List<UniFiRogueApResponse>();
+    }
+
+    #endregion
+
     public void Dispose()
     {
         _authLock?.Dispose();
