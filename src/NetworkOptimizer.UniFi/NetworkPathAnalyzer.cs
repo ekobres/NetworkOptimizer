@@ -1124,6 +1124,8 @@ public class NetworkPathAnalyzer : INetworkPathAnalyzer
                         // Wired uplink - prefer device's reported uplink speed (from API Uplink.Speed),
                         // fall back to upstream device's port table if not available.
                         // This handles scenarios where there's an unmanaged switch between devices.
+                        // NOTE: Only applies when going TOWARD gateway (main loop). Return path
+                        // (after gateway) uses port table since we're going opposite of uplink direction.
                         // NOTE: Skip for gateways - their UplinkSpeedMbps is WAN speed, not LAN port speed.
                         hop.EgressPort = device.UplinkPort;
                         var portTableSpeed = GetPortSpeedFromRawDevices(rawDevices, device.UplinkMac, device.UplinkPort);
