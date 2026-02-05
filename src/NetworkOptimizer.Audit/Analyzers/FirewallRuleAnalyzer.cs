@@ -1641,6 +1641,13 @@ public class FirewallRuleAnalyzer
     /// <returns>True if the rule applies to traffic from the specified network</returns>
     internal static bool AppliesToSourceNetwork(FirewallRule rule, NetworkInfo network)
     {
+        // Zone check: if rule has a source zone and network has a zone, they must match
+        if (!string.IsNullOrEmpty(rule.SourceZoneId) && !string.IsNullOrEmpty(network.FirewallZoneId))
+        {
+            if (!string.Equals(rule.SourceZoneId, network.FirewallZoneId, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
         // First check network ID
         if (AppliesToSourceNetwork(rule, network.Id))
             return true;
@@ -1664,6 +1671,13 @@ public class FirewallRuleAnalyzer
     /// <returns>True if the rule applies to traffic to the specified network</returns>
     private static bool AppliesToDestinationNetwork(FirewallRule rule, NetworkInfo network)
     {
+        // Zone check: if rule has a destination zone and network has a zone, they must match
+        if (!string.IsNullOrEmpty(rule.DestinationZoneId) && !string.IsNullOrEmpty(network.FirewallZoneId))
+        {
+            if (!string.Equals(rule.DestinationZoneId, network.FirewallZoneId, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
         // First check network ID
         if (AppliesToDestinationNetwork(rule, network.Id))
             return true;
@@ -1698,25 +1712,10 @@ public class FirewallRuleAnalyzer
     /// <summary>
     /// Check if a firewall rule matches a specific source->destination network pair.
     /// Also checks if IP-based source/destination CIDRs cover the network's subnet.
-    /// Includes zone matching - rule's zones must match the networks' zones.
+    /// Zone matching is handled by AppliesToSourceNetwork/AppliesToDestinationNetwork.
     /// </summary>
     private static bool HasNetworkPair(FirewallRule rule, NetworkInfo sourceNetwork, NetworkInfo destNetwork)
     {
-        // Check zone matching first - rule's zones must match the networks' zones
-        // If the rule has a source zone, it must match the source network's zone
-        if (!string.IsNullOrEmpty(rule.SourceZoneId) && !string.IsNullOrEmpty(sourceNetwork.FirewallZoneId))
-        {
-            if (!string.Equals(rule.SourceZoneId, sourceNetwork.FirewallZoneId, StringComparison.OrdinalIgnoreCase))
-                return false;
-        }
-
-        // If the rule has a destination zone, it must match the destination network's zone
-        if (!string.IsNullOrEmpty(rule.DestinationZoneId) && !string.IsNullOrEmpty(destNetwork.FirewallZoneId))
-        {
-            if (!string.Equals(rule.DestinationZoneId, destNetwork.FirewallZoneId, StringComparison.OrdinalIgnoreCase))
-                return false;
-        }
-
         return AppliesToSourceNetwork(rule, sourceNetwork) && AppliesToDestinationNetwork(rule, destNetwork);
     }
 
@@ -1985,13 +1984,16 @@ public class FirewallRuleAnalyzer
         // Use FirewallRuleEvaluator to find the effective rule for internet traffic
         // Predicate matches rules that target this network's internet access
         var evalResult = FirewallRuleEvaluator.Evaluate(firewallRules, rule =>
-            MatchesInternetTrafficPattern(rule, network.Id, externalZoneId));
+            MatchesInternetTrafficPattern(rule, network, externalZoneId));
 
         if (evalResult.IsBlocked)
         {
             _logger.LogDebug(
-                "Network '{NetworkName}' has internet blocked by rule '{RuleName}' (index={Index})",
-                network.Name, evalResult.EffectiveRule!.Name, evalResult.EffectiveRule.Index);
+                "Network '{NetworkName}' has internet blocked by rule '{RuleName}' " +
+                "(index={Index}, sourceMatch={SourceMatchType}, sourceZone={SourceZone}, networkZone={NetworkZone})",
+                network.Name, evalResult.EffectiveRule!.Name, evalResult.EffectiveRule.Index,
+                evalResult.EffectiveRule.SourceMatchingTarget, evalResult.EffectiveRule.SourceZoneId,
+                network.FirewallZoneId);
             return true;
         }
 
@@ -2008,13 +2010,10 @@ public class FirewallRuleAnalyzer
     /// <summary>
     /// Check if a rule matches the pattern for blocking internet access from a specific network.
     /// </summary>
-    private static bool MatchesInternetTrafficPattern(FirewallRule rule, string networkId, string externalZoneId)
+    private static bool MatchesInternetTrafficPattern(FirewallRule rule, NetworkInfo network, string externalZoneId)
     {
-        // Source must be NETWORK type with this network's ID in the list
-        if (!string.Equals(rule.SourceMatchingTarget, "NETWORK", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        if (rule.SourceNetworkIds == null || !rule.SourceNetworkIds.Contains(networkId))
+        // Source must match this network (by network ID, IP/CIDR, or ANY)
+        if (!AppliesToSourceNetwork(rule, network))
             return false;
 
         // Destination zone must be the External zone
