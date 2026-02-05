@@ -101,7 +101,7 @@ Without SSH access, Security Audit works fully, but you cannot run gateway/devic
 | Windows | Installer (recommended) | [Download from Releases](https://github.com/Ozark-Connect/NetworkOptimizer/releases) |
 | Linux Server | Docker (recommended) | [Deployment Guide](docker/DEPLOYMENT.md) |
 | Proxmox VE | LXC one-liner | [Proxmox Guide](scripts/proxmox/README.md) |
-| Synology/QNAP/Unraid | Docker | [NAS Deployment](docker/DEPLOYMENT.md#nas-deployment) |
+| Synology/QNAP/Unraid | Docker | [NAS Deployment](docker/DEPLOYMENT.md#2-nas-deployment-docker) |
 | macOS | Native (best performance) | [macOS Installation](docs/MACOS-INSTALLATION.md) |
 | Linux | Native (no Docker) | [Linux Native](docker/NATIVE-DEPLOYMENT.md#linux-deployment) |
 
