@@ -713,11 +713,20 @@ a.stat-card-link:active {
     border-left-color: var(--danger-color);
 }
 
-.device-header {
+.device-header,
+.ap-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.6rem;
     margin-bottom: 0.75rem;
+}
+
+.device-header {
+    margin-left: -0.2rem;
+}
+
+.ap-header {
+    margin-left: -0.3rem;
 }
 
 .device-icon {
@@ -754,14 +763,19 @@ a.stat-card-link:active {
 }
 
 .status-dot {
+    display: inline-block;
     width: 8px;
     height: 8px;
     border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.status-dot.online {
     background: var(--success-color);
 }
 
-.device-card.device-offline .status-dot {
-    background: var(--danger-color);
+.status-dot.offline {
+    background: var(--text-tertiary);
 }
 
 .device-body {
@@ -6222,11 +6236,20 @@ select.form-control {
     padding: 1rem;
 }
 
-.ap-header {
+.ap-card.ap-offline {
+    opacity: 0.5;
+}
+
+.ap-status {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    gap: 0.35rem;
+    margin-left: auto;
+}
+
+.ap-status-text {
+    font-size: 0.7rem;
+    color: var(--text-muted);
 }
 
 .ap-header-text {
@@ -6249,11 +6272,23 @@ select.form-control {
     display: flex;
     gap: 1.5rem;
     margin-bottom: 0.75rem;
+    margin-left: 0.25rem;
 }
 
 .ap-stat {
     display: flex;
     flex-direction: column;
+}
+
+.roaming-stat-value,
+.channel-stat-value,
+.load-stat-value,
+.power-stat-value,
+.airtime-stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.33;
 }
 
 .ap-stat-value {
@@ -6986,25 +7021,8 @@ select.form-control {
     padding: 0 0.5rem;
 }
 
-/* Client status indicator */
-.status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-muted);
-}
-
 .client-list-section .data-table td:first-child {
     text-align: center;
-}
-
-.status-dot.online {
-    background: var(--success-color);
-}
-
-.status-dot.offline {
-    background: var(--text-tertiary);
 }
 
 .client-offline {
@@ -7297,11 +7315,6 @@ select.form-control {
     text-align: center;
 }
 
-.roaming-stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
 
 .roaming-stat-label {
     font-size: 0.75rem;
@@ -7775,11 +7788,6 @@ select.form-control {
 .channel-stat-card.stat-warning .channel-stat-value { color: var(--warning-color); }
 .channel-stat-card.stat-danger .channel-stat-value { color: var(--danger-color); }
 
-.channel-stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
 
 .channel-stat-label {
     font-size: 0.75rem;
@@ -8513,11 +8521,6 @@ select.form-control {
     text-align: center;
 }
 
-.load-stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
 
 .load-stat-label {
     font-size: 0.75rem;
@@ -8971,11 +8974,6 @@ select.form-control {
     text-align: center;
 }
 
-.power-stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
 
 .power-stat-label {
     font-size: 0.75rem;
@@ -9997,13 +9995,6 @@ select.form-control {
     border-radius: 8px;
     padding: 1rem;
     text-align: center;
-}
-
-.airtime-stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    line-height: 1.33;
 }
 
 .airtime-stat-label {
