@@ -656,6 +656,10 @@ a.stat-card-link:active {
     font-weight: 600;
 }
 
+.stat-value.cleanest-channels {
+    font-size: 1.25rem;
+}
+
 .stat-label {
     font-size: 0.875rem;
     color: var(--text-secondary);
@@ -6478,7 +6482,8 @@ select.form-control {
     margin-left: auto;
 }
 
-.metrics-filters .band-tabs {
+.metrics-filters .band-tabs,
+.env-controls .band-tabs {
     margin-bottom: 0;
 }
 
@@ -9998,6 +10003,7 @@ select.form-control {
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--text-primary);
+    line-height: 1.33;
 }
 
 .airtime-stat-label {
@@ -10498,8 +10504,13 @@ select.form-control {
 
 .env-controls {
     display: flex;
-    gap: 0.5rem;
+    gap: 1rem;
     align-items: center;
+    flex-wrap: wrap;
+}
+
+.env-controls .btn {
+    margin-top: 1px;
 }
 
 .time-range-select {
@@ -10654,10 +10665,7 @@ select.form-control {
     cursor: default;
 }
 
-.heatmap-cell.heat-low { background: #22c55e; }
-.heatmap-cell.heat-medium { background: #eab308; }
-.heatmap-cell.heat-high { background: #f97316; }
-.heatmap-cell.heat-critical { background: #ef4444; }
+.heatmap-cell.heat-none { background: var(--bg-tertiary); }
 
 .heatmap-legend {
     display: flex;
