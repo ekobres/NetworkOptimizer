@@ -388,11 +388,11 @@ public class ClientSpeedTestService
     /// <summary>
     /// Updates the notes for a speed test result.
     /// </summary>
-    public async Task<bool> UpdateNotesAsync(int id, string? notes)
+    public async Task<bool> UpdateNotesAsync(int siteId, int id, string? notes)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
         var result = await db.Iperf3Results.FindAsync(id);
-        if (result == null)
+        if (result == null || result.SiteId != siteId)
         {
             return false;
         }

@@ -1009,7 +1009,7 @@
 
     private async Task HandleNotesChanged((int Id, string? Notes) args)
     {
-        await ClientSpeedTestService.UpdateNotesAsync(args.Id, args.Notes);
+        await ClientSpeedTestService.UpdateNotesAsync(SiteId, args.Id, args.Notes);
     }
 
     private async Task ScrollToResult(int resultId)

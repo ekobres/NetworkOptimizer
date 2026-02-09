@@ -38,11 +38,12 @@ public interface ISpeedTestRepository
     /// <summary>
     /// Updates the notes for a speed test result.
     /// </summary>
+    /// <param name="siteId">Site ID</param>
     /// <param name="id">Result ID</param>
     /// <param name="notes">Notes text (null or empty to clear)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if the result was found and updated</returns>
-    Task<bool> UpdateIperf3ResultNotesAsync(int id, string? notes, CancellationToken cancellationToken = default);
+    Task<bool> UpdateIperf3ResultNotesAsync(int siteId, int id, string? notes, CancellationToken cancellationToken = default);
 
     // SQM WAN Configuration
     Task<SqmWanConfiguration?> GetSqmWanConfigAsync(int siteId, int wanNumber, CancellationToken cancellationToken = default);

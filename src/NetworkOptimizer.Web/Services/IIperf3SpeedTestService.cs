@@ -130,10 +130,11 @@ public interface IIperf3SpeedTestService
     /// <summary>
     /// Updates the notes for a speed test result.
     /// </summary>
+    /// <param name="siteId">The site ID.</param>
     /// <param name="id">The ID of the result.</param>
     /// <param name="notes">The notes text (null or empty to clear).</param>
     /// <returns>True if the result was found and updated.</returns>
-    Task<bool> UpdateNotesAsync(int id, string? notes);
+    Task<bool> UpdateNotesAsync(int siteId, int id, string? notes);
 
     /// <summary>
     /// Clears all speed test history from the database.

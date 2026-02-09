@@ -1460,7 +1460,7 @@
 
     private async Task HandleNotesChanged((int Id, string? Notes) args)
     {
-        await SpeedTestService.UpdateNotesAsync(args.Id, args.Notes);
+        await SpeedTestService.UpdateNotesAsync(SiteId, args.Id, args.Notes);
     }
 
     private void EditDevice(DeviceSshConfiguration device)

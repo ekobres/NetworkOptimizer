@@ -588,11 +588,11 @@ public class Iperf3SpeedTestService : IIperf3SpeedTestService
     /// <summary>
     /// Updates the notes for a speed test result.
     /// </summary>
-    public async Task<bool> UpdateNotesAsync(int id, string? notes)
+    public async Task<bool> UpdateNotesAsync(int siteId, int id, string? notes)
     {
         using var scope = _serviceProvider.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<ISpeedTestRepository>();
-        return await repository.UpdateIperf3ResultNotesAsync(id, notes);
+        return await repository.UpdateIperf3ResultNotesAsync(siteId, id, notes);
     }
 
     /// <summary>
