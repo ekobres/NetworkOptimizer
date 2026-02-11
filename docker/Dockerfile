@@ -59,7 +59,7 @@ RUN apt-get update && apt-get install -y \
 
 # Build iperf3 from source
 WORKDIR /tmp
-RUN curl -LO https://github.com/esnet/iperf/releases/download/${IPERF3_VERSION}/iperf-${IPERF3_VERSION}.tar.gz \
+RUN curl -fLO --retry 3 --retry-delay 5 https://github.com/esnet/iperf/releases/download/${IPERF3_VERSION}/iperf-${IPERF3_VERSION}.tar.gz \
     && tar xzf iperf-${IPERF3_VERSION}.tar.gz \
     && cd iperf-${IPERF3_VERSION} \
     && ./configure --prefix=/usr/local \
