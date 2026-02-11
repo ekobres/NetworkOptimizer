@@ -67,6 +67,8 @@ var loggerConfig = new LoggerConfiguration()
     .MinimumLevel.Override("NetworkOptimizer", Enum.Parse<LogEventLevel>(appLogLevel, ignoreCase: true))
     .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .MinimumLevel.Override("System.Net.Http", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.Extensions.Http", LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
 
@@ -184,6 +186,9 @@ builder.Services.AddSingleton<ClientSpeedTestService>();
 
 // Register Cloudflare WAN Speed Test service (singleton - server-side WAN speed tests)
 builder.Services.AddSingleton<CloudflareSpeedTestService>();
+
+// Register Gateway WAN Speed Test service (singleton - gateway-direct WAN speed tests via SSH)
+builder.Services.AddSingleton<GatewayWanSpeedTestService>();
 
 // Register Topology Snapshot service (singleton - captures wireless rate snapshots during speed tests)
 builder.Services.AddSingleton<TopologySnapshotService>();

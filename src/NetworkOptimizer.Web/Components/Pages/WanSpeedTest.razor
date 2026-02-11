@@ -6,8 +6,12 @@
 @using NetworkOptimizer.Storage.Helpers
 @using NetworkOptimizer.UniFi.Models
 @using NetworkOptimizer.Web.Components.Shared
+@using NetworkOptimizer.Web.Services.Ssh
 @using NetworkOptimizer.UniFi
 @inject CloudflareSpeedTestService WanSpeedTestService
+@inject GatewayWanSpeedTestService GatewayWanTestService
+@inject SqmService SqmService
+@inject IGatewaySshService GatewaySshService
 @inject INetworkPathAnalyzer PathAnalyzer
 @inject UniFiConnectionService ConnectionService
 @inject IJSRuntime JS
@@ -22,38 +26,91 @@
     @* Run Test Card *@
     <div class="card">
         <div class="card-body">
-            <div class="wan-test-controls">
-                <button class="btn btn-primary test-button wan-test-button"
-                        @onclick="RunTest"
-                        disabled="@_isRunning">
-                    @if (_isRunning)
-                    {
-                        <div class="test-progress">
-                            <div class="progress-bar" style="width: @(_progressPercent)%"></div>
-                        </div>
-                        <span class="test-phase">@_progressPhase...</span>
-                    }
-                    else
-                    {
-                        <span>Run WAN Speed Test</span>
-                    }
-                </button>
-                @if (!string.IsNullOrEmpty(_progressStatus))
-                {
-                    <div class="wan-progress-status">@_progressStatus</div>
-                }
+            <p class="wan-test-description">Measures your internet speed using Cloudflare's global edge network with 6 concurrent connections.</p>
+            <div class="wan-test-options">
+                @* Gateway (Direct) Option - Primary *@
+                <div class="wan-test-option @(_gatewayAvailable ? "" : "wan-test-option-unavailable")">
+                    <div class="wan-test-option-header">
+                        <span class="wan-test-option-label">Gateway (Direct)</span>
+                        @if (!_gatewayAvailable && !_isRunning)
+                        {
+                            <span class="wan-test-option-badge" data-tooltip="@_gatewayUnavailableReason">Unavailable</span>
+                        }
+                    </div>
+                    <div class="wan-test-option-controls">
+                        @if (_wanInterfaces.Count > 1)
+                        {
+                            <select class="wan-reassign-select"
+                                    @bind="_selectedWanIndex"
+                                    @bind:after="OnWanSelectionChanged"
+                                    disabled="@(_isRunning)">
+                                @for (var i = 0; i < _wanInterfaces.Count; i++)
+                                {
+                                    <option value="@i">@_wanInterfaces[i].Name (@_wanInterfaces[i].Interface)</option>
+                                }
+                            </select>
+                        }
+                        <button class="btn btn-primary test-button wan-test-button"
+                                @onclick="RunGatewayTest"
+                                disabled="@(_isRunning || !_gatewayAvailable)">
+                            @if (_isRunning && _activeTestType == "gateway")
+                            {
+                                <div class="test-progress">
+                                    <div class="progress-bar" style="width: @(_progressPercent)%"></div>
+                                </div>
+                                <span class="test-phase">@_progressPhase...</span>
+                            }
+                            else
+                            {
+                                <span>Run Test from Gateway</span>
+                            }
+                        </button>
+                        @if (!string.IsNullOrEmpty(_gatewayStatus))
+                        {
+                            <code class="wan-result-summary">@_gatewayStatus</code>
+                        }
+                    </div>
+                    <div class="wan-test-option-hint">
+                        Deploys a speed test binary to the gateway and runs it directly. Most accurate WAN measurement - no LAN overhead.
+                    </div>
+                </div>
 
-                <div class="wan-test-hint">
-                    @if (_hasMultipleWans)
-                    {
-                        <strong>Multiple WAN connections?</strong>
-                        <text>This test uses whichever WAN your gateway routes to speed.cloudflare.com.
-                        To test a specific WAN, create a Policy-Based Route in UniFi targeting speed.cloudflare.com through your desired interface.</text>
-                    }
-                    else
-                    {
-                        <text>Measures your internet connection speed using Cloudflare's global edge network with 6 concurrent connections.</text>
-                    }
+                @* Server Option - Secondary *@
+                <div class="wan-test-option">
+                    <div class="wan-test-option-header">
+                        <span class="wan-test-option-label">Server</span>
+                    </div>
+                    <div class="wan-test-option-controls">
+                        <button class="btn btn-primary test-button wan-test-button"
+                                @onclick="RunServerTest"
+                                disabled="@_isRunning">
+                            @if (_isRunning && _activeTestType == "server")
+                            {
+                                <div class="test-progress">
+                                    <div class="progress-bar" style="width: @(_progressPercent)%"></div>
+                                </div>
+                                <span class="test-phase">@_progressPhase...</span>
+                            }
+                            else
+                            {
+                                <span>Run Test from Server</span>
+                            }
+                        </button>
+                        @if (!string.IsNullOrEmpty(_serverStatus))
+                        {
+                            <code class="wan-result-summary">@_serverStatus</code>
+                        }
+                    </div>
+                    <div class="wan-test-option-hint">
+                        @if (_hasMultipleWans)
+                        {
+                            <text>Tests from this server through the LAN. Uses whichever WAN routes to speed.cloudflare.com, configurable via Policy-Based Routes.</text>
+                        }
+                        else
+                        {
+                            <text>Tests from this server through the LAN. Includes LAN traversal overhead.</text>
+                        }
+                    </div>
                 </div>
             </div>
 
@@ -334,7 +391,7 @@
             {
                 <div class="empty-state">
                     <p>No WAN speed tests recorded yet.</p>
-                    <p class="form-help">Click "Run WAN Speed Test" above to measure your internet connection speed via Cloudflare.</p>
+                    <p class="form-help">Click "Run Test from Gateway" or "Run Test from Server" above to measure your internet connection speed via Cloudflare.</p>
                 </div>
             }
         </div>
@@ -344,14 +401,22 @@
 @code {
     // Test state
     private bool _isRunning;
+    private string _activeTestType = ""; // "gateway" or "server"
     private string _progressPhase = "";
     private int _progressPercent;
-    private string? _progressStatus;
+    private string? _gatewayStatus;
+    private string? _serverStatus;
     private string? _errorMessage;
     private CloudflareSpeedTestService.CloudflareMetadata? _metadata;
     private Iperf3Result? _latestResult;
     private bool _hasMultipleWans;
     private List<WanOption> _availableWans = new();
+
+    // Gateway test state
+    private List<WanInterfaceInfo> _wanInterfaces = new();
+    private int _selectedWanIndex;
+    private bool _gatewayAvailable;
+    private string? _gatewayUnavailableReason;
 
     // History state
     private List<Iperf3Result> _testHistory = new();
@@ -445,9 +510,11 @@
     {
         InitializeChartOptions();
 
-        // Load WAN list and history in parallel so both are ready before first render
+        // Load WAN list, gateway status, and history in parallel
         var historyTask = LoadHistory(resetPage: true);
         Task? wanTask = null;
+        Task? gatewayTask = null;
+
         if (ConnectionService.IsConnected)
         {
             wanTask = Task.Run(async () =>
@@ -462,13 +529,33 @@
                             n.WanNetworkgroup ?? "WAN",
                             !string.IsNullOrEmpty(n.Name) ? n.Name : NormalizeWanDisplay(n.WanNetworkgroup ?? "WAN")))
                         .ToList();
+
+                    // Load WAN interfaces with physical names for gateway test
+                    _wanInterfaces = await SqmService.GetWanInterfacesFromControllerAsync();
                 }
                 catch { /* Non-critical */ }
+            });
+
+            gatewayTask = Task.Run(async () =>
+            {
+                try
+                {
+                    var gwSettings = await GatewaySshService.GetSettingsAsync();
+                    _gatewayAvailable = !string.IsNullOrEmpty(gwSettings.Host) && gwSettings.HasCredentials && gwSettings.Enabled;
+                    if (!_gatewayAvailable)
+                        _gatewayUnavailableReason = "Gateway SSH not configured. Set up SSH access in the Gateway page.";
+                }
+                catch
+                {
+                    _gatewayAvailable = false;
+                    _gatewayUnavailableReason = "Could not check gateway status";
+                }
             });
         }
 
         await historyTask;
         if (wanTask != null) await wanTask;
+        if (gatewayTask != null) await gatewayTask;
 
         if (_testHistory.Count > 0)
         {
@@ -479,12 +566,21 @@
         if (WanSpeedTestService.IsRunning)
         {
             _isRunning = true;
+            _activeTestType = "server";
             SyncProgressFromService();
+            StartPolling();
+        }
+        else if (GatewayWanTestService.IsRunning)
+        {
+            _isRunning = true;
+            _activeTestType = "gateway";
+            SyncGatewayProgressFromService();
             StartPolling();
         }
 
         // Subscribe to path analysis completion to refresh UI
         WanSpeedTestService.OnPathAnalysisComplete += OnPathAnalysisComplete;
+        GatewayWanTestService.OnPathAnalysisComplete += OnPathAnalysisComplete;
     }
 
     private void InitializeChartOptions()
@@ -772,16 +868,86 @@
         ");
     }
 
-    private async Task RunTest()
+    private static string FormatResultSummary(Iperf3Result result)
     {
-        if (_isRunning) return;
+        var down = result.DownloadBitsPerSecond / 1_000_000.0;
+        var up = result.UploadBitsPerSecond / 1_000_000.0;
+        return $"Down: {down:F1} / Up: {up:F1} Mbps";
+    }
+
+    private void OnWanSelectionChanged()
+    {
+        // No-op - just triggers @bind update
+    }
+
+    private async Task RunGatewayTest()
+    {
+        if (_isRunning || _wanInterfaces.Count == 0) return;
+        if (_selectedWanIndex >= _wanInterfaces.Count)
+            _selectedWanIndex = 0;
+
+        var wan = _wanInterfaces[_selectedWanIndex];
 
         _isRunning = true;
+        _activeTestType = "gateway";
         _errorMessage = null;
         _metadata = null;
         _progressPhase = "Starting";
         _progressPercent = 0;
-        _progressStatus = null;
+        _gatewayStatus = null;
+        StateHasChanged();
+
+        StartPolling();
+
+        var result = await GatewayWanTestService.RunTestAsync(
+            wan.Interface,
+            wan.NetworkGroup,
+            wan.Name,
+            progress =>
+            {
+                _progressPhase = progress.Phase;
+                _progressPercent = progress.Percent;
+                InvokeAsync(StateHasChanged);
+            });
+
+        StopPolling();
+        _isRunning = false;
+        _activeTestType = "";
+
+        if (result != null)
+        {
+            if (result.Success)
+            {
+                _latestResult = result;
+                _gatewayStatus = FormatResultSummary(result);
+            }
+            else
+            {
+                _errorMessage = result.ErrorMessage ?? "Test failed";
+                _gatewayStatus = null;
+            }
+        }
+        else
+        {
+            _errorMessage = "Test was cancelled or could not start";
+            _gatewayStatus = null;
+        }
+
+        await LoadHistory(resetPage: true);
+        StateHasChanged();
+    }
+
+    private async Task RunServerTest()
+    {
+        if (_isRunning) return;
+
+        _isRunning = true;
+        _activeTestType = "server";
+        _errorMessage = null;
+        _metadata = null;
+        _progressPhase = "Starting";
+        _progressPercent = 0;
+        _serverStatus = null;
         StateHasChanged();
 
         StartPolling();
@@ -792,28 +958,32 @@
                 _progressPhase = progress.Phase;
                 _progressPercent = progress.Percent;
                 if (progress.Status != null)
-                    _progressStatus = progress.Status;
+                    _serverStatus = progress.Status;
                 _metadata = WanSpeedTestService.LastMetadata;
                 InvokeAsync(StateHasChanged);
             });
 
         StopPolling();
         _isRunning = false;
+        _activeTestType = "";
 
         if (result != null)
         {
             if (result.Success)
             {
                 _latestResult = result;
+                _serverStatus = FormatResultSummary(result);
             }
             else
             {
                 _errorMessage = result.ErrorMessage ?? "Test failed";
+                _serverStatus = null;
             }
         }
         else
         {
             _errorMessage = "Test was cancelled or could not start";
+            _serverStatus = null;
         }
 
         await LoadHistory(resetPage: true);
@@ -825,14 +995,22 @@
         StopPolling();
         _pollTimer = new System.Threading.Timer(async _ =>
         {
-            if (!WanSpeedTestService.IsRunning)
+            var serverRunning = WanSpeedTestService.IsRunning;
+            var gatewayRunning = GatewayWanTestService.IsRunning;
+
+            if (!serverRunning && !gatewayRunning)
             {
                 StopPolling();
+                var testType = _activeTestType;
                 _isRunning = false;
+                _activeTestType = "";
 
-                var lastResult = WanSpeedTestService.LastCompletedResult;
-                if (lastResult != null)
-                    _latestResult = lastResult;
+                var lastResult = testType == "gateway"
+                    ? GatewayWanTestService.LastCompletedResult
+                    : WanSpeedTestService.LastCompletedResult;
+                _latestResult = lastResult
+                    ?? WanSpeedTestService.LastCompletedResult
+                    ?? GatewayWanTestService.LastCompletedResult;
 
                 await InvokeAsync(async () =>
                 {
@@ -842,7 +1020,11 @@
                 return;
             }
 
-            SyncProgressFromService();
+            if (_activeTestType == "gateway")
+                SyncGatewayProgressFromService();
+            else
+                SyncProgressFromService();
+
             await InvokeAsync(StateHasChanged);
         }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
     }
@@ -859,8 +1041,15 @@
         _progressPhase = phase;
         _progressPercent = percent;
         if (status != null)
-            _progressStatus = status;
+            _serverStatus = status;
         _metadata = WanSpeedTestService.LastMetadata;
+    }
+
+    private void SyncGatewayProgressFromService()
+    {
+        var (phase, percent, status) = GatewayWanTestService.CurrentProgress;
+        _progressPhase = phase;
+        _progressPercent = percent;
     }
 
     private async Task LoadHistory(bool resetPage = false)
@@ -874,7 +1063,12 @@
 
         try
         {
-            _testHistory = await WanSpeedTestService.GetResultsAsync(count: 0);
+            // Load results from both server and gateway WAN tests
+            var serverResults = await WanSpeedTestService.GetResultsAsync(count: 0);
+            var gatewayResults = await GatewayWanTestService.GetResultsAsync(count: 0);
+            _testHistory = serverResults.Concat(gatewayResults)
+                .OrderByDescending(r => r.TestTime)
+                .ToList();
             TransformChartData();
             ApplyFilters();
             await RenderChartAsync();
@@ -918,7 +1112,10 @@
 
     private async Task HandleDeleteResult(int resultId)
     {
-        var deleted = await WanSpeedTestService.DeleteResultAsync(resultId);
+        var result = _testHistory.FirstOrDefault(r => r.Id == resultId);
+        var deleted = result?.Direction == SpeedTestDirection.CloudflareWanGateway
+            ? await GatewayWanTestService.DeleteResultAsync(resultId)
+            : await WanSpeedTestService.DeleteResultAsync(resultId);
         if (deleted)
         {
             _testHistory.RemoveAll(r => r.Id == resultId);
@@ -937,15 +1134,22 @@
 
     private async Task HandleNotesChanged((int Id, string? Notes) args)
     {
-        await WanSpeedTestService.UpdateNotesAsync(args.Id, args.Notes);
+        var result = _testHistory.FirstOrDefault(r => r.Id == args.Id);
+        if (result?.Direction == SpeedTestDirection.CloudflareWanGateway)
+            await GatewayWanTestService.UpdateNotesAsync(args.Id, args.Notes);
+        else
+            await WanSpeedTestService.UpdateNotesAsync(args.Id, args.Notes);
     }
 
     private async Task HandleWanReassigned((int Id, string NetworkGroup, string? Name) args)
     {
-        await WanSpeedTestService.UpdateWanAssignmentAsync(args.Id, args.NetworkGroup, args.Name);
+        var result = _testHistory.FirstOrDefault(r => r.Id == args.Id);
+        if (result?.Direction == SpeedTestDirection.CloudflareWanGateway)
+            await GatewayWanTestService.UpdateWanAssignmentAsync(args.Id, args.NetworkGroup, args.Name);
+        else
+            await WanSpeedTestService.UpdateWanAssignmentAsync(args.Id, args.NetworkGroup, args.Name);
 
         // Update local result state so the table/chart reflect the change immediately
-        var result = _testHistory.FirstOrDefault(r => r.Id == args.Id);
         if (result != null)
         {
             result.WanNetworkGroup = args.NetworkGroup;
@@ -972,7 +1176,9 @@
 
         try
         {
-            var path = await PathAnalyzer.CalculatePathAsync(result.DeviceHost, result.LocalIp);
+            var path = result.Direction == SpeedTestDirection.CloudflareWanGateway
+                ? await PathAnalyzer.CalculateGatewayDirectPathAsync(resolvedWanGroup: result.WanNetworkGroup)
+                : await PathAnalyzer.CalculatePathAsync(result.DeviceHost, result.LocalIp);
             var analysis = PathAnalyzer.AnalyzeSpeedTest(
                 path,
                 result.DownloadMbps,
@@ -1013,5 +1219,6 @@
     {
         StopPolling();
         WanSpeedTestService.OnPathAnalysisComplete -= OnPathAnalysisComplete;
+        GatewayWanTestService.OnPathAnalysisComplete -= OnPathAnalysisComplete;
     }
 }
