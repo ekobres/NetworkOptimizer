@@ -333,7 +333,7 @@
                 </div>
             }
 
-            @if (PathAnalysis.Path.HasRealBottleneck)
+            @if (PathAnalysis.Path.HasRealBottleneck && (PathAnalysis.Path.Hops?.Count ?? 0) > 2)
             {
                 <div class="bottleneck-warning" data-tooltip="This is the slowest link in the path, limiting overall throughput">
                     @FormatBottleneckDescription()
@@ -716,6 +716,10 @@
         if (PathAnalysis?.Path?.HasRealBottleneck != true)
             return false;
 
+        // Gateway-direct WAN tests have only 2 hops (WAN + Gateway) - no meaningful bottleneck to highlight
+        if ((PathAnalysis.Path.Hops?.Count ?? 0) <= 2)
+            return false;
+
         // WirelessClient's IsBottleneck always means the Wi-Fi link (both directions stored on client)
         if (hop.Type == HopType.WirelessClient && hop.IsBottleneck)
             return true;
@@ -724,6 +728,13 @@
         if (hop.IsBottleneck && hop.EgressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps)
             return true;
         if (nextHop.IsBottleneck && nextHop.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps)
+            return true;
+
+        // For WAN/VPN hops, ingress and egress are both on the same logical link (download/upload),
+        // so also check the ingress side of the bottleneck hop
+        var isExternalBottleneck = hop.IsBottleneck && (hop.Type == HopType.Wan || hop.Type == HopType.Vpn ||
+            hop.Type == HopType.Tailscale || hop.Type == HopType.Teleport);
+        if (isExternalBottleneck && hop.IngressSpeedMbps == PathAnalysis.Path.TheoreticalMaxMbps)
             return true;
 
         // For symmetric (wired) links, highlight ALL links matching the bottleneck speed
