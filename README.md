@@ -2,6 +2,10 @@
 
 > **Notice:** This project is under rapid development. For the latest fixes and features, either pull the latest Docker image (`docker compose pull && docker compose up -d`) or [update from source](docker/DEPLOYMENT.md#upgrade-procedure). Releases and main are stable, but be careful testing any new feature branches you might find.
 
+## New: Signal Map
+
+Draw your building layout, place APs, and see a real-time RF propagation heatmap. The floor plan editor supports wall materials (drywall, concrete, glass, etc.), multi-floor buildings with cross-floor signal propagation, and per-AP antenna patterns pulled from your UniFi controller. Simulate TX power and antenna mode changes to see how they'd affect coverage before touching your actual config.
+
 ## New: WAN Speed Test
 
 Test your internet connection speed directly from the server using Cloudflare's speed infrastructure. Measures download, upload, and loaded latency (bufferbloat detection) with per-WAN connection tracking. Results are displayed in a time-series chart with filter badges for multi-WAN setups, so you can compare providers over time.
