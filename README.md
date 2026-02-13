@@ -1,5 +1,12 @@
 # Network Optimizer for UniFi
 
+![GitHub Release](https://img.shields.io/github/v/release/Ozark-Connect/NetworkOptimizer)
+![Docker Pulls](https://img.shields.io/badge/docker_pulls-39k-blue?logo=docker)
+![Windows Downloads](https://img.shields.io/github/downloads/Ozark-Connect/NetworkOptimizer/total?label=windows%20downloads)
+![GitHub last commit](https://img.shields.io/github/last-commit/Ozark-Connect/NetworkOptimizer)
+![GitHub Stars](https://img.shields.io/github/stars/Ozark-Connect/NetworkOptimizer)
+![License](https://img.shields.io/badge/license-BSL_1.1-green)
+
 > **Notice:** This project is under rapid development. For the latest fixes and features, either pull the latest Docker image (`docker compose pull && docker compose up -d`) or [update from source](docker/DEPLOYMENT.md#upgrade-procedure). Releases and main are stable, but be careful testing any new feature branches you might find.
 
 ## New: Signal Map
