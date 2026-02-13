@@ -237,4 +237,4 @@ For commercial licensing inquiries, contact tj@ozarkconnect.net.
 
 ---
 
-<sub>Network Optimizer for UniFi is an independent project by Ozark Connect and is not affiliated with, endorsed by, or sponsored by Ubiquiti Inc. UniFi, UniFi OS, UDM, UCG, UDR, and related product names are trademarks or registered trademarks of Ubiquiti Inc. All other trademarks are the property of their respective owners.</sub>
+<sub>Network Optimizer for UniFi is an independent project by Ozark Connect and is not affiliated with, endorsed by, or sponsored by Ubiquiti, Inc. Ubiquiti, UniFi, UDM, and Cloud Key are trademarks or registered trademarks of Ubiquiti, Inc. All other trademarks are the property of their respective owners.</sub>
