@@ -70,7 +70,7 @@
                 @* ── Walls group ── *@
                 <div class="fp-toolbar-group">
                     <button class="fp-btn @(_mode == "walls" ? "fp-btn-warning" : "")" @onclick="ToggleWallDrawMode">
-                        @(_mode == "walls" ? "Done Drawing" : "Draw Walls")
+                        @(_mode == "walls" ? "Done Drawing" : "Draw Layout")
                     </button>
                     @if (_mode == "walls")
                     {
@@ -1728,13 +1728,13 @@
     public async Task OnMapDblClickFinishWall()
     {
         if (_mode != "walls" || _selectedFloor == null) return;
-        await JS.InvokeVoidAsync("fpEditor.finishWall");
+        await JS.InvokeVoidAsync("fpEditor.commitCurrentWall");
     }
 
     private async Task FinishCurrentWall()
     {
         if (_mode != "walls" || _selectedFloor == null) return;
-        await JS.InvokeVoidAsync("fpEditor.finishWall", true);
+        await JS.InvokeVoidAsync("fpEditor.commitCurrentWall");
     }
 
     [JSInvokable]
@@ -2314,6 +2314,7 @@
         // Leaflet needs to recalculate its container size after layout change
         await Task.Delay(50);
         await JS.InvokeVoidAsync("fpEditor.invalidateSize");
+        await FitMapToContent();
     }
 
     private async Task FitMapToContent()
@@ -2358,12 +2359,10 @@
 
     private async Task OnEditorKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape" && _isFullscreen)
+        if (e.Key == "Escape" && _mode == "walls" && _isDrawingShape)
         {
-            _isFullscreen = false;
-            StateHasChanged();
-            await Task.Delay(50);
-            await JS.InvokeVoidAsync("fpEditor.invalidateSize");
+            // Same as Finish Shape - commit current wall and stay in draw mode
+            await JS.InvokeVoidAsync("fpEditor.commitCurrentWall");
         }
     }
 
