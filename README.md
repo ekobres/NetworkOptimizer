@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/app-logo.png" alt="Network Optimizer" width="200">
+</p>
+
 # Network Optimizer for UniFi
 
 [![GitHub Release](https://img.shields.io/github/v/release/Ozark-Connect/NetworkOptimizer)](https://github.com/Ozark-Connect/NetworkOptimizer/releases)
