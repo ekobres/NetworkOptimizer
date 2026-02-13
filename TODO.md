@@ -3,9 +3,21 @@
 ## LAN Speed Test
 
 ### Path Analysis Enhancements
-- Direction-aware bottleneck calculation: TX and RX rates can differ significantly on Wi-Fi (e.g., client may have 800 Mbps TX but 400 Mbps RX); path analysis should use direction-appropriate rate for separate from/to max speeds
+- ✅ ~~Direction-aware bottleneck calculation~~ (done - `GetDirectionalEfficiency()` in PathAnalysisResult, separate TX/RX bottleneck in NetworkPathAnalyzer)
 - More gateway models in routing limits table as we gather data
 - Threshold tuning based on real-world data collection
+
+### Scheduled LAN Speed Test
+- Allow users to schedule recurring LAN speed tests (e.g., hourly, daily, weekly)
+- Automatically run iperf3 tests against configured devices on a schedule
+- Store results for trend analysis and historical comparison
+- Useful for detecting intermittent performance degradation over time
+
+### Scheduled WAN Speed Test
+- Allow users to schedule recurring WAN speed tests
+- Automatically test WAN throughput on a configurable schedule
+- Track ISP performance over time with historical data
+- Alert on significant speed drops compared to provisioned/expected speeds
 
 ## Security Audit / PDF Report
 
@@ -45,21 +57,8 @@
 - Severity: Recommended (not Critical, since some users intentionally allow fallback)
 - **Status:** Awaiting user feedback on current third-party DNS feature before implementing
 
-### Printer/Scanner Audit Logic Consolidation
-- **Issue:** Printer/Scanner VLAN placement logic is duplicated across multiple files
-- **Current state:**
-  - `IotVlanRule.cs` - wired devices, checks `isPrinter` inline
-  - `WirelessIotVlanRule.cs` - wireless devices, checks `isPrinter` inline
-  - `ConfigAuditEngine.cs` - offline wireless via `CheckOfflinePrinterPlacement()`
-  - `VlanPlacementChecker.cs` - shared placement logic
-- **Problems:**
-  1. `isPrinter` check duplicated: `Category == Printer || Category == Scanner`
-  2. Offline wired printers handled differently (via `HistoricalClient` in `IotVlanRule`) than offline wireless (separate method in `ConfigAuditEngine`)
-  3. No dedicated `PrinterVlanRule` - piggybacks on IoT rules
-- **Proposed fix:**
-  - Add `IsPrinterOrScanner()` extension method to `ClientDeviceCategoryExtensions`
-  - Consider dedicated `PrinterVlanRule` and `WirelessPrinterVlanRule` classes
-  - Unify offline handling for wired/wireless printers
+### ✅ ~~Printer/Scanner Audit Logic Consolidation~~ (done)
+- Consolidated in `VlanPlacementChecker.CheckPrinterPlacement()`, called from `ConfigAuditEngine`
 
 ## Performance Audit
 
@@ -124,15 +123,19 @@ The following were implemented in the WiFi Optimizer feature:
 
 ## SQM (Smart Queue Management)
 
+### Retrofit Custom Cloudflare Speed Test Binary into Adaptive SQM
+- Replace current WAN speed test approach in Adaptive SQM with the custom Cloudflare speed test binary
+- The Cloudflare speed test provides more accurate and consistent WAN throughput measurements
+- Integration points: SQM calibration, periodic re-calibration, manual speed test triggers
+- Should use the same binary/approach as the standalone Cloudflare speed test projects
+
 ### Multi-WAN Support
 - Support for 3rd, 4th, and N number of WAN connections
 - Currently limited to two WAN connections
 - Should dynamically detect and configure all available WAN interfaces
 
-### GRE/PPP Tunnel Support
-- Support for GRE and PPP tunnel connections (e.g., UniFi 5G modem, PPPoE)
-- Currently specifically excluded from SQM configuration
-- These tunnels should be treated as valid WAN interfaces for SQM purposes
+### ✅ ~~GRE/PPP Tunnel Support~~ (done)
+- PPPoE fully supported in SqmService (uses physical interface for lookup, tunnel interface for SQM)
 
 ## Multi-Tenant / Multi-Site Support
 
@@ -253,6 +256,7 @@ The following were implemented in the WiFi Optimizer feature:
 - **Observed:** 4-5 polls within 4 seconds when navigating dashboard → settings
 - **Fix:** Add debounce or lock around UI-triggered polls in `CellularModemService`
 - **Severity:** Low (causes extra SSH traffic but no errors)
+- **Partial:** Basic `_isPolling` lock prevents concurrent polls, but no time-based debounce yet
 
 ### Uniform Date/Time Formatting in UI
 - Audit all date/time displays across the UI for consistency
