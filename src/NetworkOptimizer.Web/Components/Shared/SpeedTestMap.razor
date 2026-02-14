@@ -44,7 +44,7 @@
                     <button class="btn btn-sm @(apEditMode ? "btn-warning" : "btn-secondary")"
                             @onclick="ToggleApEditMode"
                             data-tooltip="@(apEditMode ? "Done editing AP locations" : "Edit AP locations")">
-                        @(apEditMode ? "Done" : "Edit APs")
+                        @(apEditMode ? "Done" : PlacedApCount > 0 ? "Edit APs" : "Place APs")
                     </button>
                 }
                 <button class="btn btn-sm btn-secondary map-action-btn"
